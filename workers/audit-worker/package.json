@@ -1,0 +1,34 @@
+{
+  "name": "audit-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "type-check": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings=0 || true",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@cleartoship/audit-core": "workspace:*",
+    "@cleartoship/shared-types": "workspace:*",
+    "@google-cloud/firestore": "^7.7.0",
+    "@google-cloud/storage": "^7.11.1",
+    "express": "^4.19.2",
+    "firebase-admin": "^12.1.1",
+    "google-auth-library": "^9.10.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.12.7",
+    "tsx": "^4.11.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0",
+    "@vitest/coverage-v8": "^1.6.0"
+  }
+}

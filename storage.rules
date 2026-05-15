@@ -1,0 +1,49 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    // Caller (client) is the owner if they own the auditRun referenced by {runId}.
+    // We cannot do a Firestore get from Storage rules cheaply, so we rely on
+    // Admin SDK (worker) for writes and check uid metadata on read.
+    function isRunOwnerByMetadata() {
+      return isSignedIn()
+             && resource != null
+             && resource.metadata != null
+             && resource.metadata.ownerUid == request.auth.uid;
+    }
+
+    match /screenshots/{runId}/{allPaths=**} {
+      allow read: if isRunOwnerByMetadata();
+      allow write: if false; // Admin SDK only.
+    }
+
+    match /reports/{runId}/{allPaths=**} {
+      allow read: if isRunOwnerByMetadata();
+      allow write: if false;
+    }
+
+    match /artifacts/{runId}/{allPaths=**} {
+      allow read: if false; // Internal only.
+      allow write: if false;
+    }
+
+    // User uploads (PRD docs etc.) — scoped under /uploads/{userId}/{runId}/.
+    // Embedding {userId} in the path lets us enforce request.auth.uid == userId
+    // directly, eliminating cross-tenant write where a signed-in user could
+    // previously upload into another user's {runId} folder.
+    match /uploads/{userId}/{runId}/{allPaths=**} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow write: if isSignedIn()
+                   && request.auth.uid == userId
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('text/.*|application/pdf|application/octet-stream');
+    }
+
+    // Default deny.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

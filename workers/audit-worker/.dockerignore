@@ -1,0 +1,12 @@
+node_modules
+dist
+.turbo
+.next
+.git
+.github
+.vscode
+**/*.log
+**/*.test.ts
+**/__tests__
+**/coverage
+**/.DS_Store

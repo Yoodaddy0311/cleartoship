@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+    function runOwner(runId) {
+      return get(/databases/$(database)/documents/auditRuns/$(runId)).data.ownerId == request.auth.uid;
+    }
+
+    // --- Users ---
+    match /users/{uid} {
+      allow read, write: if isOwner(uid);
+
+      match /projects/{projectId} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // --- Audit Runs (top-level for cross-user worker access) ---
+    match /auditRuns/{runId} {
+      allow read: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+
+      // Clients may only create runs in PENDING state with their own ownerId.
+      allow create: if isSignedIn()
+                    && request.resource.data.ownerId == request.auth.uid
+                    && request.resource.data.status == 'PENDING';
+
+      // Updates/deletes are server-side only (Admin SDK via worker / functions).
+      allow update, delete: if false;
+
+      match /toolResults/{toolResultId} {
+        allow read: if isSignedIn() && runOwner(runId);
+        allow write: if false;
+      }
+
+      match /findings/{findingId} {
+        allow read: if isSignedIn() && runOwner(runId);
+        allow write: if false;
+      }
+
+      match /evidences/{evidenceId} {
+        allow read: if isSignedIn() && runOwner(runId);
+        allow write: if false;
+      }
+
+      match /featureGraph/{docId} {
+        allow read: if isSignedIn() && runOwner(runId);
+        allow write: if false;
+      }
+
+      match /report/{docId} {
+        allow read: if isSignedIn() && runOwner(runId);
+        allow write: if false;
+      }
+
+      match /improvementPrd/{docId} {
+        allow read: if isSignedIn() && runOwner(runId);
+        allow write: if false;
+      }
+
+      match /uploadedDocuments/{docId} {
+        allow read: if isSignedIn() && runOwner(runId);
+        allow write: if false;
+      }
+    }
+
+    // --- Progress Events (live UI subscriptions) ---
+    match /progressEvents/{runId}/events/{eventId} {
+      allow read: if isSignedIn() && runOwner(runId);
+      allow write: if false;
+    }
+
+    // Default deny.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

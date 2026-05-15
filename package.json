@@ -1,0 +1,26 @@
+{
+  "name": "cleartoship",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ClearToShip — AI Product Auditor for vibe-coded projects",
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm -r build",
+    "ci": "pnpm -r type-check && pnpm -r lint && pnpm -r test",
+    "lint": "pnpm -r lint",
+    "type-check": "pnpm -r type-check",
+    "test": "pnpm -r test",
+    "emulators": "firebase emulators:start --import=./seed --export-on-exit",
+    "deploy:hosting": "firebase deploy --only hosting",
+    "deploy:functions": "firebase deploy --only functions",
+    "deploy:rules": "firebase deploy --only firestore:rules,firestore:indexes,storage:rules"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "@types/node": "^20.12.7"
+  }
+}

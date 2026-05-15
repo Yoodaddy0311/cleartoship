@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "allowJs": true,
+    "noEmit": true,
+    "incremental": true,
+    "baseUrl": ".",
+    "plugins": [{ "name": "next" }],
+    "paths": {
+      "@cleartoship/shared-types": ["../../packages/shared-types/src"],
+      "@cleartoship/shared-types/*": ["../../packages/shared-types/src/*"],
+      "@cleartoship/audit-core": ["../../packages/audit-core/src"],
+      "@cleartoship/audit-core/*": ["../../packages/audit-core/src/*"],
+      "@cleartoship/ui": ["../../packages/ui/src"],
+      "@cleartoship/ui/*": ["../../packages/ui/src/*"],
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": ["node_modules", ".next", "e2e", "playwright.config.ts"]
+}

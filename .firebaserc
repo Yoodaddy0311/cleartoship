@@ -1,0 +1,7 @@
+{
+  "projects": {
+    "default": "cleartoship-prod",
+    "dev": "cleartoship-dev",
+    "ci": "demo-cleartoship"
+  }
+}
