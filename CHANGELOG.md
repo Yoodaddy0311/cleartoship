@@ -18,6 +18,8 @@
 - `functions/src/lib/enqueue-audit-task.ts` — `emitMetric()` helper 추가. 신규 enqueue 시 `audit_task.enqueue.created`, gRPC ALREADY_EXISTS(code 6) 시 `audit_task.enqueue.deduped` 단일라인 JSON Cloud Logging 호환 이벤트 emit. (S3-8)
 - `apps/web/components/findings/finding-detail-panel.tsx` — `truncated?: boolean` prop 추가. `true` 시 evidence Card 상단에 `role="status"`, `aria-live="polite"`, AlertTriangle 아이콘 + "알림:" 텍스트 prefix 배너 렌더링. (S3-7 follow-up)
 - `apps/web/lib/i18n/ko.ts` — `findings.detail.evidences.truncated` i18n 키 추가 (ko-only 단일 로케일 아키텍처). (S3-7 follow-up)
+- `apps/web/lib/i18n/en.ts` — English locale map 스캐폴드. `Messages = { [K in keyof Ko]: string }` ko-derived 타입으로 컴파일 단계에서 키 누락/오타 차단. 131개 키 영문 번역 완료. index.ts default export는 ko 유지 (스캐폴드 only). (S3-10B)
+- `apps/web/lib/i18n/en.test.ts` — en/ko 키 parity + 빈 문자열 가드 + 비-ASCII 키 가드 (5 tests). 향후 키 추가 시 동기화 누락 자동 감지. (S3-10B)
 - `.gitignore` — `e2e/.artifacts/` 경로 추가. (S3-9)
 
 ### Changed
@@ -27,12 +29,16 @@
 - `apps/web/playwright.config.ts` — `baseURL` 기본값 3000 → 3100, `webServer.command` 동기화. (S3-9)
 - `apps/web/components/marketing/HowItWorks.tsx` — 테스트 매직 넘버 3 제거. `describe.each`로 2/3/5 단계 변형 동적 assertion. `steps?` prop optional (default = DEFAULT_STEPS). (S3-3)
 - `apps/web/components/marketing/Hero.tsx` — `data-testid` 7개 추가 (`hero-section`, `hero-eyebrow`, `hero-headline`, `hero-headline-accent`, `hero-subtitle`, `hero-cta-primary`, `hero-cta-secondary`). 테스트를 구조 검증(i18n-agnostic, 6건) + i18n smoke(1건)으로 분리. (S3-5)
+- `apps/web/e2e/marketing-smoke.spec.ts` + `apps/web/e2e/pages/MarketingHomePage.ts` — Playwright wait strategy `networkidle` → `domcontentloaded` 전환 (안정성 향상). (S3-10A)
+- `apps/web/e2e/axe.spec.ts` — `/audits` 케이스만 `test.skip(true, 'TODO Sprint 4: ...')` 처리. 마케팅 홈(`/`) a11y는 유지. (S3-10A)
+- `apps/web/e2e/golden-path.spec.ts`, `apps/web/e2e/prd-upload.spec.ts`, `apps/web/e2e/url-validation.spec.ts` — 전체 `test.describe.skip` + 파일 상단 `// TODO Sprint 4: re-enable when audit-start form is re-mounted to a route.` 주석. 삭제하지 않고 보존 (audit-start form 라우트 재마운트 시 재활성화 예정). (S3-10A)
 
 ### Verified
 
-- `pnpm -F web test` → 380/380 PASS (Sprint 2 기준 352 → +28)
+- `pnpm -F web test` → 380/380 PASS + i18n parity 5 추가 (en.test.ts) = 385/385 PASS
 - `pnpm -F functions test` → 32/32 PASS (Sprint 2 기준 29 → +3)
-- E2E: 3 tests, `--repeat-each=5` 15/15 PASS, 0 flake
+- E2E: marketing-smoke 3 tests, `--repeat-each=5` 15/15 PASS, 0 flake. outdated 4 specs는 skip 집계
+- networkidle 호출 0건 (`grep -rn networkidle apps/web/e2e/`)
 - `tsc --noEmit`: web / shared-types / functions 모두 clean
 - 선존 tsc 에러: `functions/src/lib/enqueue-audit-task.test.ts:40` — Sprint 2 커밋 `5aec9a4` 유입분, 본 Sprint 무관
 
