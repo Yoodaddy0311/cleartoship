@@ -75,16 +75,25 @@ describe('getFinding — evidence cap (Item #14)', () => {
   // (recording calls) is what matters.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let stderrSpy: any;
+  const originalEvidenceCap = process.env.EVIDENCE_CAP;
 
   beforeEach(() => {
     vi.resetAllMocks();
     stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     checkRunOwnershipMock.mockResolvedValue('OK');
     setupFindingSnap(true, { id: 'finding-1', title: 't' });
+    // Ensure each test starts with the default cap unless it overrides.
+    delete process.env.EVIDENCE_CAP;
   });
 
   afterEach(() => {
     stderrSpy.mockRestore();
+    if (originalEvidenceCap === undefined) {
+      delete process.env.EVIDENCE_CAP;
+    } else {
+      process.env.EVIDENCE_CAP = originalEvidenceCap;
+    }
+    vi.resetModules();
   });
 
   it('applies .limit(200) and warns when evidence count hits the cap', async () => {
@@ -95,6 +104,8 @@ describe('getFinding — evidence cap (Item #14)', () => {
     // Returned at most 200 evidences
     expect(result).not.toBeNull();
     expect(result!.evidences).toHaveLength(200);
+    // Truncated flag exposed for the API layer
+    expect(result!.truncated).toBe(true);
 
     // .limit(200) was invoked on the chain
     expect(limitMock).toHaveBeenCalledWith(200);
@@ -108,5 +119,65 @@ describe('getFinding — evidence cap (Item #14)', () => {
     expect(parsed.cap).toBe(200);
     expect(parsed.runId).toBe('run-1');
     expect(parsed.findingId).toBe('finding-1');
+  });
+
+  it('returns truncated=false when evidence count is below the cap', async () => {
+    setupEvidenceCollection(makeEvidenceDocs(5));
+    const { getFinding } = await import('./get-findings');
+    const result = await getFinding('run-1', 'finding-1', 'owner-1');
+
+    expect(result).not.toBeNull();
+    expect(result!.evidences).toHaveLength(5);
+    expect(result!.truncated).toBe(false);
+    // No warn log when below the cap
+    expect(stderrSpy).not.toHaveBeenCalled();
+  });
+
+  it('honors EVIDENCE_CAP env override when valid', async () => {
+    process.env.EVIDENCE_CAP = '50';
+    setupEvidenceCollection(makeEvidenceDocs(50));
+    const { getFinding } = await import('./get-findings');
+    const result = await getFinding('run-1', 'finding-1', 'owner-1');
+
+    expect(result!.truncated).toBe(true);
+    expect(result!.evidences).toHaveLength(50);
+    expect(limitMock).toHaveBeenCalledWith(50);
+    // Warn payload should reflect the overridden cap.
+    const written = String(stderrSpy.mock.calls[0]?.[0] ?? '');
+    const parsed = JSON.parse(written.trim());
+    expect(parsed.cap).toBe(50);
+  });
+
+  it('falls back to default cap and warns when EVIDENCE_CAP is invalid (NaN)', async () => {
+    process.env.EVIDENCE_CAP = 'not-a-number';
+    setupEvidenceCollection(makeEvidenceDocs(10));
+    const { getFinding } = await import('./get-findings');
+    await getFinding('run-1', 'finding-1', 'owner-1');
+
+    expect(limitMock).toHaveBeenCalledWith(200);
+    // First write is the invalid-env warn; the cap-hit warn would not fire
+    // because 10 < 200.
+    const firstWrite = String(stderrSpy.mock.calls[0]?.[0] ?? '');
+    const parsed = JSON.parse(firstWrite.trim());
+    expect(parsed.level).toBe('warn');
+    expect(parsed.message).toMatch(/Invalid EVIDENCE_CAP/);
+    expect(parsed.rawValue).toBe('not-a-number');
+    expect(parsed.fallback).toBe(200);
+  });
+
+  it.each([
+    ['0', '0'],
+    ['-5', '-5'],
+    ['1.5', '1.5'],
+  ])('falls back to default cap when EVIDENCE_CAP is %s', async (envValue) => {
+    process.env.EVIDENCE_CAP = envValue;
+    setupEvidenceCollection(makeEvidenceDocs(3));
+    const { getFinding } = await import('./get-findings');
+    await getFinding('run-1', 'finding-1', 'owner-1');
+
+    expect(limitMock).toHaveBeenCalledWith(200);
+    const firstWrite = String(stderrSpy.mock.calls[0]?.[0] ?? '');
+    const parsed = JSON.parse(firstWrite.trim());
+    expect(parsed.message).toMatch(/Invalid EVIDENCE_CAP/);
   });
 });

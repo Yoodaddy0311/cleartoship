@@ -134,13 +134,38 @@ export async function enqueueAuditTask(
         dispatchDeadline: { seconds: 600 },
       },
     });
-    return { taskName: task.name ?? deterministicTaskName, deduped: false };
+    const finalTaskName = task.name ?? deterministicTaskName;
+    emitMetric('audit_task.enqueue.created', payload.runId, finalTaskName);
+    return { taskName: finalTaskName, deduped: false };
   } catch (err) {
     // gRPC code 6 = ALREADY_EXISTS — dedupe path, intended behaviour.
     const code = (err as { code?: number } | null)?.code;
     if (code === 6) {
+      emitMetric('audit_task.enqueue.deduped', payload.runId, deterministicTaskName);
       return { taskName: deterministicTaskName, deduped: true };
     }
     throw err;
   }
+}
+
+/**
+ * Emit a single-line structured JSON metric event to stdout. Cloud Logging
+ * auto-parses JSON-formatted stdout lines from Cloud Functions, so these
+ * events become first-class log entries that can be filtered/aggregated
+ * without extra agents. Format intentionally matches the contract documented
+ * in Sprint 3 P1-C: { event, runId, taskName, timestamp }.
+ */
+function emitMetric(
+  event: 'audit_task.enqueue.created' | 'audit_task.enqueue.deduped',
+  runId: string,
+  taskName: string,
+): void {
+  process.stdout.write(
+    JSON.stringify({
+      event,
+      runId,
+      taskName,
+      timestamp: new Date().toISOString(),
+    }) + '\n',
+  );
 }

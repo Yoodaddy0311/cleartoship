@@ -23,7 +23,11 @@ export async function GET(req: NextRequest, ctx: { params: { id: string } }) {
   try {
     const result = await getFinding(runId, findingId, caller.uid);
     if (!result) return jsonError('NOT_FOUND', '해당 Finding을 찾을 수 없습니다.', 404);
-    return jsonOk({ finding: result.finding, evidences: result.evidences });
+    return jsonOk({
+      finding: result.finding,
+      evidences: result.evidences,
+      truncated: result.truncated,
+    });
   } catch (err) {
     logServerError(`GET /api/findings/${findingId}`, err);
     return jsonError('INTERNAL', 'Finding 조회 중 오류가 발생했습니다.', 500);

@@ -102,6 +102,9 @@ export type ListFindingsResponse = z.infer<typeof ListFindingsResponseSchema>;
 export const GetFindingResponseSchema = z.object({
   finding: FindingSchema,
   evidences: z.array(EvidenceSchema),
+  // True when the evidence list was capped server-side (see EVIDENCE_CAP).
+  // Optional with a default of `false` so older clients/snapshots still parse.
+  truncated: z.boolean().optional().default(false),
 });
 export type GetFindingResponse = z.infer<typeof GetFindingResponseSchema>;
 

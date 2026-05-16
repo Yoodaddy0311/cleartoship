@@ -92,13 +92,13 @@ describe('GET /api/findings/:id', () => {
     expect(getFindingMock).toHaveBeenCalledWith('run-1', 'f-1', 'user-1');
   });
 
-  it('returns 200 with {finding, evidences} on the happy path', async () => {
+  it('returns 200 with {finding, evidences, truncated:false} on the happy path', async () => {
     const finding = { id: 'f-1', title: 'Bad thing', severity: 'HIGH' };
     const evidences = [
       { id: 'e-1', findingId: 'f-1' },
       { id: 'e-2', findingId: 'f-1' },
     ];
-    getFindingMock.mockResolvedValueOnce({ finding, evidences });
+    getFindingMock.mockResolvedValueOnce({ finding, evidences, truncated: false });
     const { GET } = await import('@/app/api/findings/[id]/route');
     const req = makeReq('http://localhost/api/findings/f-1?runId=run-1', {
       authorization: 'Bearer fake',
@@ -106,8 +106,26 @@ describe('GET /api/findings/:id', () => {
     const res = await GET(req, { params: { id: 'f-1' } });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({ finding, evidences });
+    expect(body).toEqual({ finding, evidences, truncated: false });
     expect(getFindingMock).toHaveBeenCalledWith('run-1', 'f-1', 'user-1');
+  });
+
+  it('forwards truncated=true to the response when the evidence cap was hit', async () => {
+    const finding = { id: 'f-1', title: 'Bad thing', severity: 'HIGH' };
+    const evidences = Array.from({ length: 200 }, (_, i) => ({
+      id: `e-${i}`,
+      findingId: 'f-1',
+    }));
+    getFindingMock.mockResolvedValueOnce({ finding, evidences, truncated: true });
+    const { GET } = await import('@/app/api/findings/[id]/route');
+    const req = makeReq('http://localhost/api/findings/f-1?runId=run-1', {
+      authorization: 'Bearer fake',
+    });
+    const res = await GET(req, { params: { id: 'f-1' } });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.truncated).toBe(true);
+    expect(body.evidences).toHaveLength(200);
   });
 
   it('returns 500 INTERNAL when getFinding throws', async () => {
