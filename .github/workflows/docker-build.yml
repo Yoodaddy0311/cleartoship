@@ -1,0 +1,62 @@
+name: Docker Build
+
+# PR-time validation that the audit-worker container builds cleanly.
+# This workflow ONLY builds — it never pushes to a registry.
+# Registry push + Cloud Run deployment is the responsibility of `.github/workflows/deploy.yml`.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "workers/audit-worker/**"
+      - "workers/audit-worker/Dockerfile"
+      - "packages/shared-types/**"
+      - "packages/audit-core/**"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/docker-build.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "workers/audit-worker/**"
+      - "workers/audit-worker/Dockerfile"
+      - "packages/shared-types/**"
+      - "packages/audit-core/**"
+      - "pnpm-workspace.yaml"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/docker-build.yml"
+
+concurrency:
+  group: docker-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-audit-worker:
+    name: Build audit-worker image
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
+
+      - name: Build audit-worker image (no push)
+        uses: docker/build-push-action@ca877d9245402d1537745e0e356eab47c3520991 # v6.5.0
+        with:
+          # Build context is the monorepo root because the Dockerfile COPYs from
+          # packages/* and workspace manifests; building from workers/audit-worker
+          # alone would miss workspace siblings.
+          context: .
+          file: ./workers/audit-worker/Dockerfile
+          push: false
+          load: false
+          platforms: linux/amd64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          tags: audit-worker:ci-${{ github.sha }}
