@@ -48,7 +48,7 @@ export class MarketingHomePage {
         'If this is 500, the Next.js dev server likely has a corrupted .next ' +
         'cache — restart with `rm -rf apps/web/.next && pnpm -F web dev -p 3100`.'
     ).toBeLessThan(400);
-    await this.page.waitForLoadState('networkidle');
+    await this.page.waitForLoadState('domcontentloaded');
     await expect(this.heroSection).toBeVisible();
   }
 

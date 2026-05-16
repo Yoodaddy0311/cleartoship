@@ -1,3 +1,4 @@
+// TODO Sprint 4: re-enable when audit-start form is re-mounted to a route.
 import { test, expect } from '@playwright/test';
 import { HomePage } from './pages/HomePage';
 
@@ -42,7 +43,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test.describe('Scenario 3: URL validation', () => {
+test.describe.skip('Scenario 3: URL validation', () => {
   test('rejects non-GitHub repo URL (https://gitlab.com/...)', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();

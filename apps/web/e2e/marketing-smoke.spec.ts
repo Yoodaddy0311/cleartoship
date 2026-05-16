@@ -68,7 +68,7 @@ test.describe('Sprint 3 marketing smoke', () => {
   test('unknown route renders localized 404 page', async ({ page }) => {
     // Hit a route that cannot exist to force Next.js to render `not-found.tsx`.
     const response = await page.goto('/this-route-does-not-exist-e2e');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('domcontentloaded');
 
     // Next.js returns 404 for the static asset; the body still renders.
     expect(response?.status()).toBe(404);
