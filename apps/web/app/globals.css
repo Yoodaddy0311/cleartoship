@@ -1,249 +1,163 @@
+@import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap');
 @import "tailwindcss";
 
 /* =========================================================================
-   ClearToShip — Antigravity Design System
-   Single source of truth for tokens. Mirrors docs/design-system §3, §14.
+   ClearToShip — Light 2-Theme Design System
+   - Marketing (mk-*): Google Antigravity inspired light surface
+   - App      (app-*): Semgrep inspired analyst surface
+   - Severity (sev-*): finding bars P0~P3
+   Single source of truth. No dark/aurora/glass legacy.
    ========================================================================= */
-@theme {
-  /* === Background === */
-  --color-bg-base:     #07070B;
-  --color-bg-elevated: #0F0F15;
-  --color-bg-glass:    rgba(255, 255, 255, 0.03);
-  --color-bg-overlay:  rgba(7, 7, 11, 0.72);
 
-  /* === Foreground === */
-  --color-fg-primary:  #F4F4F8;
-  --color-fg-secondary:#B4B4C0;
-  --color-fg-muted:    #6E6E7A;
-  --color-fg-disabled: #3A3A44;
+:root {
+  /* Marketing (Google Antigravity-inspired) */
+  --mk-bg: #FFFFFF;
+  --mk-bg-soft: #F8F9FA;
+  --mk-fg: #1F1F1F;
+  --mk-fg-muted: #5F6368;
+  --mk-accent: #1A73E8;
+  --mk-accent-2: #8430CE;
+  --mk-gradient: linear-gradient(135deg, #4285F4 0%, #8430CE 50%, #EA4335 100%);
+  --mk-radius: 16px;
+  --mk-radius-pill: 9999px;
+  --mk-shadow: 0 1px 3px rgba(60,64,67,0.12), 0 4px 12px rgba(60,64,67,0.04);
+  --mk-font-display: 'Google Sans', 'Pretendard Variable', system-ui, sans-serif;
+  --mk-hero-size: clamp(48px, 7vw, 88px);
 
-  /* === Border === */
-  --color-border-subtle:   rgba(255, 255, 255, 0.06);
-  --color-border-default:  rgba(255, 255, 255, 0.10);
-  --color-border-emphasis: rgba(255, 255, 255, 0.20);
+  /* App (Semgrep-inspired) */
+  --app-bg: #F8FAF6;
+  --app-surface: #FFFFFF;
+  --app-sidebar-bg: #0E1217;
+  --app-sidebar-fg: #C7CCD1;
+  --app-sidebar-active: #FFFFFF;
+  --app-fg: #1A1D21;
+  --app-fg-muted: #6B7280;
+  --app-border: #E5E7EB;
+  --app-chip-bg: #F3F4F6;
 
-  /* === Aurora Accent === */
-  --color-aurora-violet: #7C3AED;
-  --color-nebula-blue:   #3B82F6;
-  --color-plasma-cyan:   #06B6D4;
-  --color-solar-pink:    #EC4899;
-  --color-ember-amber:   #F59E0B;
+  /* Severity (Semgrep finding bars) */
+  --sev-p0: #E11D48;
+  --sev-p1: #F97316;
+  --sev-p2: #EAB308;
+  --sev-p3: #10B981;
 
-  /* === Severity (P0~P3) === */
-  --color-severity-p0: #FF3B69;
-  --color-severity-p1: #FF8A3D;
-  --color-severity-p2: #FFD93D;
-  --color-severity-p3: #5BC2A0;
+  --app-radius: 10px;
+  --app-shadow-card: 0 1px 2px rgba(15,23,42,0.04), 0 1px 3px rgba(15,23,42,0.06);
 
-  /* === Feature Graph Status (9 statuses) === */
-  --color-status-complete:           #5BC2A0;
-  --color-status-partial:            #FFD93D;
-  --color-status-ui-only:            #FF8A3D;
-  --color-status-logic-only:         #3B82F6;
-  --color-status-missing-connection: #FF3B69;
-  --color-status-missing:            #6E6E7A;
-  --color-status-risky:              #DC143C;
-  --color-status-recommended:        #A855F7;
-  --color-status-unknown:            #71717A;
-
-  /* === Typography === */
-  --font-sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --font-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
-
-  --text-display-2xl: 4.5rem;     /* 72px */
-  --text-display-xl:  3.75rem;    /* 60px */
-  --text-display-lg:  3rem;       /* 48px */
-  --text-display-md:  2.25rem;    /* 36px */
-  --text-display-sm:  1.875rem;   /* 30px */
-  --text-xl:  1.25rem;            /* 20px */
-  --text-lg:  1.125rem;           /* 18px */
-  --text-md:  1rem;               /* 16px */
-  --text-sm:  0.875rem;           /* 14px */
-  --text-xs:  0.75rem;            /* 12px */
-
-  /* === Radius === */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
-  --radius-full: 9999px;
-
-  /* === Motion === */
-  --ease-standard:    cubic-bezier(0.2, 0.8, 0.2, 1);
-  --ease-emphasized:  cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-enter:       cubic-bezier(0, 0, 0.2, 1);
-  --ease-exit:        cubic-bezier(0.4, 0, 1, 1);
-  --duration-fast:   120ms;
-  --duration-base:   200ms;
-  --duration-slow:   360ms;
-  --duration-aurora: 1200ms;
+  /* =======================================================================
+     Legacy aliases — point old token names at the new 2-theme system so
+     consumer files don't need touching during Phase 4.5 migration.
+     ======================================================================= */
+  --color-fg-primary: var(--app-fg);
+  --color-fg-secondary: var(--app-fg);
+  --color-fg-muted: var(--app-fg-muted);
+  --color-fg-disabled: var(--app-fg-muted);
+  --color-bg-elevated: var(--app-surface);
+  --color-border-subtle: var(--app-border);
+  --color-border-default: var(--app-border);
+  --color-border-emphasis: var(--app-border);
+  --color-severity-p0: var(--sev-p0);
+  --color-severity-p1: var(--sev-p1);
+  --color-severity-p2: var(--sev-p2);
+  --color-severity-p3: var(--sev-p3);
+  --color-status-recommended: var(--sev-p3);
+  --color-plasma-cyan: var(--mk-accent);
+  --app-bg-soft: var(--app-chip-bg);
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --focus-ring: 0 0 0 2px var(--mk-accent);
+  --elev-1: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --elev-2: 0 4px 12px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.04);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* =========================================================================
-   Root / Body
-   ========================================================================= */
-:root {
-  color-scheme: dark;
-  --gradient-aurora: linear-gradient(135deg, #7C3AED 0%, #3B82F6 40%, #06B6D4 100%);
-  --gradient-solar:  linear-gradient(135deg, #EC4899 0%, #F59E0B 100%);
-
-  /* Elevation tokens (dark-tuned) */
-  --elev-1: 0 1px 0 rgba(255,255,255,0.04) inset, 0 4px 12px rgba(0,0,0,0.4);
-  --elev-2: 0 1px 0 rgba(255,255,255,0.06) inset, 0 8px 24px rgba(0,0,0,0.5);
-  --elev-3: 0 16px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08);
-
-  /* Glow */
-  --glow-violet: 0 0 24px rgba(124,58,237,0.45);
-  --glow-pink:   0 0 24px rgba(236,72,153,0.45);
-  --glow-cyan:   0 0 24px rgba(6,182,212,0.45);
-
-  /* Focus ring */
-  --focus-ring: 0 0 0 2px rgba(124,58,237,0.6), 0 0 0 4px rgba(124,58,237,0.25);
+html, body {
+  background: var(--mk-bg);
+  color: var(--mk-fg);
+  font-family: var(--mk-font-display);
 }
 
 html {
-  background: var(--color-bg-base);
-  color: var(--color-fg-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
 body {
-  font-family: var(--font-sans);
-  background: var(--color-bg-base);
-  color: var(--color-fg-primary);
-  font-size: var(--text-md);
-  line-height: 1.55; /* 한국어 본문 표준 */
+  font-size: 16px;
+  line-height: 1.55;
   min-height: 100dvh;
 }
 
 /* =========================================================================
-   Selection / Scrollbar / Focus
+   Skip link — a11y
    ========================================================================= */
-::selection {
-  background: rgba(124, 58, 237, 0.35);
-  color: var(--color-fg-primary);
+.skip-link {
+  position: absolute;
+  left: -9999px;
+}
+.skip-link:focus {
+  left: 16px;
+  top: 16px;
+  z-index: 9999;
+  background: var(--mk-fg);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
 }
 
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.18);
-  background-clip: padding-box;
+/* =========================================================================
+   Selection / Focus
+   ========================================================================= */
+::selection {
+  background: rgba(26, 115, 232, 0.18);
+  color: var(--mk-fg);
 }
 
 :focus {
   outline: none;
 }
 :focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-  border-radius: var(--radius-sm);
+  outline: 2px solid var(--mk-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 /* =========================================================================
-   Utility Helpers (Antigravity flavor)
+   Utility helpers
    ========================================================================= */
-.text-aurora {
-  background: var(--gradient-aurora);
+.mk-gradient-text {
+  background: var(--mk-gradient);
   -webkit-background-clip: text;
           background-clip: text;
   color: transparent;
 }
 
-.bg-mesh {
-  background-image:
-    radial-gradient(60rem 30rem at 20% 10%, rgba(124, 58, 237, 0.18), transparent 60%),
-    radial-gradient(50rem 25rem at 80% 20%, rgba(6, 182, 212, 0.14), transparent 60%),
-    radial-gradient(40rem 20rem at 50% 90%, rgba(236, 72, 153, 0.12), transparent 60%);
-}
-
-.glass {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--elev-1);
-}
-
-.glass-card {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--elev-1);
-  position: relative;
-  isolation: isolate;
-}
-.glass-card::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  border-radius: inherit;
-  padding: 1px;
-  background: var(--gradient-aurora);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
-  opacity: 0;
-  transition: opacity var(--duration-base) var(--ease-standard);
-  pointer-events: none;
-}
-.glass-card:hover::before {
-  opacity: 1;
+.mk-gradient-bg {
+  background: var(--mk-gradient);
 }
 
 /* =========================================================================
-   Aurora background animation (hero)
+   Code
    ========================================================================= */
-@keyframes aurora-drift {
-  0%   { transform: translate3d(0, 0, 0)        rotate(0deg); }
-  50%  { transform: translate3d(-2%, 1%, 0)     rotate(0.6deg); }
-  100% { transform: translate3d(0, 0, 0)        rotate(0deg); }
+code, pre, .mono {
+  font-family: ui-monospace, 'JetBrains Mono', SFMono-Regular, monospace;
 }
 
-.aurora-animate {
-  animation: aurora-drift 30s var(--ease-standard) infinite;
-  will-change: transform;
+pre {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  padding: 16px;
+  overflow-x: auto;
+  font-size: 14px;
+  line-height: 1.55;
 }
 
-@keyframes shimmer-sweep {
-  0%   { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
-}
-
-.skeleton-sweep {
-  position: relative;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: var(--radius-md);
-}
-.skeleton-sweep::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(124, 58, 237, 0.08) 50%,
-    transparent 100%
-  );
-  animation: shimmer-sweep 1500ms linear infinite;
+a {
+  color: inherit;
+  text-decoration: none;
 }
 
 /* =========================================================================
@@ -258,34 +172,4 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
-  .aurora-animate {
-    animation: none !important;
-  }
-  .skeleton-sweep::after {
-    animation: none !important;
-    opacity: 0.4;
-  }
-}
-
-/* =========================================================================
-   Code blocks (Korean caption-friendly)
-   ========================================================================= */
-code, pre, .mono {
-  font-family: var(--font-mono);
-  font-feature-settings: 'tnum';
-}
-
-pre {
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-md);
-  padding: 16px;
-  overflow-x: auto;
-  font-size: var(--text-sm);
-  line-height: 1.55;
-}
-
-a {
-  color: inherit;
-  text-decoration: none;
 }

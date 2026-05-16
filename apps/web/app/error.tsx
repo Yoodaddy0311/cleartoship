@@ -18,7 +18,7 @@ export default function GlobalError({
 
   return (
     <section className="mx-auto flex w-full max-w-[640px] flex-col gap-6 px-4 py-16 sm:px-6">
-      <Card variant="glass" padding="lg">
+      <Card variant="default" padding="lg">
         <CardHeader>
           <div className="flex items-center gap-3">
             <AlertOctagon

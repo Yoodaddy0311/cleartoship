@@ -5,6 +5,47 @@
 
 ---
 
+## [Unreleased] — Sprint 2 UI Foundations (2026-05-16, resume)
+
+### Added
+
+- `packages/ui/src/components/AppShell` — root layout shell (sidebar + topbar slot, skip link)
+- `packages/ui/src/components/Sidebar` — responsive sidebar wrapper with collapse support
+- `packages/ui/src/components/SidebarNav` — navigation item list with active-state styling
+- `packages/ui/src/components/Topbar` — top navigation bar with breadcrumb slot
+- `packages/ui/src/components/Hero` — marketing hero section (headline + CTA)
+- `packages/ui/src/components/FeatureCard` — marketing feature highlight card
+- `packages/ui/src/components/HowItWorks` — step-by-step explainer section
+- `packages/ui/src/components/CTABanner` — call-to-action banner strip
+- `packages/ui/src/components/DataTable` — sortable/filterable table primitive
+- `packages/ui/src/components/FilterChips` — multi-select filter chip group
+- `packages/ui/src/components/FindingCard` — audit finding summary card (severity badge, description, path)
+- `packages/ui/src/components/FeatureGraphNode` — custom node renderer for feature dependency graph
+- `packages/ui/src/components/DevPipelineBanner` — non-prod enqueue-mode indicator banner
+- `packages/ui/src/components/ResourceStatePanel` — empty/loading/error state panel
+- `apps/web/app/audits/[id]/layout.tsx` — audit detail route layout (AppShell integration)
+- `apps/web/app/page.tsx` — marketing landing page rebuild (Hero + FeatureCard + HowItWorks + CTABanner)
+- `apps/web/app/layout.tsx` — root layout skip link for keyboard accessibility
+- `apps/web/app/error.tsx` — Next.js error boundary page
+- `apps/web/app/not-found.tsx` — Next.js 404 page
+- Design tokens in `apps/web/tailwind.config.ts`: `mk-*` marketing palette, `app-*` app palette, `sev-*` severity palette, `rounded-mk`, `max-w-container`, `font-display`, `--mk-hero-size` CSS variable
+- `apps/web/app/globals.css` — token-driven CSS variable declarations aligned with tailwind.config.ts
+
+### Changed
+
+- `packages/ui/package.json` — added `@types/react-dom@^18.3.0` to devDependencies; resolved 8 TS7016 type errors across the package
+- `apps/web` type fixes (5 test/config files): `progress-timeline.test.tsx`, `score-overview.test.tsx`, `create-audit-run.test.ts`, `middleware.test.ts`, `vitest.config.test.ts` — types narrowed correctly, no `@ts-ignore`, strict mode preserved
+- Fixed 5 failing tests + 1 cascading: `packages/ui/src/index.test.ts` (Progress forwardRef + Toast function), `apps/web/markdown-viewer.test.tsx` (skipHtml rewrite), `apps/web/findings/page.test.tsx` × 3 (next/navigation mock)
+- Total test suite: **633 tests** across 6 packages (shared-types 41, audit-core 48, ui 51, web 352, audit-worker 112, functions 29) — all passing
+- All 6 packages `tsc --noEmit` exit 0
+
+### Removed
+
+- `packages/ui/src/aurora-background.tsx` — legacy component, replaced by app-shell design tokens
+- `packages/ui/src/glass.tsx` — legacy component, replaced by app-shell design tokens
+
+---
+
 ## [Unreleased] — Sprint 1 Hardening
 
 ### Added — Sprint 1 (2026-05-16)
@@ -22,6 +63,20 @@
 ### Security — Sprint 1 (2026-05-16)
 
 - `lib/validation/deploy-url.ts` — SSRF hardening extended to IPv4-mapped IPv6 notation (RFC 4291 §2.5.5.2); patterns such as `::ffff:c0a8:0101` now blocked alongside existing RFC 1918 / loopback / link-local rules
+
+### Added — Sprint 1 Hardening (2026-05-16, afternoon session)
+
+- `workers/audit-worker/src/server.ts` — `GET /healthz` readiness endpoint reports `status`, `service`, `version`, `nodeEnv`, `oidcEnabled`, `devBypassActive`, and `timestamp`; env vars re-read per call so runtime overrides surface without restart
+- `packages/shared-types/src/domain.ts` — `EnqueueModeSchema = z.enum(['cloud-tasks', 'direct-worker', 'stub'])` added as single source of truth for dispatch route labels; `AuditRunSchema.enqueueMode` field (nullable) records which path handled the run
+- `apps/web/lib/audit-runs/create-audit-run.ts` — persists the resolved `EnqueueMode` on the AuditRun document via the post-commit update so the dispatch route is durable
+- `apps/web/components/common/dev-pipeline-banner.tsx` — `DevPipelineBanner` component surfaces the active enqueue mode in non-prod UIs; wired into `apps/web/app/audits/[id]/page.tsx`
+- `docs/contributing/ownership-map.md` — agent-to-area ownership matrix
+- `docs/contributing/teammate-handoff.md` — Handoff Payload protocol (5 required fields) for cross-agent context transfer
+- `docs/contributing/test-first.md` — RED/GREEN/REFACTOR cycle, coverage targets, anti-patterns
+- `docs/contributing/skip-ban.md` — zero-skip policy enforcement guide
+- `.github/workflows/docker-build.yml` — PR-time validation that the audit-worker container builds cleanly (build-only, no registry push)
+- `docs/issues/worker-run-response-contract.md` — drift tracker documenting the `/run` response shape divergence (`200 + { accepted, runId }` vs. originally spec'd `202 + { ok, auditRunId }`)
+- `packages/shared-types/src/domain.test.ts` — sibling-located test file (12 cases) covering `EnqueueModeSchema` accept/reject and `AuditRunSchema.enqueueMode` null/value variants
 
 ---
 

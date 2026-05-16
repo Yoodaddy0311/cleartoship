@@ -55,15 +55,27 @@ const TYPE_ICON: Record<FeatureNodeType, React.ComponentType<React.SVGProps<SVGS
 };
 
 const STATUS_VAR: Record<ImplementationStatus, string> = {
-  complete: '--color-status-complete',
-  partial: '--color-status-partial',
-  ui_only: '--color-status-ui-only',
-  logic_only: '--color-status-logic-only',
-  missing_connection: '--color-status-missing-connection',
-  missing: '--color-status-missing',
-  risky: '--color-status-risky',
-  recommended: '--color-status-recommended',
-  unknown: '--color-status-unknown',
+  complete: '--sev-p3',
+  partial: '--sev-p2',
+  ui_only: '--sev-p2',
+  logic_only: '--sev-p2',
+  missing_connection: '--sev-p1',
+  missing: '--sev-p0',
+  risky: '--sev-p1',
+  recommended: '--sev-p3',
+  unknown: '--app-fg-muted',
+};
+
+const STATUS_LABEL: Record<ImplementationStatus, string> = {
+  complete: '구현 완료',
+  partial: '부분 구현',
+  ui_only: 'UI만 구현',
+  logic_only: '로직만 구현',
+  missing_connection: '연결 누락',
+  missing: '미구현',
+  risky: '주의',
+  recommended: '권장',
+  unknown: '미확인',
 };
 
 const SIZE_BY_TYPE: Record<FeatureNodeType, { w: number; h: number }> = {
@@ -95,9 +107,9 @@ export interface FeatureGraphNodeProps {
 }
 
 /**
- * Feature Graph Node — Antigravity glass card with type icon + status color.
+ * Feature Graph Node — flat app surface card with type icon + status color.
  * Status maps to fill + border color; type maps to icon.
- * Shape variations (hexagon/cylinder/double-border) hinted via wrapper styles.
+ * Shape variations (dashed for missing_connection, double border for external_service) preserved.
  */
 export function FeatureGraphNode({
   type,
@@ -114,6 +126,7 @@ export function FeatureGraphNode({
   const { w, h } = SIZE_BY_TYPE[type];
   const isDashed = status === 'missing_connection';
   const isDoubleBorder = type === 'external_service';
+  const statusText = STATUS_LABEL[status];
 
   return (
     <div
@@ -126,11 +139,12 @@ export function FeatureGraphNode({
           onClick();
         }
       }}
+      aria-label={onClick ? `${label} — ${statusText}` : undefined}
       className={cn(
         'group relative flex items-center gap-2 rounded-[12px] px-3',
-        'bg-[color:var(--color-bg-elevated)]',
+        'bg-[color:var(--app-surface)]',
         'transition-[box-shadow,transform,border-color] duration-[var(--duration-base)] ease-[var(--ease-standard)]',
-        'focus:outline-none focus-visible:shadow-[var(--focus-ring)]',
+        'focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--mk-accent)]',
         onClick && 'cursor-pointer',
         className
       )}
@@ -141,7 +155,7 @@ export function FeatureGraphNode({
         borderStyle: isDashed ? 'dashed' : 'solid',
         borderColor: `color-mix(in oklch, var(${colorVar}) 60%, transparent)`,
         boxShadow: selected
-          ? `0 0 0 2px color-mix(in oklch, var(--color-aurora-violet) 80%, transparent), 0 0 24px color-mix(in oklch, var(${colorVar}) 45%, transparent)`
+          ? `0 0 0 2px var(--mk-accent)`
           : 'var(--elev-1)',
       }}
     >
@@ -151,15 +165,16 @@ export function FeatureGraphNode({
         style={{ color: `var(${colorVar})` }}
       />
       <div className="flex min-w-0 flex-col">
-        <span className="truncate text-sm text-[color:var(--color-fg-primary)]">
+        <span className="truncate text-sm text-[color:var(--app-fg)]">
           {label}
         </span>
         {summary ? (
-          <span className="truncate text-[10px] text-[color:var(--color-fg-muted)]">
+          <span className="truncate text-[10px] text-[color:var(--app-fg-muted)]">
             {summary}
           </span>
         ) : null}
       </div>
+      <span className="sr-only">{statusText}</span>
       {children}
     </div>
   );

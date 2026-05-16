@@ -1,6 +1,6 @@
 /**
  * @cleartoship/ui — design system primitives.
- * All components consume tokens from globals.css @theme.
+ * All components consume tokens from globals.css :root.
  */
 export { cn } from './lib/cn';
 
@@ -53,8 +53,7 @@ export type { ToastProps, ToastTone } from './toast';
 export { Skeleton } from './skeleton';
 export type { SkeletonProps } from './skeleton';
 
-export { Glass } from './glass';
-export type { GlassProps } from './glass';
-
-export { AuroraBackground } from './aurora-background';
-export type { AuroraBackgroundProps } from './aurora-background';
+// Semgrep-style app surface components (authored by Unit Y).
+export * from './finding-card';
+export * from './filter-chips';
+export * from './data-table';

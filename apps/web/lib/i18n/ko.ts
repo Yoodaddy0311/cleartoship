@@ -56,6 +56,35 @@ export const ko = {
   'home.preview.card3.desc':
     'Markdown 한 파일로 다운로드해서 Claude Code/Cursor에 그대로 붙여넣을 수 있습니다.',
 
+  // Marketing
+  'mk.hero.eyebrow': 'AI Product Auditor for Vibe Coders',
+  'mk.hero.title.pre': '출시해도 될지',
+  'mk.hero.title.accent': '5초 안에',
+  'mk.hero.title.post': '답을 드립니다.',
+  'mk.hero.subtitle':
+    'GitHub Repo와 배포 URL을 입력하면 10개 카테고리로 감사하고 근거 기반 리포트를 만들어 드립니다.',
+  'mk.hero.cta.primary': '무료로 감사 시작',
+  'mk.hero.cta.secondary': '예시 리포트 보기',
+  'mk.trust.title': '바이브 코더가 신뢰하는 출시 감사',
+  'mk.features.title': '한 번의 클릭, 출시 가능 여부 판단',
+  'mk.features.subtitle': '의견이 아닌 근거로 답합니다.',
+  'mk.features.f1.title': '10개 카테고리 점수',
+  'mk.features.f1.desc': '제품 의도부터 보안까지 0~100점으로 출시 준비도를 평가합니다.',
+  'mk.features.f2.title': '근거 기반 Finding',
+  'mk.features.f2.desc': '모든 문제에 file:line 또는 selector 근거가 자동으로 따라붙습니다.',
+  'mk.features.f3.title': '바로 쓰는 개선 PRD',
+  'mk.features.f3.desc': 'Markdown 한 파일로 Claude Code/Cursor에 바로 붙여넣을 수 있습니다.',
+  'mk.how.title': '세 단계로 끝나는 출시 감사',
+  'mk.how.s1.title': 'Connect repo',
+  'mk.how.s1.desc': 'GitHub 저장소와 배포 URL을 입력합니다.',
+  'mk.how.s2.title': 'Run audit',
+  'mk.how.s2.desc': '10개 카테고리로 자동 감사가 진행됩니다.',
+  'mk.how.s3.title': 'Ship with evidence',
+  'mk.how.s3.desc': '근거 기반 리포트와 개선 PRD를 받아 바로 적용합니다.',
+  'mk.cta.title': '오늘 바로 출시 가능한지 확인하세요',
+  'mk.cta.subtitle': '신용카드 없이 1분이면 충분합니다.',
+  'mk.cta.button': '지금 시작하기',
+
   // Audit Progress
   'progress.title': '감사 진행 중',
   'progress.subtitle': '코드와 화면을 분석하고 있습니다. 잠시만 기다려주세요.',
