@@ -36,6 +36,12 @@ vi.mock('@/components/dashboard/category-grid', () => ({
   CategoryGrid: () => <div data-stub="category-grid" />,
 }));
 
+// The dashboard idle-prefetches the GraphCanvas chunk; stub the hook so we
+// don't pull reactflow into the dashboard test graph.
+vi.mock('@/components/feature-graph/use-prefetch-graph-canvas', () => ({
+  usePrefetchGraphCanvas: vi.fn(),
+}));
+
 describe('DashboardPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -93,5 +99,19 @@ describe('DashboardPage', () => {
     await waitFor(() => {
       expect(screen.getByText(/오류가 발생/)).toBeInTheDocument();
     });
+  });
+
+  it('triggers idle prefetch of the GraphCanvas chunk on mount', async () => {
+    const { getReport, listFindings } = await import('@/lib/api/audit-runs');
+    vi.mocked(getReport).mockImplementation(() => new Promise(() => {}));
+    vi.mocked(listFindings).mockImplementation(() => new Promise(() => {}));
+
+    const { usePrefetchGraphCanvas } = await import(
+      '@/components/feature-graph/use-prefetch-graph-canvas'
+    );
+    const { default: DashboardPage } = await import('./page');
+    render(<DashboardPage params={{ id: 'run-1' }} />);
+
+    expect(vi.mocked(usePrefetchGraphCanvas)).toHaveBeenCalled();
   });
 });

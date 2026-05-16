@@ -7,6 +7,7 @@ import { SeverityCounts } from '@/components/dashboard/severity-counts';
 import { CategoryGrid } from '@/components/dashboard/category-grid';
 import { SeverityChip } from '@/components/common/severity-chip';
 import { ResourceStatePanel } from '@/components/common/resource-state-panel';
+import { usePrefetchGraphCanvas } from '@/components/feature-graph/use-prefetch-graph-canvas';
 import { categoryLabel } from '@/lib/format/category';
 import { t } from '@/lib/i18n';
 import { getReport, listFindings } from '@/lib/api/audit-runs';
@@ -35,6 +36,12 @@ export default function DashboardPage({
     },
     [auditId]
   );
+
+  // Idle-prefetch the GraphCanvas chunk so the feature-graph tab renders
+  // instantly when the user clicks it. Runs post-hydration via
+  // requestIdleCallback — zero impact on this page's LCP. See:
+  // apps/web/components/feature-graph/use-prefetch-graph-canvas.ts
+  usePrefetchGraphCanvas();
 
   return (
     <section className="mx-auto flex w-full max-w-[1536px] flex-col gap-6 px-4 py-10 sm:px-6">
