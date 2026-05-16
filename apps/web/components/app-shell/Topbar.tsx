@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 
 export interface BreadcrumbItem {
   label: string;
@@ -37,13 +38,13 @@ export function Topbar({ breadcrumbs, title, actions }: TopbarProps) {
                   </span>
                 ) : null}
                 {b.href ? (
-                  <a
+                  <Link
                     href={b.href}
                     className="hover:underline"
                     style={{ color: 'var(--app-fg-muted)' }}
                   >
                     {b.label}
-                  </a>
+                  </Link>
                 ) : (
                   <span style={{ color: 'var(--app-fg)' }}>{b.label}</span>
                 )}

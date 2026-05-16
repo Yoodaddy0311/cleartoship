@@ -6,15 +6,12 @@
 // banner stays out of the way in normal/unknown states.
 
 import { AlertTriangle, Info } from 'lucide-react';
+import { cn } from '@cleartoship/ui';
 import type { EnqueueMode } from '@cleartoship/shared-types';
 
 interface DevPipelineBannerProps {
   mode: EnqueueMode | null;
   className?: string;
-}
-
-function cn(...parts: Array<string | false | null | undefined>): string {
-  return parts.filter(Boolean).join(' ');
 }
 
 export function DevPipelineBanner({ mode, className }: DevPipelineBannerProps) {
