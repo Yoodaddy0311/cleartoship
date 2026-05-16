@@ -5,6 +5,39 @@
 
 ---
 
+## [Unreleased] — Sprint 3 Polish & Performance (2026-05-17)
+
+### Added
+
+- `apps/web/components/feature-graph/use-prefetch-graph-canvas.ts` — SSR-safe idle prefetch hook. `requestIdleCallback` 우선 사용, RIC 미지원 환경에서 `setTimeout(250ms)` fallback. unmount 시 RIC/timeout 모두 cancel. (S3-6)
+- `apps/web/e2e/pages/MarketingHomePage.ts` — Playwright Page Object Model (POM). `data-testid` 기반 selector. HTTP 500 시 fail-fast guard 포함. (S3-9)
+- `apps/web/e2e/marketing-smoke.spec.ts` — 마케팅 페이지 E2E smoke 3건 (hero + i18n, CTA 네비게이션, 404). `--repeat-each=5` 에서 15/15 PASS, 0 flake. (S3-9)
+- `apps/web/lib/audit-runs/get-findings.ts` — `resolveEvidenceCap()` 함수. `process.env.EVIDENCE_CAP` env override 지원 (기본값 200). NaN/음수/0/비정수 입력 시 stderr 구조화 warning + 기본값 fallback. `getFinding` 반환에 `truncated: boolean` 포함. (S3-7)
+- `apps/web/app/api/findings/[id]/route.ts` — API 응답에 `truncated` 필드 노출. (S3-7)
+- `packages/shared-types/src/api.ts` — `GetFindingResponseSchema`에 `truncated: z.boolean().optional().default(false)` 추가 (backward-compatible). (S3-7)
+- `functions/src/lib/enqueue-audit-task.ts` — `emitMetric()` helper 추가. 신규 enqueue 시 `audit_task.enqueue.created`, gRPC ALREADY_EXISTS(code 6) 시 `audit_task.enqueue.deduped` 단일라인 JSON Cloud Logging 호환 이벤트 emit. (S3-8)
+- `apps/web/components/findings/finding-detail-panel.tsx` — `truncated?: boolean` prop 추가. `true` 시 evidence Card 상단에 `role="status"`, `aria-live="polite"`, AlertTriangle 아이콘 + "알림:" 텍스트 prefix 배너 렌더링. (S3-7 follow-up)
+- `apps/web/lib/i18n/ko.ts` — `findings.detail.evidences.truncated` i18n 키 추가 (ko-only 단일 로케일 아키텍처). (S3-7 follow-up)
+- `.gitignore` — `e2e/.artifacts/` 경로 추가. (S3-9)
+
+### Changed
+
+- `apps/web/app/audits/[id]/dashboard/page.tsx` — `usePrefetchGraphCanvas` hook 호출 추가. 사용자가 feature-graph 탭 도달 전 chunk 워밍업. (S3-6)
+- `apps/web/app/audits/[id]/findings/[findingId]/page.tsx` — `truncated` server prop pass-through. (S3-4)
+- `apps/web/playwright.config.ts` — `baseURL` 기본값 3000 → 3100, `webServer.command` 동기화. (S3-9)
+- `apps/web/components/marketing/HowItWorks.tsx` — 테스트 매직 넘버 3 제거. `describe.each`로 2/3/5 단계 변형 동적 assertion. `steps?` prop optional (default = DEFAULT_STEPS). (S3-3)
+- `apps/web/components/marketing/Hero.tsx` — `data-testid` 7개 추가 (`hero-section`, `hero-eyebrow`, `hero-headline`, `hero-headline-accent`, `hero-subtitle`, `hero-cta-primary`, `hero-cta-secondary`). 테스트를 구조 검증(i18n-agnostic, 6건) + i18n smoke(1건)으로 분리. (S3-5)
+
+### Verified
+
+- `pnpm -F web test` → 380/380 PASS (Sprint 2 기준 352 → +28)
+- `pnpm -F functions test` → 32/32 PASS (Sprint 2 기준 29 → +3)
+- E2E: 3 tests, `--repeat-each=5` 15/15 PASS, 0 flake
+- `tsc --noEmit`: web / shared-types / functions 모두 clean
+- 선존 tsc 에러: `functions/src/lib/enqueue-audit-task.test.ts:40` — Sprint 2 커밋 `5aec9a4` 유입분, 본 Sprint 무관
+
+---
+
 ## [Unreleased] — Sprint 2 UI Foundations (2026-05-16, resume)
 
 ### Added
