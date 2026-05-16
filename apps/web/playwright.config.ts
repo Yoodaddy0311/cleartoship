@@ -15,7 +15,9 @@ import { defineConfig, devices } from '@playwright/test';
  * Chrome are enabled for nightly/regression runs (gated by E2E_FULL_MATRIX=1).
  */
 
-const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
+// Sprint 3: dev server runs on port 3100 (3000 is reserved for other processes).
+// Override locally with E2E_BASE_URL if needed (e.g., staging URL in CI).
+const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3100';
 const RUN_FULL_MATRIX = process.env.E2E_FULL_MATRIX === '1';
 const SKIP_WEBSERVER = process.env.E2E_NO_WEBSERVER === '1';
 
@@ -66,7 +68,8 @@ export default defineConfig({
     ? undefined
     : {
         // pnpm filter avoids cwd issues when running from monorepo root.
-        command: 'pnpm --filter web dev',
+        // Port 3100 matches BASE_URL (3000 is reserved).
+        command: 'pnpm --filter web exec next dev -p 3100',
         url: BASE_URL,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
