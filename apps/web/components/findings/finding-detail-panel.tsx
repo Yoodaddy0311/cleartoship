@@ -1,11 +1,26 @@
-import { Card, CardBody, CardHeader, CardTitle, Badge } from '@cleartoship/ui';
+import { AlertTriangle } from 'lucide-react';
+import { Card, CardBody, CardHeader, CardTitle, Badge, cn } from '@cleartoship/ui';
 import { SeverityChip } from '@/components/common/severity-chip';
 import { EvidenceList } from '@/components/evidences/evidence-list';
 import { categoryLabel } from '@/lib/format/category';
 import { t } from '@/lib/i18n';
 import type { MockFinding } from '@/lib/mock/audit-fixture';
 
-export function FindingDetailPanel({ finding }: { finding: MockFinding }) {
+interface FindingDetailPanelProps {
+  finding: MockFinding;
+  /**
+   * Server-side flag — true when the evidences array was capped (see
+   * EVIDENCE_CAP). We surface a warning banner just above the evidence list
+   * so users understand the list is partial. Optional/defaults to false so
+   * call sites that pre-date the API field continue to work.
+   */
+  truncated?: boolean;
+}
+
+export function FindingDetailPanel({
+  finding,
+  truncated = false,
+}: FindingDetailPanelProps) {
   return (
     <article className="flex flex-col gap-6">
       <header className="flex flex-col gap-3">
@@ -96,6 +111,32 @@ export function FindingDetailPanel({ finding }: { finding: MockFinding }) {
           <CardTitle>{t('findings.detail.evidences')}</CardTitle>
         </CardHeader>
         <CardBody>
+          {truncated ? (
+            <div
+              role="status"
+              aria-live="polite"
+              data-testid="evidence-truncated-banner"
+              className={cn(
+                'mb-3 flex items-start gap-2 rounded-md border px-3 py-2 text-sm',
+                'border-[color:var(--color-severity-p2)]',
+                'bg-[rgba(245,158,11,0.08)]',
+                'text-[color:var(--color-fg-primary)]'
+              )}
+            >
+              <AlertTriangle
+                aria-hidden="true"
+                className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--color-severity-p2)]"
+              />
+              <span>
+                <span className="font-medium text-[color:var(--color-severity-p2)]">
+                  알림:
+                </span>{' '}
+                <span className="text-[color:var(--color-fg-secondary)]">
+                  {t('findings.detail.evidences.truncated')}
+                </span>
+              </span>
+            </div>
+          ) : null}
           <EvidenceList items={finding.evidences} />
         </CardBody>
       </Card>

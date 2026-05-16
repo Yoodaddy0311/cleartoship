@@ -30,6 +30,9 @@ export default function FindingDetailPage({ params }: PageProps) {
         : null,
     [state]
   );
+  // Surface the server-side `truncated` flag — true when the evidences list
+  // was capped at EVIDENCE_CAP. Defaults to false for any non-ready state.
+  const truncated = state.status === 'ready' ? state.data.truncated : false;
 
   return (
     <section className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-4 py-10 sm:px-6">
@@ -42,7 +45,7 @@ export default function FindingDetailPage({ params }: PageProps) {
         {t('common.back')}
       </Link>
       {finding ? (
-        <FindingDetailPanel finding={finding} />
+        <FindingDetailPanel finding={finding} truncated={truncated} />
       ) : (
         <ResourceStatePanel
           state={state as Exclude<typeof state, { status: 'ready' }>}

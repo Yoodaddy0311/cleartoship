@@ -134,6 +134,8 @@ export const ko = {
   'findings.detail.acceptance': '수용 기준',
   'findings.detail.evidences': '근거 자료',
   'findings.detail.includeInPrd': '개선 PRD에 포함',
+  'findings.detail.evidences.truncated':
+    'Evidence가 일부만 표시되고 있습니다 (서버 한도에 도달했습니다)',
 
   // Feature Graph
   'graph.title': '기능 관계도',

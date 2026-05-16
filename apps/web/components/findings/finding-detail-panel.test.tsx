@@ -9,6 +9,8 @@ vi.mock('@cleartoship/ui', () => ({
   CardHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   CardTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
   Badge: ({ children }: { children: React.ReactNode }) => <span data-testid="badge">{children}</span>,
+  // cn is the className utility — pass-through join is enough for jsdom asserts.
+  cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
 }));
 
 vi.mock('@/components/common/severity-chip', () => ({
@@ -73,5 +75,29 @@ describe('FindingDetailPanel', () => {
     render(<FindingDetailPanel finding={finding} />);
     const cb = screen.getByRole('checkbox', { name: '수용 기준 1' });
     expect(cb).toBeDisabled();
+  });
+
+  it('renders the evidence-truncated warning banner when truncated=true', () => {
+    render(<FindingDetailPanel finding={finding} truncated={true} />);
+    const banner = screen.getByTestId('evidence-truncated-banner');
+    expect(banner).toBeInTheDocument();
+    // a11y: status role + polite live region so AT announces without
+    // interrupting; never `alert` because evidence truncation is
+    // informational rather than blocking.
+    expect(banner).toHaveAttribute('role', 'status');
+    expect(banner).toHaveAttribute('aria-live', 'polite');
+    // The user-facing copy comes from the i18n key, and the mock t() returns
+    // the key as-is, so we assert on that key.
+    expect(banner).toHaveTextContent('findings.detail.evidences.truncated');
+  });
+
+  it('does not render the truncated banner when truncated=false', () => {
+    render(<FindingDetailPanel finding={finding} truncated={false} />);
+    expect(screen.queryByTestId('evidence-truncated-banner')).toBeNull();
+  });
+
+  it('does not render the truncated banner when truncated prop is omitted', () => {
+    render(<FindingDetailPanel finding={finding} />);
+    expect(screen.queryByTestId('evidence-truncated-banner')).toBeNull();
   });
 });
