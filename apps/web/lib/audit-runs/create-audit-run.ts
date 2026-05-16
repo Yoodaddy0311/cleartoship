@@ -105,6 +105,9 @@ export async function createAuditRun(
     repoUrl: parsedRepo.normalizedUrl,
     deployUrl: parsedDeploy?.url ?? null,
     prdText: request.prdText ?? null,
+    // Unknown until enqueueAuditTask resolves below. Schema requires the field
+    // to be present (nullable, not optional) so the initial doc carries null.
+    enqueueMode: null,
     createdAt: now,
     updatedAt: now,
   };
@@ -113,15 +116,55 @@ export async function createAuditRun(
 
   // Enqueue Cloud Task. The Firestore onCreate trigger in `functions` does this
   // in production. Calling here ensures local dev (without Functions) also kicks off.
-  await enqueueAuditTask({
-    runId,
-    projectId,
-    ownerId,
-    repoUrl: parsedRepo.normalizedUrl,
-    deployUrl: parsedDeploy?.url ?? null,
-    prdText: request.prdText ?? null,
-    commitHash: null,
-  });
+  //
+  // If enqueue fails (e.g. dev-direct worker unreachable, or Cloud Tasks
+  // permission denied) the run would otherwise be stranded in PENDING forever.
+  // We flip the run to FAILED with a structured errorMessage so the UI can
+  // surface the failure and the daily cleanup job can reap stale docs. We
+  // re-throw afterwards so the API handler returns 5xx and the client retries.
+  try {
+    const enqueueResult = await enqueueAuditTask({
+      runId,
+      projectId,
+      ownerId,
+      repoUrl: parsedRepo.normalizedUrl,
+      deployUrl: parsedDeploy?.url ?? null,
+      prdText: request.prdText ?? null,
+      commitHash: null,
+    });
+    // Persist the dispatch route so operators (and DevPipelineBanner) can tell
+    // whether this run went through real Cloud Tasks, the dev-direct worker
+    // shortcut, or the unconfigured stub. Status stays PENDING — the worker
+    // owns status transitions.
+    await runRef.update({
+      enqueueMode: enqueueResult.mode,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    try {
+      await runRef.update({
+        status: 'FAILED',
+        errorMessage: `Enqueue failed: ${message}`,
+        enqueueMode: null,
+        completedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    } catch (markErr) {
+      // Best-effort: if even the FAILED mark write fails, log and continue —
+      // the original enqueue error is still surfaced to the caller below.
+      process.stderr.write(
+        JSON.stringify({
+          level: 'error',
+          component: 'create-audit-run',
+          message: 'Failed to mark AuditRun as FAILED after enqueue error',
+          runId,
+          markError: markErr instanceof Error ? markErr.message : String(markErr),
+        }) + '\n',
+      );
+    }
+    throw err;
+  }
 
   return { auditRunId: runId, projectId, status: 'PENDING' };
 }

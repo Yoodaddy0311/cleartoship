@@ -82,7 +82,26 @@ function makeConverter<T extends { id: string }>(
   };
 }
 
-export const auditRunConverter = makeConverter<AuditRun>(AuditRunSchema);
+// Dedicated AuditRun converter: legacy documents written before `enqueueMode`
+// existed do not have the field at all. The schema is `.nullable().optional()`
+// so it would parse to `undefined`, but downstream consumers expect
+// `EnqueueMode | null`. Normalize missing/undefined → null at the read
+// boundary so the parsed AuditRun never carries `undefined` for this key.
+export const auditRunConverter: FirestoreDataConverter<AuditRun> = {
+  toFirestore(model: AuditRun): DocumentData {
+    const { id: _omit, ...rest } = model as AuditRun & Record<string, unknown>;
+    return rest;
+  },
+  fromFirestore(snap: QueryDocumentSnapshot<DocumentData>): AuditRun {
+    const data = snap.data();
+    const candidate = normalizeTimestamps({ id: snap.id, ...data });
+    const normalized = {
+      ...candidate,
+      enqueueMode: (candidate as { enqueueMode?: unknown }).enqueueMode ?? null,
+    };
+    return AuditRunSchema.parse(normalized);
+  },
+};
 export const findingConverter = makeConverter<Finding>(FindingSchema);
 export const evidenceConverter = makeConverter<Evidence>(EvidenceSchema);
 export const projectConverter = makeConverter<Project>(ProjectSchema);

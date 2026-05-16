@@ -3,14 +3,25 @@
 // Responsibilities:
 //   1. Validate the new doc has minimum fields (ownerId, projectId, repoUrl).
 //   2. Enqueue a Cloud Task on `audit-jobs` via the shared helper.
-//   3. Leave AuditRun.status === 'PENDING' — the worker flips to RUNNING.
+//   3. Persist `enqueueMode` back onto the AuditRun doc so the read side can
+//      tell which dispatch route handled the run. Mirrors the enqueue-then-
+//      update pattern in `apps/web/lib/audit-runs/create-audit-run.ts` so both
+//      creation paths leave the same persisted shape.
+//   4. Leave AuditRun.status === 'PENDING' — the worker flips to RUNNING.
+//
+// Re-fire safety: this is `onDocumentCreated`, so the post-enqueue update does
+// NOT re-trigger the handler. Idempotency: if the direct API path already
+// wrote `enqueueMode` before the trigger fires (eventually consistent), we
+// skip the enqueue+update so we don't double-dispatch and don't overwrite an
+// already-correct route label.
 //
 // Deterministic task name + ALREADY_EXISTS dedupe lives in
 // `../lib/enqueue-audit-task.ts` so both this trigger and the POST handler
 // share one implementation.
 
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
-import type { AuditTaskPayload } from '@cleartoship/shared-types';
+import { FieldValue } from 'firebase-admin/firestore';
+import type { AuditTaskPayload, EnqueueMode } from '@cleartoship/shared-types';
 import { enqueueAuditTask } from '../lib/enqueue-audit-task.js';
 
 const REGION = process.env.CLOUD_TASKS_LOCATION ?? 'asia-northeast3';
@@ -28,9 +39,23 @@ export const onAuditRunCreated = onDocumentCreated(
   },
   async (event) => {
     const runId = event.params.runId;
-    const data = event.data?.data() as Record<string, unknown> | undefined;
-    if (!data) {
+    const snapshot = event.data;
+    const data = snapshot?.data() as Record<string, unknown> | undefined;
+    if (!snapshot || !data) {
       log('warn', 'onAuditRunCreated received empty snapshot/data', { runId });
+      return;
+    }
+
+    // Idempotency guard: if a parallel writer (the direct API path) already
+    // populated `enqueueMode`, the enqueue has already happened or is in
+    // flight via that path. Skip to avoid double-dispatch and to avoid
+    // clobbering an already-correct route label. We treat any non-null value
+    // as "owned by another writer" — null/undefined means "not yet set".
+    if (data.enqueueMode != null) {
+      log('info', 'enqueueMode already set — skipping trigger enqueue', {
+        runId,
+        existing: String(data.enqueueMode),
+      });
       return;
     }
 
@@ -40,10 +65,22 @@ export const onAuditRunCreated = onDocumentCreated(
       return;
     }
 
-    if (!PROJECT || !WORKER_URL) {
-      log('warn', 'CLOUD_TASKS_PROJECT or AUDIT_WORKER_URL unset — skipping enqueue (dev mode)', {
+    // Under the Firebase emulator we only need AUDIT_WORKER_URL — the helper
+    // short-circuits Cloud Tasks and POSTs directly to the worker. Outside the
+    // emulator (prod/staging) we still require CLOUD_TASKS_PROJECT. NODE_ENV
+    // is intentionally NOT consulted here — see lib/enqueue-audit-task.ts for
+    // the rationale.
+    const isDev = process.env.FUNCTIONS_EMULATOR === 'true';
+    if (!WORKER_URL || (!isDev && !PROJECT)) {
+      log('warn', 'AUDIT_WORKER_URL or CLOUD_TASKS_PROJECT unset — recording stub', {
         runId,
+        isDev,
+        hasWorkerUrl: !!WORKER_URL,
+        hasProject: !!PROJECT,
       });
+      // Record `stub` so the read side can tell this run never reached a real
+      // dispatcher. Mirrors the `stub` branch of the web-side enqueue helper.
+      await persistEnqueueMode(snapshot.ref, 'stub', runId);
       return;
     }
 
@@ -55,12 +92,17 @@ export const onAuditRunCreated = onDocumentCreated(
         workerUrl: WORKER_URL,
         invokerSa: INVOKER_SA || undefined,
       });
+      // Infer dispatch route from the path the helper took. The helper itself
+      // does not return `mode` (it was designed before this field existed);
+      // the env-check above plus `isDev` fully determines which branch ran.
+      const mode: EnqueueMode = isDev ? 'direct-worker' : 'cloud-tasks';
+      await persistEnqueueMode(snapshot.ref, mode, runId);
       log(
         'info',
         result.deduped
           ? 'Audit task already enqueued — dedupe via deterministic name'
           : 'Enqueued audit task',
-        { runId, taskName: result.taskName, deduped: result.deduped },
+        { runId, taskName: result.taskName, deduped: result.deduped, mode },
       );
     } catch (err) {
       log('error', 'Failed to enqueue audit task', {
@@ -89,6 +131,36 @@ function buildPayload(
     prdText: typeof data.prdText === 'string' ? data.prdText : null,
     commitHash: null,
   };
+}
+
+/**
+ * Best-effort post-enqueue update. We do NOT re-throw on failure because the
+ * enqueue itself already happened; losing the mode label is observability
+ * noise, not a correctness hazard. The Functions runtime would otherwise
+ * retry the whole handler and risk creating a duplicate task (the
+ * deterministic name protects against this, but we still avoid the round
+ * trip).
+ */
+async function persistEnqueueMode(
+  // FirebaseFirestore.DocumentReference is the runtime type of snapshot.ref.
+  // We accept `unknown`-ish here to keep the function vitest-mockable without
+  // dragging in the full admin types in tests.
+  ref: { update: (data: Record<string, unknown>) => Promise<unknown> },
+  mode: EnqueueMode,
+  runId: string,
+): Promise<void> {
+  try {
+    await ref.update({
+      enqueueMode: mode,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+  } catch (err) {
+    log('warn', 'Failed to persist enqueueMode on AuditRun doc', {
+      runId,
+      mode,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 function log(level: 'info' | 'warn' | 'error', message: string, meta?: Record<string, unknown>) {

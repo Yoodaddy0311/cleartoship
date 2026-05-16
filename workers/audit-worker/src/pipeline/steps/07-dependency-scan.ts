@@ -1,55 +1,203 @@
-// MOCK Sprint 0 — replace in Sprint 1 with `osv-scanner --format json` adapter.
+// Dependency vulnerability scan via OSV-Scanner CLI. Gracefully skips when
+// the binary is not installed.
 
+import * as path from 'node:path';
+import { promises as fsp } from 'node:fs';
 import type { Step } from './index.js';
+import type { NormalizedFinding } from '../../adapters/index.js';
 import { writeToolResult } from '../../firestore/writers.js';
+import { spawnTool } from '../tool-runner.js';
+
+interface OsvResult {
+  results?: Array<{
+    source?: { path?: string };
+    packages?: Array<{
+      package?: { name?: string; version?: string; ecosystem?: string };
+      vulnerabilities?: Array<{
+        id?: string;
+        summary?: string;
+        details?: string;
+        severity?: Array<{ type?: string; score?: string }>;
+        database_specific?: { severity?: string };
+      }>;
+    }>;
+  }>;
+}
+
+function osvSeverity(s: string | undefined): 'P0' | 'P1' | 'P2' | 'P3' {
+  switch ((s ?? '').toUpperCase()) {
+    case 'CRITICAL':
+      return 'P0';
+    case 'HIGH':
+      return 'P1';
+    case 'MODERATE':
+    case 'MEDIUM':
+      return 'P2';
+    default:
+      return 'P3';
+  }
+}
+
+function mapOsv(raw: OsvResult): NormalizedFinding[] {
+  const findings: NormalizedFinding[] = [];
+  for (const r of raw.results ?? []) {
+    for (const pkg of r.packages ?? []) {
+      for (const vuln of pkg.vulnerabilities ?? []) {
+        const pkgName = pkg.package?.name ?? 'unknown';
+        const pkgVer = pkg.package?.version ?? '?';
+        const id = vuln.id ?? 'OSV-UNKNOWN';
+        findings.push({
+          title: `${pkgName}@${pkgVer} — ${id}`,
+          category: 'SECURITY_PRIVACY',
+          severity: osvSeverity(vuln.database_specific?.severity),
+          confidence: 'HIGH',
+          summary: vuln.summary ?? id,
+          nonDeveloperExplanation:
+            '사용 중인 라이브러리에서 알려진 보안 약점이 발견되었습니다. 최신 버전으로 업데이트하면 일반적으로 해결됩니다.',
+          technicalExplanation: vuln.details ?? null,
+          impact: '취약점 유형에 따라 데이터 노출/원격 실행 등 위험이 있을 수 있습니다.',
+          recommendation: `${pkgName}을(를) 패치된 버전으로 업그레이드하고 lockfile을 재생성하세요.`,
+          acceptanceCriteria: [
+            `${pkgName}이 패치된 버전 이상으로 업그레이드되었다.`,
+            'OSV 재스캔 시 동일 ID가 더 이상 보고되지 않는다.',
+          ],
+          tags: ['osv', 'dependency'],
+          evidences: [
+            {
+              type: 'OSV',
+              source: 'osv-scanner',
+              path: r.source?.path ?? null,
+              lineStart: null,
+              lineEnd: null,
+              url: `https://osv.dev/vulnerability/${id}`,
+              selector: null,
+              screenshotPath: null,
+              snippet: null,
+              maskedValue: null,
+              metadata: {
+                id,
+                package: pkgName,
+                version: pkgVer,
+                ecosystem: pkg.package?.ecosystem ?? null,
+              },
+            },
+          ],
+        });
+      }
+    }
+  }
+  return findings.slice(0, 200);
+}
+
+async function findLockfiles(root: string): Promise<string[]> {
+  const candidates = [
+    'package-lock.json',
+    'pnpm-lock.yaml',
+    'yarn.lock',
+    'requirements.txt',
+    'poetry.lock',
+    'Gemfile.lock',
+    'go.sum',
+    'Cargo.lock',
+    'composer.lock',
+  ];
+  const found: string[] = [];
+  for (const c of candidates) {
+    try {
+      await fsp.access(path.join(root, c));
+      found.push(c);
+    } catch {
+      /* missing — ignore */
+    }
+  }
+  return found;
+}
 
 export const step07DependencyScan: Step = {
   step: 'RUN_DEPENDENCY_SCAN',
   async execute(ctx, state) {
-    // MOCK Sprint 0 — emit 1 OSV-like finding.
-    state.pendingFindings.push({
-      title: 'next 14.2.0 — 알려진 보안 취약점 (mock)',
-      category: 'SECURITY_PRIVACY',
-      severity: 'P1',
-      confidence: 'HIGH',
-      summary:
-        '의존성 next@14.2.0에는 CVE-MOCK-2026-0001 (Cache Poisoning) 취약점이 있습니다. 14.2.4 이상으로 업그레이드하세요.',
-      nonDeveloperExplanation:
-        '사용 중인 라이브러리에 알려진 보안 약점이 있습니다. 최신 버전으로 업데이트하면 자동으로 해결됩니다.',
-      technicalExplanation:
-        'OSV.dev 매칭: GHSA-mock-xxxx-xxxx-xxxx, severity 7.5 / introduced=14.2.0 / fixed=14.2.4.',
-      impact: 'SSR 응답 캐시가 오염되어 다른 사용자에게 오류 페이지가 노출될 수 있습니다.',
-      recommendation: 'package.json의 next 버전을 ^14.2.4 이상으로 올리고 lockfile을 재생성하세요.',
-      acceptanceCriteria: [
-        'package.json의 next 버전이 14.2.4 이상이다.',
-        'pnpm-lock.yaml 재생성 후 OSV 스캔에서 동일 경고가 사라진다.',
-      ],
-      tags: ['mock-osv', 'dependency'],
-      evidences: [
-        {
-          type: 'OSV',
-          source: 'mock-osv-scanner',
-          path: 'package.json',
-          lineStart: null,
-          lineEnd: null,
-          url: 'https://osv.dev/vulnerability/GHSA-mock-xxxx-xxxx-xxxx',
-          selector: null,
-          screenshotPath: null,
-          snippet: '"next": "14.2.0"',
-          maskedValue: null,
-          metadata: { cve: 'CVE-MOCK-2026-0001', cvss: 7.5 },
-        },
-      ],
-    });
+    if (!ctx.clonePath) {
+      ctx.log('warn', 'OSV-Scanner skipped — no clone path');
+      await writeToolResult({
+        auditRunId: ctx.runId,
+        toolName: 'osv-scanner',
+        toolVersion: 'n/a',
+        status: 'SKIPPED',
+        rawSummary: { reason: 'no clone path' },
+        artifactPath: null,
+      });
+      return;
+    }
+
+    const lockfiles = await findLockfiles(ctx.clonePath);
+    if (lockfiles.length === 0) {
+      ctx.log('info', 'No lockfiles detected; skipping OSV');
+      await writeToolResult({
+        auditRunId: ctx.runId,
+        toolName: 'osv-scanner',
+        toolVersion: 'n/a',
+        status: 'SKIPPED',
+        rawSummary: { reason: 'no lockfiles found' },
+        artifactPath: null,
+      });
+      return;
+    }
+
+    const result = await spawnTool(
+      'osv-scanner',
+      ['--format=json', '--recursive', ctx.clonePath],
+      { timeoutMs: 180_000 },
+    );
+
+    if (result.notInstalled) {
+      ctx.log('warn', 'osv-scanner not installed; skipping');
+      await writeToolResult({
+        auditRunId: ctx.runId,
+        toolName: 'osv-scanner',
+        toolVersion: 'n/a',
+        status: 'SKIPPED',
+        rawSummary: { reason: 'osv-scanner binary not found on PATH', lockfiles },
+        artifactPath: null,
+      });
+      return;
+    }
+
+    // OSV-Scanner returns exit code 1 when vulnerabilities are found.
+    const ok = result.exitCode === 0 || result.exitCode === 1;
+    if (!ok) {
+      ctx.log('warn', 'osv-scanner non-success exit', {
+        exitCode: result.exitCode,
+        stderr: result.stderr.slice(0, 500),
+      });
+      await writeToolResult({
+        auditRunId: ctx.runId,
+        toolName: 'osv-scanner',
+        toolVersion: 'unknown',
+        status: 'FAILED',
+        rawSummary: { exitCode: result.exitCode, stderr: result.stderr.slice(0, 2000) },
+        artifactPath: null,
+      });
+      return;
+    }
+
+    let parsed: OsvResult = {};
+    try {
+      parsed = JSON.parse(result.stdout) as OsvResult;
+    } catch (e) {
+      ctx.log('warn', 'OSV JSON parse failed', { error: (e as Error).message });
+    }
+
+    const findings = mapOsv(parsed);
+    state.pendingFindings.push(...findings);
 
     await writeToolResult({
       auditRunId: ctx.runId,
       toolName: 'osv-scanner',
-      toolVersion: 'mock-0.0.0',
+      toolVersion: 'unknown',
       status: 'SUCCESS',
-      rawSummary: { mocked: true, vulns: 1 },
+      rawSummary: { vulns: findings.length, lockfiles, durationMs: result.durationMs },
       artifactPath: null,
     });
-    ctx.log('info', 'Dependency scan (mock) complete', { vulns: 1 });
+    ctx.log('info', 'Dependency scan complete', { vulns: findings.length });
   },
 };

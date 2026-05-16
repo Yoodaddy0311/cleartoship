@@ -13,7 +13,25 @@ const app = express();
 app.use(express.json({ limit: '256kb' }));
 
 app.get('/healthz', (_req, res) => {
-  res.status(200).json({ status: 'ok' });
+  // Readiness signal — surface enough operational context for an SRE to tell
+  // at a glance whether the worker is configured for production traffic
+  // (OIDC enforced) or running in a relaxed dev mode (bypass active).
+  // Env vars are read on every call so test suites (and runtime overrides)
+  // see fresh values without restarting the process.
+  const oidcEnabled = Boolean(
+    process.env.OIDC_EXPECTED_AUDIENCE && process.env.OIDC_EXPECTED_ISSUER,
+  );
+  const devBypassActive =
+    process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_BYPASS === '1';
+  res.status(200).json({
+    status: 'ok',
+    service: 'audit-worker',
+    version: process.env.WORKER_VERSION ?? '0.1.0',
+    nodeEnv: process.env.NODE_ENV ?? 'undefined',
+    oidcEnabled,
+    devBypassActive,
+    timestamp: new Date().toISOString(),
+  });
 });
 
 const verifyOidc = oidcMiddlewareFromEnv();
@@ -51,11 +69,15 @@ app.post('/run', verifyOidc, async (req, res) => {
 
 const port = Number(process.env.WORKER_PORT ?? 8080);
 app.listen(port, () => {
+  const devBypassActive =
+    process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_BYPASS === '1';
   process.stderr.write(
     JSON.stringify({
       level: 'info',
       component: 'worker.server',
       message: `audit-worker listening on :${port}`,
+      devBypassActive,
+      nodeEnv: process.env.NODE_ENV ?? 'undefined',
     }) + '\n',
   );
 });

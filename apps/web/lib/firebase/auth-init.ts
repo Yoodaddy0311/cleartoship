@@ -108,3 +108,21 @@ export async function ensureAnonymousUser(): Promise<User> {
   const cred = await signInAnonymously(auth);
   return cred.user;
 }
+
+/**
+ * Returns the current Firebase user's ID token, or null when running on the
+ * server or when no user is signed in. Used by `apiFetch` to attach an
+ * Authorization header so server-side `resolveCaller()` can identify the
+ * caller. Never throws — token retrieval failures surface as null so callers
+ * fall back to an unauthenticated request and let the server return 401.
+ */
+export async function getIdToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  try {
+    const user = getClientAuth().currentUser;
+    if (!user) return null;
+    return await user.getIdToken();
+  } catch {
+    return null;
+  }
+}

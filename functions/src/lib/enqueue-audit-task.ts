@@ -55,11 +55,59 @@ export function __resetClientForTests(client: CloudTasksClient | null): void {
   cachedClient = client;
 }
 
+/**
+ * Emulator fallback: POST directly to the worker over HTTP, bypassing Cloud
+ * Tasks. Activated when FUNCTIONS_EMULATOR === 'true'. Awaited so dispatch
+ * errors surface in the Functions logs, but a failed POST is downgraded to a
+ * warn log rather than re-thrown so the emulator trigger does not retry.
+ */
+async function postDirectlyToWorker(
+  payload: AuditTaskPayload,
+  workerUrl: string,
+): Promise<EnqueueAuditTaskResult> {
+  const devTaskName = `dev-direct-${payload.runId}-${Date.now()}`;
+  try {
+    await fetch(`${workerUrl.replace(/\/+$/, '')}/run`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Dev-Mode': '1' },
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    process.stderr.write(
+      JSON.stringify({
+        level: 'warn',
+        component: 'functions.enqueue-audit-task',
+        message: 'Dev direct POST to worker failed (fire-and-forget)',
+        runId: payload.runId,
+        workerUrl,
+        error: err instanceof Error ? err.message : String(err),
+      }) + '\n',
+    );
+  }
+  return { taskName: devTaskName, deduped: false };
+}
+
+// Activate the direct-POST fallback only when running under the Firebase
+// emulator. We intentionally do NOT key off NODE_ENV here because vitest sets
+// NODE_ENV='test', which would silently divert real Cloud Tasks creates during
+// the test suite. Production-shaped tests therefore use the real path; opt-in
+// emulator runs use the bypass.
+function isEmulatorOrDev(): boolean {
+  return process.env.FUNCTIONS_EMULATOR === 'true';
+}
+
 export async function enqueueAuditTask(
   payload: AuditTaskPayload,
   config: EnqueueAuditTaskConfig,
 ): Promise<EnqueueAuditTaskResult> {
   const { project, location, queue, workerUrl, invokerSa } = config;
+
+  // Dev/emulator path — skip Cloud Tasks entirely, POST directly. Keeps the
+  // local Firestore-trigger → worker loop closed without any GCP creds.
+  if (isEmulatorOrDev() && workerUrl) {
+    return postDirectlyToWorker(payload, workerUrl);
+  }
+
   const client = getClient();
   const queuePath = client.queuePath(project, location, queue);
 

@@ -11,9 +11,12 @@
     "dev": "pnpm --filter web dev",
     "build": "pnpm -r build",
     "ci": "pnpm -r type-check && pnpm -r lint && pnpm -r test",
-    "lint": "pnpm -r lint",
-    "type-check": "pnpm -r type-check",
-    "test": "pnpm -r test",
+    "lint": "pnpm -r --parallel lint",
+    "type-check": "pnpm -r --parallel type-check",
+    "test": "vitest run",
+    "test:web": "pnpm --filter web test",
+    "test:functions": "pnpm --filter functions test",
+    "test:workers": "pnpm --filter audit-worker test",
     "emulators": "firebase emulators:start --import=./seed --export-on-exit",
     "deploy:hosting": "firebase deploy --only hosting",
     "deploy:functions": "firebase deploy --only functions",
@@ -21,6 +24,7 @@
   },
   "devDependencies": {
     "typescript": "^5.4.5",
-    "@types/node": "^20.12.7"
+    "@types/node": "^20.12.7",
+    "vitest": "^1.6.0"
   }
 }

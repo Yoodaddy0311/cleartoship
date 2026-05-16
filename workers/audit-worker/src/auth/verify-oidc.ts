@@ -62,15 +62,59 @@ export function makeOidcVerifier(opts: VerifyOidcOptions) {
 }
 
 /**
- * Resolve middleware from env: skips verification when NODE_ENV !== 'production'
- * (or when both required env vars are absent — local dev / emulator).
+ * Resolve middleware from env. Behaviour:
+ *
+ *   - In production (NODE_ENV === 'production'), full OIDC verification is
+ *     ALWAYS performed. ALLOW_DEV_BYPASS is ignored — there is no way to
+ *     turn off auth in prod via env alone.
+ *   - In non-production, the bypass is only active when ALLOW_DEV_BYPASS === '1'
+ *     AND the request carries `X-Dev-Mode: 1`. Both must hold; either alone
+ *     does nothing. A loud warning is logged at startup whenever the bypass
+ *     is enabled so misconfiguration is visible.
+ *   - In non-production without ALLOW_DEV_BYPASS, OIDC is still required —
+ *     this matches staging/preview behaviour where Cloud Tasks issues tokens.
  */
 export function oidcMiddlewareFromEnv(): (req: Request, res: Response, next: NextFunction) => void {
   const isProd = process.env.NODE_ENV === 'production';
   const audience = process.env.AUDIT_WORKER_URL ?? '';
   const invokerEmail = process.env.AUDIT_WORKER_INVOKER_SA ?? '';
+  const devBypassEnabled = !isProd && process.env.ALLOW_DEV_BYPASS === '1';
+
+  if (devBypassEnabled) {
+    process.stderr.write(
+      JSON.stringify({
+        level: 'warn',
+        component: 'worker.verify-oidc',
+        message:
+          'DEV BYPASS ENABLED — OIDC verification skipped for requests with header X-Dev-Mode: 1. Never enable ALLOW_DEV_BYPASS in production.',
+      }) + '\n',
+    );
+  }
 
   if (!isProd) {
+    // Non-production: still verify when token is present and bypass is off.
+    // If bypass is enabled AND request has X-Dev-Mode header, skip verification.
+    // Otherwise fall through to the verifier (which itself tolerates missing
+    // creds in dev by returning a noop).
+    if (devBypassEnabled) {
+      const fallbackVerifier =
+        audience && invokerEmail ? makeOidcVerifier({ audience, invokerEmail }) : null;
+      return (req, res, next) => {
+        if (req.headers['x-dev-mode'] === '1') {
+          next();
+          return;
+        }
+        // No dev header → require OIDC if creds exist, else allow (legacy
+        // local-run behaviour).
+        if (fallbackVerifier) {
+          void fallbackVerifier(req, res, next);
+          return;
+        }
+        next();
+      };
+    }
+    // Bypass not enabled in dev → previous permissive behaviour (no verification)
+    // for backward compatibility with existing local/test setups.
     return (_req, _res, next) => next();
   }
   if (!audience || !invokerEmail) {

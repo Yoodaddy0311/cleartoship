@@ -14,13 +14,18 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@axe-core/playwright": "^4.9.1",
     "@cleartoship/audit-core": "workspace:*",
     "@cleartoship/shared-types": "workspace:*",
     "@google-cloud/firestore": "^7.7.0",
     "@google-cloud/storage": "^7.11.1",
+    "chrome-launcher": "^1.1.2",
     "express": "^4.19.2",
     "firebase-admin": "^12.1.1",
     "google-auth-library": "^9.10.0",
+    "lighthouse": "^12.2.1",
+    "playwright": "^1.45.0",
+    "simple-git": "^3.25.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

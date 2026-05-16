@@ -2,9 +2,29 @@ import { defineConfig } from 'vitest/config';
 import path from 'node:path';
 
 export default defineConfig({
+  // tsconfig sets `jsx: preserve` for Next.js, but vitest's esbuild needs an
+  // explicit transform. `automatic` matches React 18's new JSX runtime, so
+  // test files don't need an `import React` line.
+  esbuild: {
+    jsx: 'automatic',
+  },
   test: {
-    include: ['lib/**/*.test.ts', 'lib/**/*.test.tsx'],
+    include: [
+      '*.test.ts',
+      '*.test.tsx',
+      'lib/**/*.test.ts',
+      'lib/**/*.test.tsx',
+      'app/**/*.test.ts',
+      'app/**/*.test.tsx',
+      'components/**/*.test.ts',
+      'components/**/*.test.tsx',
+    ],
     environment: 'node',
+    environmentMatchGlobs: [
+      ['**/*.test.tsx', 'jsdom'],
+      ['components/**/*.test.ts', 'jsdom'],
+    ],
+    setupFiles: ['./vitest.setup.ts'],
     globals: false,
     coverage: {
       provider: 'v8',
