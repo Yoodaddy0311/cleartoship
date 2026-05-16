@@ -13,11 +13,10 @@ export interface ScoreGaugeProps {
 }
 
 function bandColor(score: number): string {
-  if (score >= 85) return 'var(--color-severity-p3)';
-  if (score >= 70) return 'var(--color-plasma-cyan)';
-  if (score >= 55) return 'var(--color-severity-p2)';
-  if (score >= 40) return 'var(--color-severity-p1)';
-  return 'var(--color-severity-p0)';
+  if (score >= 70) return 'var(--sev-p3)';
+  if (score >= 55) return 'var(--sev-p2)';
+  if (score >= 40) return 'var(--sev-p1)';
+  return 'var(--sev-p0)';
 }
 
 /**
@@ -37,27 +36,27 @@ export function ScoreGauge({
   return (
     <div
       className={cn(
-        'flex flex-col gap-2 rounded-[10px] border border-[color:var(--color-border-subtle)]',
-        'bg-[color:var(--color-bg-elevated)] p-4',
+        'flex flex-col gap-2 rounded-[10px] border border-[color:var(--app-border)]',
+        'bg-[color:var(--app-surface)] p-4',
         className
       )}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-sm text-[color:var(--color-fg-secondary)]">
+        <span className="text-sm text-[color:var(--app-fg-muted)]">
           {label}
         </span>
         {chip ? <span className="text-xs">{chip}</span> : null}
       </div>
       <div className="flex items-baseline gap-2">
         <span
-          className="font-mono tabular-nums text-[color:var(--color-fg-primary)]"
+          className="font-mono tabular-nums text-[color:var(--app-fg)]"
           style={{ fontSize: '1.5rem', fontWeight: 600 }}
         >
           {clamped}
         </span>
-        <span className="text-xs text-[color:var(--color-fg-muted)]">/ 100</span>
+        <span className="text-xs text-[color:var(--app-fg-muted)]">/ 100</span>
         {typeof weight === 'number' ? (
-          <span className="ml-auto text-xs text-[color:var(--color-fg-muted)]">
+          <span className="ml-auto text-xs text-[color:var(--app-fg-muted)]">
             가중치 {weight}
           </span>
         ) : null}
@@ -68,7 +67,7 @@ export function ScoreGauge({
         aria-valuemin={0}
         aria-valuemax={100}
         aria-label={`${label} 점수 ${clamped}`}
-        className="h-1 w-full overflow-hidden rounded-full bg-[color:var(--color-border-default)]/40"
+        className="h-1 w-full overflow-hidden rounded-full bg-[color:var(--app-border)]"
       >
         <div
           className="h-full rounded-full transition-[width] duration-[var(--duration-slow)] ease-[var(--ease-standard)]"

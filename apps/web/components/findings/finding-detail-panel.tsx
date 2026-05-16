@@ -20,7 +20,7 @@ export function FindingDetailPanel({ finding }: { finding: MockFinding }) {
         <p className="text-md text-[color:var(--color-fg-secondary)]">{finding.summary}</p>
       </header>
 
-      <Card variant="glass" padding="md">
+      <Card variant="default" padding="md">
         <CardHeader>
           <CardTitle>{t('findings.detail.nonDeveloper')}</CardTitle>
         </CardHeader>
@@ -82,7 +82,7 @@ export function FindingDetailPanel({ finding }: { finding: MockFinding }) {
                   type="checkbox"
                   disabled
                   aria-label={`수용 기준 ${i + 1}`}
-                  className="mt-1 h-3.5 w-3.5 accent-[color:var(--color-aurora-violet)]"
+                  className="mt-1 h-3.5 w-3.5 accent-[color:var(--mk-accent-2)]"
                 />
                 <span>{it}</span>
               </li>

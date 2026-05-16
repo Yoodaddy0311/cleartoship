@@ -15,8 +15,8 @@ const radiusMap = {
 } as const;
 
 /**
- * Skeleton — aurora-tinted shimmer. Use `size` for dimensions or `className`.
- * a11y: aria-hidden + animate-pulse fallback (CSS gradient sweep when motion ok).
+ * Skeleton — flat surface shimmer placeholder.
+ * a11y: aria-hidden; animate-pulse provides a motion-friendly fallback.
  */
 export function Skeleton({
   className,
@@ -28,9 +28,8 @@ export function Skeleton({
     <div
       aria-hidden="true"
       className={cn(
-        'skeleton-sweep',
+        'bg-[color:var(--app-border)] animate-pulse',
         radiusMap[rounded],
-        'animate-pulse',
         size,
         className
       )}

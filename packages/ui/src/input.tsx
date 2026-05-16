@@ -29,13 +29,13 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {label ? (
           <label
             htmlFor={inputId}
-            className="text-sm text-[color:var(--color-fg-secondary)]"
+            className="text-sm text-[color:var(--app-fg-muted)]"
           >
             {label}
             {required ? (
               <span
                 aria-hidden="true"
-                className="ml-1 text-[color:var(--color-severity-p0)]"
+                className="ml-1 text-[color:var(--sev-p0)]"
               >
                 *
               </span>
@@ -50,15 +50,15 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           aria-required={required || undefined}
           className={cn(
             'h-11 w-full rounded-[10px] px-3.5 text-md',
-            'bg-[color:var(--color-bg-elevated)]',
-            'text-[color:var(--color-fg-primary)]',
-            'placeholder:text-[color:var(--color-fg-muted)]',
-            'border border-[color:var(--color-border-default)]',
+            'bg-[color:var(--app-surface)]',
+            'text-[color:var(--app-fg)]',
+            'placeholder:text-[color:var(--app-fg-muted)]',
+            'border border-[color:var(--app-border)]',
             'transition-[box-shadow,border-color,background] duration-[var(--duration-base)] ease-[var(--ease-standard)]',
-            'hover:border-[color:var(--color-border-emphasis)]',
-            'focus:outline-none focus:border-[color:var(--color-aurora-violet)] focus:shadow-[var(--focus-ring)]',
+            'hover:border-[color:var(--app-fg-muted)]',
+            'focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--mk-accent)]',
             error &&
-              'border-[color:var(--color-severity-p0)] focus:border-[color:var(--color-severity-p0)] focus:shadow-[0_0_0_2px_rgba(255,59,105,0.4)]',
+              'border-[color:var(--sev-p0)] focus:border-[color:var(--sev-p0)]',
             className
           )}
           {...rest}
@@ -67,14 +67,14 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           <p
             id={`${inputId}-err`}
             role="alert"
-            className="text-xs text-[color:var(--color-severity-p0)]"
+            className="text-xs text-[color:var(--sev-p0)]"
           >
             {error}
           </p>
         ) : hint ? (
           <p
             id={`${inputId}-hint`}
-            className="text-xs text-[color:var(--color-fg-muted)]"
+            className="text-xs text-[color:var(--app-fg-muted)]"
           >
             {hint}
           </p>
@@ -109,13 +109,13 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         {label ? (
           <label
             htmlFor={inputId}
-            className="text-sm text-[color:var(--color-fg-secondary)]"
+            className="text-sm text-[color:var(--app-fg-muted)]"
           >
             {label}
             {required ? (
               <span
                 aria-hidden="true"
-                className="ml-1 text-[color:var(--color-severity-p0)]"
+                className="ml-1 text-[color:var(--sev-p0)]"
               >
                 *
               </span>
@@ -131,15 +131,15 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           aria-required={required || undefined}
           className={cn(
             'w-full rounded-[10px] px-3.5 py-2.5 text-md leading-[1.55] resize-y',
-            'bg-[color:var(--color-bg-elevated)]',
-            'text-[color:var(--color-fg-primary)]',
-            'placeholder:text-[color:var(--color-fg-muted)]',
-            'border border-[color:var(--color-border-default)]',
+            'bg-[color:var(--app-surface)]',
+            'text-[color:var(--app-fg)]',
+            'placeholder:text-[color:var(--app-fg-muted)]',
+            'border border-[color:var(--app-border)]',
             'transition-[box-shadow,border-color] duration-[var(--duration-base)] ease-[var(--ease-standard)]',
-            'hover:border-[color:var(--color-border-emphasis)]',
-            'focus:outline-none focus:border-[color:var(--color-aurora-violet)] focus:shadow-[var(--focus-ring)]',
+            'hover:border-[color:var(--app-fg-muted)]',
+            'focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--mk-accent)]',
             error &&
-              'border-[color:var(--color-severity-p0)] focus:border-[color:var(--color-severity-p0)]',
+              'border-[color:var(--sev-p0)] focus:border-[color:var(--sev-p0)]',
             className
           )}
           {...rest}
@@ -148,14 +148,14 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           <p
             id={`${inputId}-err`}
             role="alert"
-            className="text-xs text-[color:var(--color-severity-p0)]"
+            className="text-xs text-[color:var(--sev-p0)]"
           >
             {error}
           </p>
         ) : hint ? (
           <p
             id={`${inputId}-hint`}
-            className="text-xs text-[color:var(--color-fg-muted)]"
+            className="text-xs text-[color:var(--app-fg-muted)]"
           >
             {hint}
           </p>

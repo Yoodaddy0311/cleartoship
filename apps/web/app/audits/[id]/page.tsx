@@ -8,6 +8,7 @@ import {
   type AuditStep,
 } from '@/components/audit-progress/progress-timeline';
 import { useAuditRunPolling } from '@/components/audit-progress/use-audit-run-polling';
+import { DevPipelineBanner } from '@/components/common/dev-pipeline-banner';
 import { t } from '@/lib/i18n';
 
 interface PageProps {
@@ -16,7 +17,7 @@ interface PageProps {
 
 export default function AuditProgressPage({ params }: PageProps) {
   const router = useRouter();
-  const { data, loading } = useAuditRunPolling(params.id);
+  const { data, loading, error } = useAuditRunPolling(params.id);
 
   useEffect(() => {
     if (data?.status === 'COMPLETED') {
@@ -32,6 +33,7 @@ export default function AuditProgressPage({ params }: PageProps) {
   const currentStep = (data?.currentStep as AuditStep) ?? null;
   const progress = data?.progress ?? 0;
   const status = data?.status ?? 'PENDING';
+  const showFetchError = error !== null && data === null;
 
   return (
     <section className="mx-auto flex w-full max-w-[1280px] flex-col gap-8 px-4 py-12 sm:px-6">
@@ -58,10 +60,11 @@ export default function AuditProgressPage({ params }: PageProps) {
             showValue
           />
         </div>
+        <DevPipelineBanner mode={data?.enqueueMode ?? null} className="mt-4" />
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_2fr]">
-        <Card variant="glass" padding="md" aria-live="polite">
+        <Card variant="default" padding="md" aria-live="polite">
           <CardHeader>
             <CardTitle>15단계 분석</CardTitle>
           </CardHeader>
@@ -70,12 +73,24 @@ export default function AuditProgressPage({ params }: PageProps) {
           </CardBody>
         </Card>
 
-        <Card variant="glass" padding="md" className="min-h-[420px]">
+        <Card variant="default" padding="md" className="min-h-[420px]">
           <CardHeader>
             <CardTitle>실시간 분석 결과</CardTitle>
           </CardHeader>
           <CardBody>
-            {status === 'FAILED' ? (
+            {showFetchError ? (
+              <div className="flex flex-col items-start gap-3">
+                <p className="text-md text-[color:var(--color-severity-p0)]">
+                  진행 상태를 불러오지 못했습니다.
+                </p>
+                <pre className="max-w-full overflow-auto text-xs text-[color:var(--color-fg-muted)]">
+                  {error}
+                </pre>
+                <Button onClick={() => router.refresh()} variant="secondary">
+                  {t('progress.error.retry')}
+                </Button>
+              </div>
+            ) : status === 'FAILED' ? (
               <div className="flex flex-col items-start gap-3">
                 <p className="text-md text-[color:var(--color-severity-p0)]">
                   {t('progress.error.title')}

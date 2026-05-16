@@ -6,7 +6,7 @@ import type { MockNode } from '@/lib/mock/audit-fixture';
 export function NodeDetailPanel({ node }: { node: MockNode | null }) {
   if (!node) {
     return (
-      <Card variant="glass" padding="md" className="h-full">
+      <Card variant="default" padding="md" className="h-full">
         <CardBody>
           <p className="text-sm text-[color:var(--color-fg-muted)]">
             그래프에서 노드를 선택하면 상세 정보가 표시됩니다.
@@ -16,7 +16,7 @@ export function NodeDetailPanel({ node }: { node: MockNode | null }) {
     );
   }
   return (
-    <Card variant="glass" padding="md" className="h-full">
+    <Card variant="default" padding="md" className="h-full">
       <CardHeader>
         <div className="flex flex-col gap-2">
           <CardTitle>{node.label}</CardTitle>

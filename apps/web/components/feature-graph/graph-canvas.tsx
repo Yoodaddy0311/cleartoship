@@ -42,7 +42,7 @@ const edgeTypes: EdgeTypes = {};
 function edgeStyle(type: MockEdge['type']): { style: React.CSSProperties; animated?: boolean; label?: string } {
   switch (type) {
     case 'calls_api':
-      return { style: { stroke: 'var(--color-aurora-violet)', strokeWidth: 1.5 } };
+      return { style: { stroke: 'var(--mk-accent-2)', strokeWidth: 1.5 } };
     case 'missing_link':
       return {
         style: {

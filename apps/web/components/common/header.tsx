@@ -32,10 +32,7 @@ export function Header() {
             <span
               aria-hidden="true"
               className="grid h-7 w-7 place-items-center rounded-md"
-              style={{
-                background:
-                  'linear-gradient(135deg,#7C3AED 0%, #3B82F6 40%, #06B6D4 100%)',
-              }}
+              style={{ background: 'var(--mk-gradient)' }}
             >
               <Sparkles className="h-4 w-4 text-white" aria-hidden="true" />
             </span>

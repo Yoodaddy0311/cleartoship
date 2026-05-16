@@ -25,8 +25,8 @@ export interface EvidenceCardProps {
 
 /**
  * EvidenceCard — file:line + code snippet + masked-secret indicator.
- * Syntax highlighting is a stub (white-space pre, mono font). Drop-in highlighter
- * like Shiki can be wired in Sprint 1+ without changing the API.
+ * Flat app surface; Shiki-style syntax highlighting can drop in without
+ * touching the API.
  */
 export function EvidenceCard({
   filePath,
@@ -57,16 +57,16 @@ export function EvidenceCard({
   return (
     <figure
       className={cn(
-        'overflow-hidden rounded-[12px] border border-[color:var(--color-border-subtle)]',
-        'bg-[color:var(--color-bg-elevated)]',
+        'overflow-hidden rounded-[12px] border border-[color:var(--app-border)]',
+        'bg-[color:var(--app-surface)]',
         className
       )}
     >
       <figcaption
         className={cn(
-          'flex items-center justify-between gap-2 border-b border-[color:var(--color-border-subtle)]',
-          'bg-[rgba(255,255,255,0.02)] px-3 py-2 text-xs',
-          'text-[color:var(--color-fg-secondary)]'
+          'flex items-center justify-between gap-2 border-b border-[color:var(--app-border)]',
+          'bg-[color:var(--app-bg-soft)] px-3 py-2 text-xs',
+          'text-[color:var(--app-fg-muted)]'
         )}
       >
         <span className="flex min-w-0 items-center gap-1.5">
@@ -77,14 +77,14 @@ export function EvidenceCard({
           )}
           <span className="truncate font-mono">{locationLabel}</span>
           {language ? (
-            <span className="ml-2 rounded-sm bg-[rgba(255,255,255,0.04)] px-1.5 py-0.5 text-[10px] uppercase">
+            <span className="ml-2 rounded-sm bg-[color:var(--app-bg-soft)] px-1.5 py-0.5 text-[10px] uppercase">
               {language}
             </span>
           ) : null}
         </span>
         {maskedSecret ? (
           <span
-            className="flex items-center gap-1 text-[color:var(--color-severity-p0)]"
+            className="flex items-center gap-1 text-[color:var(--sev-p0)]"
             role="status"
           >
             <EyeOff aria-hidden="true" className="h-3.5 w-3.5" />
@@ -94,19 +94,19 @@ export function EvidenceCard({
       </figcaption>
 
       {selector ? (
-        <p className="border-b border-[color:var(--color-border-subtle)] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 font-mono text-xs text-[color:var(--color-fg-muted)]">
+        <p className="border-b border-[color:var(--app-border)] bg-[color:var(--app-bg-soft)] px-3 py-1.5 font-mono text-xs text-[color:var(--app-fg-muted)]">
           선택자: {selector}
         </p>
       ) : null}
 
       {snippet ? (
-        <pre className="max-h-60 overflow-auto !rounded-none !border-0 !bg-transparent px-3 py-3 text-xs">
+        <pre className="max-h-60 overflow-auto !rounded-none !border-0 !bg-transparent px-3 py-3 text-xs text-[color:var(--app-fg)]">
           <code className="whitespace-pre">{snippet}</code>
         </pre>
       ) : null}
 
       {caption ? (
-        <p className="border-t border-[color:var(--color-border-subtle)] px-3 py-2 text-xs text-[color:var(--color-fg-muted)]">
+        <p className="border-t border-[color:var(--app-border)] px-3 py-2 text-xs text-[color:var(--app-fg-muted)]">
           {caption}
         </p>
       ) : null}

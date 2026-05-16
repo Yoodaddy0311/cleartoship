@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { cn } from './lib/cn';
 
-export type CardVariant = 'default' | 'glass' | 'elevated';
+export type CardVariant = 'default' | 'flat' | 'elevated';
 export type CardPadding = 'sm' | 'md' | 'lg' | 'none';
 
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -12,10 +12,11 @@ export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 
 const variantStyles: Record<CardVariant, string> = {
   default:
-    'bg-[color:var(--color-bg-elevated)] border border-[color:var(--color-border-subtle)] rounded-[16px] shadow-[var(--elev-1)]',
-  glass: 'glass-card',
+    'bg-[color:var(--app-surface)] border border-[color:var(--app-border)] rounded-[16px] shadow-[var(--elev-1)]',
+  flat:
+    'bg-[color:var(--app-surface)] border border-[color:var(--app-border)] rounded-[16px]',
   elevated:
-    'bg-[color:var(--color-bg-elevated)] rounded-[16px] shadow-[var(--elev-2)]',
+    'bg-[color:var(--app-surface)] rounded-[16px] shadow-[var(--elev-2)]',
 };
 
 const paddingStyles: Record<CardPadding, string> = {
@@ -65,7 +66,7 @@ export const CardTitle = React.forwardRef<
     <h3
       ref={ref}
       className={cn(
-        'text-lg font-semibold text-[color:var(--color-fg-primary)]',
+        'text-lg font-semibold text-[color:var(--app-fg)]',
         className
       )}
       {...rest}
@@ -80,7 +81,7 @@ export const CardDescription = React.forwardRef<
   return (
     <p
       ref={ref}
-      className={cn('text-sm text-[color:var(--color-fg-secondary)]', className)}
+      className={cn('text-sm text-[color:var(--app-fg-muted)]', className)}
       {...rest}
     />
   );
@@ -93,7 +94,7 @@ export const CardBody = React.forwardRef<
   return (
     <div
       ref={ref}
-      className={cn('text-md text-[color:var(--color-fg-primary)]', className)}
+      className={cn('text-md text-[color:var(--app-fg)]', className)}
       {...rest}
     />
   );
@@ -107,7 +108,7 @@ export const CardFooter = React.forwardRef<
     <div
       ref={ref}
       className={cn(
-        'mt-6 flex items-center justify-between gap-3 pt-4 border-t border-[color:var(--color-border-subtle)]',
+        'mt-6 flex items-center justify-between gap-3 pt-4 border-t border-[color:var(--app-border)]',
         className
       )}
       {...rest}

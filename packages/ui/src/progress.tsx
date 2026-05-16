@@ -12,7 +12,7 @@ export interface ProgressProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 /**
- * Linear progress — 6px track, aurora gradient fill.
+ * Linear progress — flat track + filled bar.
  * a11y: role="progressbar" with aria-valuenow.
  */
 export const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
@@ -26,12 +26,12 @@ export const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
         {(label || showValue) && (
           <div className="flex items-center justify-between text-xs">
             {label ? (
-              <span className="text-[color:var(--color-fg-muted)]">{label}</span>
+              <span className="text-[color:var(--app-fg-muted)]">{label}</span>
             ) : (
               <span />
             )}
             {showValue && !indeterminate ? (
-              <span className="font-mono tabular-nums text-[color:var(--color-fg-secondary)]">
+              <span className="font-mono tabular-nums text-[color:var(--app-fg-muted)]">
                 {clamped}%
               </span>
             ) : null}
@@ -43,20 +43,16 @@ export const Progress = React.forwardRef<HTMLDivElement, ProgressProps>(
           aria-valuemin={0}
           aria-valuemax={100}
           aria-busy={indeterminate || undefined}
-          className="relative h-1.5 w-full overflow-hidden rounded-full bg-[color:var(--color-border-default)]/30"
+          className="relative h-1.5 w-full overflow-hidden rounded-full bg-[color:var(--app-border)]"
         >
           {indeterminate ? (
             <div
-              className="absolute inset-y-0 left-0 w-1/3 animate-[shimmer-sweep_1500ms_linear_infinite]"
-              style={{ background: 'var(--gradient-aurora)' }}
+              className="absolute inset-y-0 left-0 w-1/3 animate-[shimmer-sweep_1500ms_linear_infinite] bg-[color:var(--app-fg)]"
             />
           ) : (
             <div
-              className="h-full rounded-full transition-[width] duration-[var(--duration-slow)] ease-[var(--ease-standard)]"
-              style={{
-                width: `${clamped}%`,
-                background: 'var(--gradient-aurora)',
-              }}
+              className="h-full rounded-full bg-[color:var(--app-fg)] transition-[width] duration-[var(--duration-slow)] ease-[var(--ease-standard)]"
+              style={{ width: `${clamped}%` }}
             />
           )}
         </div>

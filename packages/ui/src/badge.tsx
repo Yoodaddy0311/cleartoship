@@ -22,10 +22,6 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   label?: string;
 }
 
-/**
- * Returns inline style with bg = color@12%, text = color.
- * We use color-mix to avoid hex-with-alpha string surgery; falls back to rgba.
- */
 function badgeStyle(varName: string): React.CSSProperties {
   return {
     color: `var(${varName})`,
@@ -35,19 +31,19 @@ function badgeStyle(varName: string): React.CSSProperties {
 }
 
 const variantToVar: Record<BadgeVariant, string | null> = {
-  P0: '--color-severity-p0',
-  P1: '--color-severity-p1',
-  P2: '--color-severity-p2',
-  P3: '--color-severity-p3',
-  complete: '--color-status-complete',
-  partial: '--color-status-partial',
-  ui_only: '--color-status-ui-only',
-  logic_only: '--color-status-logic-only',
-  missing_connection: '--color-status-missing-connection',
-  missing: '--color-status-missing',
-  risky: '--color-status-risky',
-  recommended: '--color-status-recommended',
-  unknown: '--color-status-unknown',
+  P0: '--sev-p0',
+  P1: '--sev-p1',
+  P2: '--sev-p2',
+  P3: '--sev-p3',
+  complete: '--sev-p3',
+  partial: '--sev-p2',
+  ui_only: '--sev-p2',
+  logic_only: '--sev-p2',
+  missing_connection: '--sev-p1',
+  missing: '--sev-p0',
+  risky: '--sev-p1',
+  recommended: '--sev-p3',
+  unknown: null,
   neutral: null,
 };
 
@@ -61,9 +57,9 @@ export const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
       cssVar !== null
         ? badgeStyle(cssVar)
         : {
-            color: 'var(--color-fg-secondary)',
-            backgroundColor: 'rgba(255,255,255,0.04)',
-            border: '1px solid var(--color-border-default)',
+            color: 'var(--app-fg-muted)',
+            backgroundColor: 'var(--app-bg-soft)',
+            border: '1px solid var(--app-border)',
           };
 
     return (

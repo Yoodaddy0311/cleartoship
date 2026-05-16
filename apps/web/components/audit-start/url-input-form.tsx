@@ -7,6 +7,7 @@ import { ArrowRight, FileText, Upload } from 'lucide-react';
 import { Button, Input, Textarea, Card, CardBody, cn } from '@cleartoship/ui';
 import { t } from '@/lib/i18n';
 import { createAuditRun, type AuditRunCreateInput } from '@/lib/api/audit-runs';
+import { ApiHttpError } from '@/lib/api/client';
 import { useEnsureAnonymousAuth } from '@/lib/firebase/auth-init';
 
 const GITHUB_URL = /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/?$/;
@@ -115,20 +116,17 @@ export function UrlInputForm() {
         const response = await createAuditRun(payload);
         router.push(`/audits/${encodeURIComponent(response.auditRunId)}`);
       } catch (err) {
-        // Sprint 0: backend may not exist yet — degrade to a mock id to allow UI demo.
-        if (process.env.NODE_ENV !== 'production') {
-          const mockId = `mock-${Date.now()}`;
-          router.push(`/audits/${mockId}`);
-          return;
-        }
-        void err;
-        setSubmitError(t('home.form.error.generic'));
+        const message =
+          err instanceof ApiHttpError && err.message
+            ? err.message
+            : t('home.form.error.generic');
+        setSubmitError(message);
       }
     });
   }
 
   return (
-    <Card variant="glass" padding="lg" className="w-full max-w-[640px]">
+    <Card variant="default" padding="lg" className="w-full max-w-[640px]">
       <CardBody>
         <form noValidate onSubmit={onSubmit} className="flex flex-col gap-5">
           <Input
@@ -300,8 +298,8 @@ function PrdModeOption({
         'flex flex-1 items-center justify-center gap-2 px-3 py-2 text-sm',
         'transition-[background,color] duration-[var(--duration-base)] ease-[var(--ease-standard)]',
         active
-          ? 'bg-[color-mix(in_oklch,var(--color-aurora-violet)_18%,transparent)] text-[color:var(--color-fg-primary)] font-medium'
-          : 'bg-transparent text-[color:var(--color-fg-secondary)] hover:bg-[rgba(255,255,255,0.04)]'
+          ? 'bg-[color-mix(in_oklch,var(--mk-accent-2)_18%,transparent)] text-[color:var(--app-fg)] font-medium'
+          : 'bg-transparent text-[color:var(--app-fg-muted)] hover:bg-[color:var(--app-chip-bg)]'
       )}
     >
       {icon}

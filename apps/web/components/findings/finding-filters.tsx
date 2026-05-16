@@ -49,7 +49,7 @@ export function FindingFilters({
                   'inline-flex h-7 items-center gap-1 rounded-full border px-2.5 text-xs',
                   'focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]',
                   active
-                    ? 'border-[color:var(--color-aurora-violet)] bg-[color-mix(in_oklch,var(--color-aurora-violet)_15%,transparent)] text-[color:var(--color-fg-primary)]'
+                    ? 'border-[color:var(--mk-accent-2)] bg-[color-mix(in_oklch,var(--mk-accent-2)_15%,transparent)] text-[color:var(--app-fg)]'
                     : 'border-[color:var(--color-border-default)] text-[color:var(--color-fg-secondary)] hover:border-[color:var(--color-border-emphasis)]'
                 )}
               >
@@ -77,7 +77,7 @@ export function FindingFilters({
                   'inline-flex h-7 items-center gap-1 rounded-full border px-2.5 text-xs',
                   'focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]',
                   active
-                    ? 'border-[color:var(--color-aurora-violet)] bg-[color-mix(in_oklch,var(--color-aurora-violet)_15%,transparent)] text-[color:var(--color-fg-primary)]'
+                    ? 'border-[color:var(--mk-accent-2)] bg-[color-mix(in_oklch,var(--mk-accent-2)_15%,transparent)] text-[color:var(--app-fg)]'
                     : 'border-[color:var(--color-border-default)] text-[color:var(--color-fg-secondary)] hover:border-[color:var(--color-border-emphasis)]'
                 )}
               >

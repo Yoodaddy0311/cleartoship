@@ -51,7 +51,7 @@ export function ProgressTimeline({
             className={cn(
               'relative flex items-center gap-3 rounded-md px-2 py-2 transition-colors',
               state === 'current' &&
-                'bg-[color-mix(in_oklch,var(--color-aurora-violet)_8%,transparent)]'
+                'bg-[color-mix(in_oklch,var(--mk-accent-2)_8%,transparent)]'
             )}
             aria-current={state === 'current' ? 'step' : undefined}
           >
@@ -63,7 +63,7 @@ export function ProgressTimeline({
                 state === 'done' &&
                   'border-[color:var(--color-severity-p3)] text-[color:var(--color-severity-p3)] bg-[color-mix(in_oklch,var(--color-severity-p3)_12%,transparent)]',
                 state === 'current' &&
-                  'border-[color:var(--color-aurora-violet)] text-[color:var(--color-aurora-violet)] bg-[color-mix(in_oklch,var(--color-aurora-violet)_15%,transparent)] animate-pulse',
+                  'border-[color:var(--mk-accent-2)] text-[color:var(--mk-accent-2)] bg-[color-mix(in_oklch,var(--mk-accent-2)_15%,transparent)] animate-pulse',
                 state === 'pending' &&
                   'border-[color:var(--color-border-default)] text-[color:var(--color-fg-muted)]'
               )}

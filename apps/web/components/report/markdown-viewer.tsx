@@ -73,7 +73,7 @@ export function MarkdownViewer({
           blockquote: (props) => (
             <blockquote
               {...props}
-              className="my-4 border-l-2 border-[color:var(--color-aurora-violet)] bg-[rgba(124,58,237,0.08)] px-4 py-2 text-md italic text-[color:var(--color-fg-primary)]"
+              className="my-4 border-l-2 border-[color:var(--mk-accent-2)] bg-[color-mix(in_oklch,var(--mk-accent-2)_8%,transparent)] px-4 py-2 text-md italic text-[color:var(--app-fg)]"
             />
           ),
           table: (props) => (

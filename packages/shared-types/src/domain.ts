@@ -48,6 +48,19 @@ export type Project = z.infer<typeof ProjectSchema>;
 // AuditRun
 // ---------------------------------------------------------------------------
 
+/**
+ * Identifies which enqueue path produced the Cloud Task. Mirrors the runtime
+ * `EnqueueMode` returned by `enqueueAuditTask` so the run document can record
+ * which dispatch route was taken:
+ *   - 'cloud-tasks'   : real GCP Cloud Tasks createTask (or dedupe success)
+ *   - 'direct-worker' : dev/emulator awaited POST straight to the worker
+ *   - 'stub'          : no env configured — best-effort log only, no dispatch
+ * Single source of truth lives here so the persisted shape and the runtime
+ * helper cannot drift apart.
+ */
+export const EnqueueModeSchema = z.enum(['cloud-tasks', 'direct-worker', 'stub']);
+export type EnqueueMode = z.infer<typeof EnqueueModeSchema>;
+
 export const AuditRunSchema = z.object({
   id: z.string(),
   projectId: z.string(),
@@ -59,12 +72,18 @@ export const AuditRunSchema = z.object({
   startedAt: IsoDateString.nullable(),
   completedAt: IsoDateString.nullable(),
   errorMessage: z.string().nullable(),
-  createdAt: IsoDateString,
-  updatedAt: IsoDateString,
   // Echoed input for worker / display.
   repoUrl: z.string().url(),
   deployUrl: z.string().url().nullable(),
   prdText: z.string().nullable(),
+  // Tracks which Cloud Tasks dispatch route handled this run. Null until the
+  // enqueue helper resolves; set on the post-commit update in create-audit-run.
+  // Optional for forward-compat: legacy documents written before this field
+  // existed will have the key missing — the Firestore converter normalizes
+  // missing/undefined to null at the read boundary.
+  enqueueMode: EnqueueModeSchema.nullable().optional(),
+  createdAt: IsoDateString,
+  updatedAt: IsoDateString,
 });
 export type AuditRun = z.infer<typeof AuditRunSchema>;
 
