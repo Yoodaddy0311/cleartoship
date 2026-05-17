@@ -5,6 +5,30 @@
 
 ---
 
+## [Unreleased] — Sprint 4 MVP Activation (2026-05-17, autopilot ap-20260517-093851)
+
+### Added
+
+- `apps/web/app/audits/new/page.tsx` — MVP 진입점 라우트. `<UrlInputForm />`을 `/audits/new`에 마운트. metadata는 ko i18n (`home.hero.title`, `mk.hero.subtitle`) 사용. Hero CTA / CTABanner / Sidebar / 404 CTA가 이미 참조하던 누락 경로 보완. (S4-01)
+- `apps/web/app/audits/new/page.test.tsx` — vitest 3건 (default export 검증 + 히어로 헤딩/서브타이틀 렌더 + metadata 노출). UrlInputForm은 `vi.mock`으로 stub. (S4-01)
+
+### Changed
+
+- `apps/web/e2e/pages/HomePage.ts` — POM `goto()` 타겟 `/` → `/audits/new`. 클래스명은 backward compat 위해 `HomePage` 유지, docstring에 라우트 이동(Sprint 4) 반영. (S4-01)
+- `apps/web/e2e/axe.spec.ts` — `audit-start page (/audits/new)` 케이스 unskip. `test.skip(true, 'TODO Sprint 4: ...')` 제거 후 `page.goto('/audits/new')`로 전환. (S4-01)
+- `apps/web/e2e/golden-path.spec.ts` — `test.describe.skip` → `test.describe` 활성화 + 파일 상단 Sprint 4 TODO 주석 제거. (S4-01)
+- `apps/web/e2e/prd-upload.spec.ts` — 동일하게 unskip. (S4-01)
+- `apps/web/e2e/url-validation.spec.ts` — unskip + 빈 repo URL 케이스 어서션 `/\/$/` → `/\/audits\/new$/` 정정 (form 위치 이동 반영). (S4-01)
+
+### Verified
+
+- `pnpm -F web test` → **388/388 PASS** (58 test files, 이전 385 → +3 신규 audit-start route 테스트)
+- `pnpm -F functions test` → 32/32 PASS (변화 없음)
+- `tsc --noEmit`: web exit 0, 신규 에러 없음
+- E2E unskip 후 코드 paths 컴파일 OK (live run은 dev server 부팅 필요 — 사용자 액션 큐 참조)
+
+---
+
 ## [Unreleased] — Sprint 3 Polish & Performance (2026-05-17)
 
 ### Added

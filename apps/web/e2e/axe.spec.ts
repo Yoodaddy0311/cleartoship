@@ -24,11 +24,10 @@ test.describe('a11y — axe-core', () => {
     ).toEqual([]);
   });
 
-  test('app simulation page (/audits) has no critical a11y violations', async ({
+  test('audit-start page (/audits/new) has no critical a11y violations', async ({
     page,
   }) => {
-    test.skip(true, 'TODO Sprint 4: re-enable when /audits route is re-mounted with the audit-start form.');
-    await page.goto('/audits');
+    await page.goto('/audits/new');
     const results = await new AxeBuilder({ page }).analyze();
     const critical = results.violations.filter((v) => v.impact === 'critical');
     expect(

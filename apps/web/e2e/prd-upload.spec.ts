@@ -1,4 +1,3 @@
-// TODO Sprint 4: re-enable when audit-start form is re-mounted to a route.
 import { test, expect } from '@playwright/test';
 import { HomePage } from './pages/HomePage';
 
@@ -11,7 +10,7 @@ import { HomePage } from './pages/HomePage';
  *   - App-level: files > 50,000 chars produce error `home.form.prd.file.tooLarge`.
  */
 
-test.describe.skip('Scenario 2: PRD upload variant', () => {
+test.describe('Scenario 2: PRD upload variant', () => {
   test('file input accepts .md and .txt only', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();

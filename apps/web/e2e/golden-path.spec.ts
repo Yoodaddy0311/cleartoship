@@ -1,4 +1,3 @@
-// TODO Sprint 4: re-enable when audit-start form is re-mounted to a route.
 import { test, expect } from '@playwright/test';
 import { HomePage } from './pages/HomePage';
 import { AuditProgressPage } from './pages/AuditProgressPage';
@@ -82,7 +81,7 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-test.describe.skip('Scenario 1: Anonymous user runs audit (golden path)', () => {
+test.describe('Scenario 1: Anonymous user runs audit (golden path)', () => {
   test('Home → submit → progress (15 steps) → dashboard', async ({ page }) => {
     const home = new HomePage(page);
     const progress = new AuditProgressPage(page);

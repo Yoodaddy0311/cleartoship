@@ -1,12 +1,15 @@
 import { type Page, type Locator, expect } from '@playwright/test';
 
 /**
- * Page Object for the Home page (/).
+ * Page Object for the audit-start page (/audits/new).
  *
  * Selector strategy:
- *   The Home form does not yet expose `data-testid` attributes, so we rely on
+ *   The form does not yet expose `data-testid` attributes, so we rely on
  *   accessible-name selectors (label text, role+name) which align with the
  *   Korean UI strings in `apps/web/lib/i18n/ko.ts`.
+ *
+ * Class name kept as `HomePage` for backward compatibility with existing
+ * specs; the route it targets moved from `/` to `/audits/new` in Sprint 4.
  */
 export class HomePage {
   readonly page: Page;
@@ -50,7 +53,7 @@ export class HomePage {
   }
 
   async goto() {
-    await this.page.goto('/');
+    await this.page.goto('/audits/new');
     await expect(this.heroTitle).toBeVisible();
     // Form should mount (anonymous auth gates submit but inputs render immediately).
     await expect(this.repoUrlInput).toBeVisible();
