@@ -37,6 +37,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build composite project deps (shared-types, audit-core)
+        run: pnpm --filter "@cleartoship/shared-types" build && pnpm --filter "@cleartoship/audit-core" build
+
       - name: Type check (all workspaces)
         run: pnpm -r type-check
 
