@@ -41,4 +41,44 @@ describe('ScoreOverview', () => {
     render(<ScoreOverview score={70} launchStatus="ready" summary="ok" />);
     expect(screen.getByText('상태: label:ready')).toBeInTheDocument();
   });
+
+  // INDETERMINATE: when the coverage signal is too low to score the run, the
+  // overview must NOT present a numeric score as if it were a verdict. It
+  // surfaces an inline banner and replaces the score ring with an N/A
+  // placeholder.
+  it('renders the "분석 표면 부족" banner for indeterminate launch status', () => {
+    render(
+      <ScoreOverview
+        score={0}
+        launchStatus="indeterminate"
+        summary="placeholder summary"
+      />
+    );
+    const banner = screen.getByTestId('score-indeterminate-banner');
+    expect(banner).toHaveTextContent(
+      /분석 표면 부족 — 신뢰할 수 있는 점수 산정 어려움/
+    );
+  });
+
+  it('replaces the ScoreRing with an N/A placeholder when indeterminate', () => {
+    render(
+      <ScoreOverview
+        score={0}
+        launchStatus="indeterminate"
+        summary="placeholder summary"
+      />
+    );
+    expect(screen.getByTestId('score-indeterminate-ring')).toHaveTextContent('N/A');
+    // The numeric ScoreRing must not also render — otherwise a 0점 verdict
+    // would leak through.
+    expect(
+      screen.queryByRole('img', { name: /출시 준비도 \d+점/ })
+    ).not.toBeInTheDocument();
+  });
+
+  it('does NOT render the banner for any normal launch status', () => {
+    render(<ScoreOverview score={50} launchStatus="needs_work" summary="ok" />);
+    expect(screen.queryByTestId('score-indeterminate-banner')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('score-indeterminate-ring')).not.toBeInTheDocument();
+  });
 });

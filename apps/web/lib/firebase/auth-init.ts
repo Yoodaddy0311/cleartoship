@@ -119,7 +119,12 @@ export async function ensureAnonymousUser(): Promise<User> {
 export async function getIdToken(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
   try {
-    const user = getClientAuth().currentUser;
+    const auth = getClientAuth();
+    // Wait for IndexedDB-backed persistence to hydrate before reading
+    // currentUser — otherwise the first fetch after a page load races
+    // ahead of auth restoration and produces a spurious 401.
+    await auth.authStateReady();
+    const user = auth.currentUser;
     if (!user) return null;
     return await user.getIdToken();
   } catch {

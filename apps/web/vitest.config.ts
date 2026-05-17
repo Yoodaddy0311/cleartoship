@@ -18,6 +18,7 @@ export default defineConfig({
       'app/**/*.test.tsx',
       'components/**/*.test.ts',
       'components/**/*.test.tsx',
+      'e2e/fixtures/**/*.test.ts',
     ],
     environment: 'node',
     environmentMatchGlobs: [

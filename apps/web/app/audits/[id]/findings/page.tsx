@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { FilterChips, FindingCard } from '@cleartoship/ui';
 import { DashboardTabs } from '@/app/audits/[id]/dashboard/page';
 import { ResourceStatePanel } from '@/components/common/resource-state-panel';
@@ -12,19 +12,19 @@ import { categoryLabel } from '@/lib/format/category';
 import { SEVERITY_ORDER, type Severity } from '@/lib/format/severity';
 import { t } from '@/lib/i18n';
 import type { ListFindingsResponse } from '@/lib/api/audit-runs';
-import type { MockFinding } from '@/lib/mock/audit-fixture';
+import type { FindingViewModel } from '@/lib/types/finding-view';
 
 type StatusFilter = 'all' | 'confirmed' | 'open';
 
-export default function FindingsPage({ params }: { params: { id: string } }) {
-  const auditId = params.id;
+export default function FindingsPage() {
+  const { id: auditId } = useParams<{ id: string }>();
   const router = useRouter();
   const state = useAuditResource<ListFindingsResponse>(
     () => listFindings(auditId, { limit: 200 }),
     [auditId]
   );
 
-  const findings = useMemo<MockFinding[]>(
+  const findings = useMemo<FindingViewModel[]>(
     () =>
       state.status === 'ready'
         ? state.data.findings.map((f) => adaptFinding(f))

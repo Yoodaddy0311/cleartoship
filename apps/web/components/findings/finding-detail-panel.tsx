@@ -1,13 +1,17 @@
+'use client';
+
+import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Card, CardBody, CardHeader, CardTitle, Badge, cn } from '@cleartoship/ui';
 import { SeverityChip } from '@/components/common/severity-chip';
 import { EvidenceList } from '@/components/evidences/evidence-list';
 import { categoryLabel } from '@/lib/format/category';
+import { explainFinding, extractSemgrepRuleId } from '@/lib/format/finding-explainer';
 import { t } from '@/lib/i18n';
-import type { MockFinding } from '@/lib/mock/audit-fixture';
+import type { FindingViewModel } from '@/lib/types/finding-view';
 
 interface FindingDetailPanelProps {
-  finding: MockFinding;
+  finding: FindingViewModel;
   /**
    * Server-side flag — true when the evidences array was capped (see
    * EVIDENCE_CAP). We surface a warning banner just above the evidence list
@@ -21,6 +25,20 @@ export function FindingDetailPanel({
   finding,
   truncated = false,
 }: FindingDetailPanelProps) {
+  // Semgrep finding 만 rule_id 기반 한국어 풀이를 끼워 넣는다. 다른 어댑터에서
+  // 만든 finding (수동 입력, 다른 정적 분석 도구 등) 은 기존 동작을 그대로
+  // 유지해 회귀를 막는다. 06-static-analysis.ts:39 가 `"Semgrep: <rule>"` 형태로
+  // title 을 emit 한다는 계약에 묶여 있다.
+  const semgrepRuleId = extractSemgrepRuleId(finding.title);
+  const friendly = semgrepRuleId
+    ? explainFinding(semgrepRuleId, {
+        title: finding.title,
+        summary: finding.summary,
+      })
+    : null;
+
+  const [showDetail, setShowDetail] = useState(false);
+
   return (
     <article className="flex flex-col gap-6">
       <header className="flex flex-col gap-3">
@@ -40,9 +58,47 @@ export function FindingDetailPanel({
           <CardTitle>{t('findings.detail.nonDeveloper')}</CardTitle>
         </CardHeader>
         <CardBody>
-          <p className="leading-[1.55] text-[color:var(--color-fg-primary)]">
-            {finding.nonDeveloperExplanation}
-          </p>
+          {friendly ? (
+            <div
+              data-testid="friendly-explanation"
+              className="flex flex-col gap-3 leading-[1.55] text-[color:var(--color-fg-primary)]"
+            >
+              <p>
+                <span className="font-semibold">무엇이 문제인가요? </span>
+                {friendly.what}
+              </p>
+              <p>
+                <span className="font-semibold">왜 위험한가요? </span>
+                {friendly.why}
+              </p>
+              {showDetail ? (
+                <>
+                  {friendly.analogy ? (
+                    <p data-testid="friendly-analogy">
+                      <span className="font-semibold">비유: </span>
+                      {friendly.analogy}
+                    </p>
+                  ) : null}
+                  <p data-testid="friendly-fix-guide">
+                    <span className="font-semibold">어떻게 고치나요? </span>
+                    {friendly.fixGuide}
+                  </p>
+                </>
+              ) : null}
+              <button
+                type="button"
+                aria-expanded={showDetail}
+                onClick={() => setShowDetail((s) => !s)}
+                className="self-start text-sm underline-offset-2 hover:underline focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+              >
+                {showDetail ? '간단히 보기' : '자세히 보기'}
+              </button>
+            </div>
+          ) : (
+            <p className="leading-[1.55] text-[color:var(--color-fg-primary)]">
+              {finding.nonDeveloperExplanation}
+            </p>
+          )}
         </CardBody>
       </Card>
 

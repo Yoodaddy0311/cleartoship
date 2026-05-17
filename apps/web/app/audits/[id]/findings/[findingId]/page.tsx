@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { ChevronLeft } from 'lucide-react';
 import { DashboardTabs } from '@/app/audits/[id]/dashboard/page';
 import { FindingDetailPanel } from '@/components/findings/finding-detail-panel';
@@ -12,12 +13,11 @@ import { useAuditResource } from '@/lib/api/use-audit-resource';
 import { t } from '@/lib/i18n';
 import type { GetFindingResponse } from '@/lib/api/audit-runs';
 
-interface PageProps {
-  params: { id: string; findingId: string };
-}
-
-export default function FindingDetailPage({ params }: PageProps) {
-  const { id: auditId, findingId } = params;
+export default function FindingDetailPage() {
+  const { id: auditId, findingId } = useParams<{
+    id: string;
+    findingId: string;
+  }>();
   const state = useAuditResource<GetFindingResponse>(
     () => getFinding(findingId, auditId),
     [auditId, findingId]

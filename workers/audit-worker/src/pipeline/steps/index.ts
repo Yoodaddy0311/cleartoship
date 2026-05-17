@@ -6,7 +6,9 @@
 // graph generation).
 
 import type { AuditStep } from '@cleartoship/shared-types';
+import type { RiskyFunction } from '@cleartoship/audit-core';
 import type { WorkerCtx, NormalizedFinding } from '../../adapters/index.js';
+import type { FrameworkProfile } from '../framework-profile.js';
 
 export interface PipelineState {
   /** GitHub metadata fetched in step 2. */
@@ -17,10 +19,12 @@ export interface PipelineState {
     primaryLanguage: string | null;
     pushedAt: string | null;
   } | null;
-  /** File tree (mock in Sprint 0). */
+  /** Cloned repo's file tree, populated by step03-clone-repo. */
   fileTree: string[];
-  /** Tech stack guesses. */
+  /** Tech stack guesses (flat label list — drives the report header). */
   techStack: string[];
+  /** Detailed framework detection result (filled by step04). */
+  frameworkProfile: FrameworkProfile | null;
   /** Detected feature primitives (pages, APIs, models). */
   detectedFeatures: Array<{
     id: string;
@@ -53,12 +57,14 @@ export interface PipelineState {
   }>;
   /** Findings produced by analysis steps (persisted in MAP_CHECKLIST). */
   pendingFindings: NormalizedFinding[];
+  /** Risky function candidates discovered by step18 (pre-LLM verification). */
+  riskyFunctions: RiskyFunction[];
   /** Severity counts (filled by CALCULATE_SCORES). */
   severityCounts: { P0: number; P1: number; P2: number; P3: number };
   /** Resolved persistent ids of findings written to Firestore. */
   persistedFindingIds: string[];
   readinessScore: number;
-  launchStatus: 'READY' | 'CONDITIONAL' | 'NEEDS_WORK' | 'AT_RISK' | 'NOT_READY';
+  launchStatus: 'READY' | 'CONDITIONAL' | 'NEEDS_WORK' | 'AT_RISK' | 'NOT_READY' | 'INDETERMINATE';
 }
 
 export interface Step {
@@ -72,8 +78,10 @@ export function createInitialState(): PipelineState {
     repoMetadata: null,
     fileTree: [],
     techStack: [],
+    frameworkProfile: null,
     detectedFeatures: [],
     pendingFindings: [],
+    riskyFunctions: [],
     severityCounts: { P0: 0, P1: 0, P2: 0, P3: 0 },
     persistedFindingIds: [],
     readinessScore: 0,
@@ -89,9 +97,12 @@ import { step03CloneRepo } from './03-clone-repo.js';
 import { step04AnalyzeProjectStructure } from './04-analyze-project-structure.js';
 import { step05DetectFeatures } from './05-detect-features.js';
 import { step06StaticAnalysis } from './06-static-analysis.js';
+import { step18DiscoverRiskyFunctions } from './18-discover-risky-functions.js';
 import { step07DependencyScan } from './07-dependency-scan.js';
 import { step08SecretScan } from './08-secret-scan.js';
+import { step16AnalyzeDataModel } from './16-analyze-data-model.js';
 import { step09AnalyzeDeployUrl } from './09-analyze-deploy-url.js';
+import { step17DesignConsistency } from './17-design-consistency.js';
 import { step10GenerateFeatureGraph } from './10-generate-feature-graph.js';
 import { step11MapChecklist } from './11-map-checklist.js';
 import { step12CalculateScores } from './12-calculate-scores.js';
@@ -106,9 +117,12 @@ export const STEP_REGISTRY: ReadonlyArray<Step> = [
   step04AnalyzeProjectStructure,
   step05DetectFeatures,
   step06StaticAnalysis,
+  step18DiscoverRiskyFunctions,
   step07DependencyScan,
   step08SecretScan,
+  step16AnalyzeDataModel,
   step09AnalyzeDeployUrl,
+  step17DesignConsistency,
   step10GenerateFeatureGraph,
   step11MapChecklist,
   step12CalculateScores,

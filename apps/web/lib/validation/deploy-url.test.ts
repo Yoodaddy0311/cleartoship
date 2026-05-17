@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isValidDeployUrl, parseDeployUrl } from './deploy-url.js';
+import { isValidDeployUrl, parseDeployUrl } from '@cleartoship/audit-core';
 
 describe('parseDeployUrl — protocol validation', () => {
   it('accepts https URLs', () => {

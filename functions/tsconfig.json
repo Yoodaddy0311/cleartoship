@@ -11,7 +11,7 @@
     "noEmit": false
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "lib"],
+  "exclude": ["node_modules", "lib", "src/**/*.test.ts", "src/__tests__/**"],
   "references": [
     { "path": "../packages/shared-types" },
     { "path": "../packages/audit-core" }

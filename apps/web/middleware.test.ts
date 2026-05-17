@@ -167,6 +167,56 @@ describe('middleware (production env)', () => {
   });
 });
 
+describe('middleware (CSP nonce — sec-auditor P1-3)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('sets an x-nonce response header on every passthrough', async () => {
+    const { middleware } = await import('./middleware');
+    const res = middleware(makeReq({ pathname: '/' }));
+    const nonce = res.headers.get('x-nonce');
+    expect(nonce).toBeTruthy();
+    // base64 of 16 bytes = 24 chars including `=` padding.
+    expect(nonce).toMatch(/^[A-Za-z0-9+/]{22}==$/);
+  });
+
+  it("CSP script-src contains a 'nonce-<value>' token matching x-nonce", async () => {
+    const { middleware } = await import('./middleware');
+    const res = middleware(makeReq({ pathname: '/' }));
+    const nonce = res.headers.get('x-nonce') ?? '';
+    const csp = res.headers.get('content-security-policy') ?? '';
+    expect(csp).toContain(`'nonce-${nonce}'`);
+    expect(csp).toContain("'strict-dynamic'");
+  });
+
+  it("includes 'self' and the firebase host whitelist in script-src", async () => {
+    const { middleware } = await import('./middleware');
+    const res = middleware(makeReq({ pathname: '/' }));
+    const csp = res.headers.get('content-security-policy') ?? '';
+    expect(csp).toMatch(/script-src [^;]*'self'/);
+    expect(csp).toContain('https://*.googleapis.com');
+    expect(csp).toContain('https://apis.google.com');
+  });
+
+  it('emits a fresh nonce on each invocation (not cached)', async () => {
+    const { middleware } = await import('./middleware');
+    const a = middleware(makeReq({ pathname: '/' })).headers.get('x-nonce');
+    const b = middleware(makeReq({ pathname: '/' })).headers.get('x-nonce');
+    expect(a).toBeTruthy();
+    expect(b).toBeTruthy();
+    expect(a).not.toBe(b);
+  });
+
+  it("dev mode keeps 'unsafe-eval' alongside the nonce (Next.js HMR)", async () => {
+    const { middleware } = await import('./middleware');
+    const res = middleware(makeReq({ pathname: '/' }));
+    const csp = res.headers.get('content-security-policy') ?? '';
+    expect(csp).toContain("'unsafe-eval'");
+    expect(csp).toMatch(/'nonce-[A-Za-z0-9+/=]+'/);
+  });
+});
+
 describe('middleware (exported config)', () => {
   it('exports a matcher excluding _next static/image and favicon', async () => {
     const mod = await import('./middleware');

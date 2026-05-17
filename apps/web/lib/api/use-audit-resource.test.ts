@@ -108,7 +108,6 @@ describe('useAuditResource — error mapping', () => {
 
   it('maps a non-Error thrown value to status=error with default Korean fallback', async () => {
     const fetcher = vi.fn(async () => {
-      // eslint-disable-next-line @typescript-eslint/no-throw-literal
       throw 'oops-string';
     });
     const { result } = renderHook(() => useAuditResource(fetcher, []));

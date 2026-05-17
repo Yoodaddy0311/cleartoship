@@ -1,8 +1,8 @@
 import { CodeEvidence } from './code-evidence';
 import { ScreenshotEvidence } from './screenshot-evidence';
-import type { MockEvidence } from '@/lib/mock/audit-fixture';
+import type { FindingEvidenceView } from '@/lib/types/finding-view';
 
-export function EvidenceList({ items }: { items: MockEvidence[] }) {
+export function EvidenceList({ items }: { items: FindingEvidenceView[] }) {
   if (items.length === 0) {
     return (
       <p className="text-sm text-[color:var(--color-fg-muted)]">

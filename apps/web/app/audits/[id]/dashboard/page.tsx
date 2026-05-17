@@ -1,38 +1,51 @@
 'use client';
 
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import { Card, CardBody, CardHeader, CardTitle } from '@cleartoship/ui';
 import { ScoreOverview } from '@/components/dashboard/score-overview';
 import { SeverityCounts } from '@/components/dashboard/severity-counts';
 import { CategoryGrid } from '@/components/dashboard/category-grid';
 import { SeverityChip } from '@/components/common/severity-chip';
-import { ResourceStatePanel } from '@/components/common/resource-state-panel';
+import {
+  ResourceStatePanel,
+  PartialResultBanner,
+} from '@/components/common/resource-state-panel';
 import { usePrefetchGraphCanvas } from '@/components/feature-graph/use-prefetch-graph-canvas';
 import { categoryLabel } from '@/lib/format/category';
 import { t } from '@/lib/i18n';
-import { getReport, listFindings } from '@/lib/api/audit-runs';
-import { adaptCategoryScores, adaptFinding, adaptLaunchStatus } from '@/lib/api/adapters';
+import { getAuditRun, getReport, listFindings } from '@/lib/api/audit-runs';
+import {
+  adaptCategoryScoresNullable,
+  adaptFinding,
+  adaptLaunchStatus,
+} from '@/lib/api/adapters';
 import { useAuditResource } from '@/lib/api/use-audit-resource';
-import type { AuditReport, ListFindingsResponse } from '@/lib/api/audit-runs';
+import type {
+  AuditReport,
+  AuditRun,
+  ListFindingsResponse,
+} from '@/lib/api/audit-runs';
 
 interface DashboardData {
   report: AuditReport;
   findings: ListFindingsResponse;
+  // S6-03: kept on the dashboard payload (not just the polling DTO) so the
+  // "partial results" warn banner renders on first paint, without waiting for
+  // a separate request after the data is `ready`.
+  run: AuditRun;
 }
 
-export default function DashboardPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const auditId = params.id;
+export default function DashboardPage() {
+  const { id: auditId } = useParams<{ id: string }>();
   const state = useAuditResource<DashboardData>(
     async () => {
-      const [report, findings] = await Promise.all([
+      const [report, findings, run] = await Promise.all([
         getReport(auditId),
         listFindings(auditId, { limit: 5 }),
+        getAuditRun(auditId),
       ]);
-      return { report, findings };
+      return { report, findings, run };
     },
     [auditId]
   );
@@ -68,12 +81,13 @@ function DashboardBody({
   auditId: string;
   data: DashboardData;
 }) {
-  const { report, findings } = data;
+  const { report, findings, run } = data;
   const top5 = findings.findings.map((f) => adaptFinding(f));
-  const categoryScores = adaptCategoryScores(report.categoryScores);
+  const categoryScores = adaptCategoryScoresNullable(report.categoryScores);
 
   return (
     <>
+      <PartialResultBanner toolNames={run.partialResultTools ?? []} />
       <ScoreOverview
         score={report.readinessScore}
         launchStatus={adaptLaunchStatus(report.launchStatus)}

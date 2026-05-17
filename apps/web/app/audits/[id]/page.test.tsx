@@ -18,6 +18,7 @@ vi.mock('@/components/audit-progress/use-audit-run-polling', () => ({
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock, refresh: refreshMock }),
+  useParams: () => ({ id: 'run-1' }),
 }));
 
 // Stub the timeline component; its details aren't part of this page's contract.
@@ -46,7 +47,7 @@ describe('AuditProgressPage', () => {
     });
 
     const { default: AuditProgressPage } = await import('./page');
-    render(<AuditProgressPage params={{ id: 'run-1' }} />);
+    render(<AuditProgressPage />);
 
     // "진행 중" can appear in both the visible Progress label and aria-label;
     // assert ≥1 match rather than the brittle singular `getByText`.
@@ -71,7 +72,7 @@ describe('AuditProgressPage', () => {
       });
 
       const { default: AuditProgressPage } = await import('./page');
-      render(<AuditProgressPage params={{ id: 'run-1' }} />);
+      render(<AuditProgressPage />);
 
       // The page schedules a 600ms setTimeout before pushing.
       act(() => {
@@ -95,10 +96,63 @@ describe('AuditProgressPage', () => {
     });
 
     const { default: AuditProgressPage } = await import('./page');
-    render(<AuditProgressPage params={{ id: 'run-1' }} />);
+    render(<AuditProgressPage />);
 
     expect(
       screen.getByText(/진행 상태를 불러오지 못했습니다/)
     ).toBeInTheDocument();
+  });
+
+  // S6-03: partial-results warn banner. When the polling DTO carries
+  // `partialResultTools`, the progress page renders the warn banner alongside
+  // the progress bar so the user knows the run is degraded before completion.
+  it('renders partial-results warn banner when partialResultTools is non-empty', async () => {
+    const { useAuditRunPolling } = await import(
+      '@/components/audit-progress/use-audit-run-polling'
+    );
+    vi.mocked(useAuditRunPolling).mockReturnValue({
+      data: {
+        id: 'run-1',
+        status: 'RUNNING',
+        progress: 40,
+        currentStep: 'RUN_STATIC_ANALYSIS',
+        enqueueMode: 'cloud-tasks',
+        partialResultTools: ['semgrep', 'lighthouse'],
+      } as never,
+      loading: false,
+      error: null,
+    });
+
+    const { default: AuditProgressPage } = await import('./page');
+    render(<AuditProgressPage />);
+
+    const banner = screen.getByTestId('partial-result-banner');
+    // New banner summary is count-based; per-tool labels live inside <details>.
+    expect(banner).toHaveTextContent(/검사가 이번 분석에서 빠졌어요/);
+    expect(banner).toHaveTextContent(/semgrep/);
+    expect(banner).toHaveTextContent(/lighthouse/);
+  });
+
+  it('does NOT render the partial-results banner when partialResultTools is empty', async () => {
+    const { useAuditRunPolling } = await import(
+      '@/components/audit-progress/use-audit-run-polling'
+    );
+    vi.mocked(useAuditRunPolling).mockReturnValue({
+      data: {
+        id: 'run-1',
+        status: 'RUNNING',
+        progress: 40,
+        currentStep: 'RUN_STATIC_ANALYSIS',
+        enqueueMode: 'cloud-tasks',
+        partialResultTools: [],
+      } as never,
+      loading: false,
+      error: null,
+    });
+
+    const { default: AuditProgressPage } = await import('./page');
+    render(<AuditProgressPage />);
+
+    expect(screen.queryByTestId('partial-result-banner')).toBeNull();
   });
 });

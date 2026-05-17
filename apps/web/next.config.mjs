@@ -2,9 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@cleartoship/ui', '@cleartoship/shared-types', '@cleartoship/audit-core'],
-  experimental: {
-    typedRoutes: false,
-  },
+  typedRoutes: false,
   webpack: (config) => {
     // Workspace packages export `src/*.ts` directly and use `./foo.js` barrel
     // imports for NodeNext compatibility with the audit-worker/functions

@@ -73,7 +73,6 @@ describe('getFinding — evidence cap (Item #14)', () => {
   // Use the no-op write spy as `any` because process.stderr.write's overloaded
   // signature trips vi.SpyInstance's generic constraints. The runtime behavior
   // (recording calls) is what matters.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let stderrSpy: any;
   const originalEvidenceCap = process.env.EVIDENCE_CAP;
 

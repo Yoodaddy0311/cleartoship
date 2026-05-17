@@ -3,6 +3,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 
+vi.mock('next/navigation', () => ({
+  useParams: () => ({ id: 'run-1', findingId: 'f-1' }),
+}));
+
 vi.mock('@/lib/api/audit-runs', () => ({
   getFinding: vi.fn(),
 }));
@@ -36,7 +40,7 @@ describe('FindingDetailPage', () => {
     vi.mocked(getFinding).mockImplementation(() => new Promise(() => {}));
 
     const { default: FindingDetailPage } = await import('./page');
-    render(<FindingDetailPage params={{ id: 'run-1', findingId: 'f-1' }} />);
+    render(<FindingDetailPage />);
 
     expect(
       screen.getByRole('navigation', { name: '감사 결과 탭' })
@@ -51,7 +55,7 @@ describe('FindingDetailPage', () => {
     } as never);
 
     const { default: FindingDetailPage } = await import('./page');
-    render(<FindingDetailPage params={{ id: 'run-1', findingId: 'f-1' }} />);
+    render(<FindingDetailPage />);
 
     await waitFor(() => {
       expect(vi.mocked(getFinding)).toHaveBeenCalledWith('f-1', 'run-1');
@@ -63,7 +67,7 @@ describe('FindingDetailPage', () => {
     vi.mocked(getFinding).mockRejectedValue(new Error('boom'));
 
     const { default: FindingDetailPage } = await import('./page');
-    render(<FindingDetailPage params={{ id: 'run-1', findingId: 'f-1' }} />);
+    render(<FindingDetailPage />);
 
     await waitFor(() => {
       expect(screen.getByText(/오류가 발생/)).toBeInTheDocument();

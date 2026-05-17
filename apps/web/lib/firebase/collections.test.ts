@@ -91,6 +91,41 @@ describe('auditRunConverter.fromFirestore', () => {
     expect(() => auditRunConverter.fromFirestore(snap)).toThrow();
   });
 
+  // S6-03: partialResultTools — read-side normalisation contract.
+  // Legacy docs may not have the field; downstream UI relies on `string[]`.
+  it('coerces missing partialResultTools → [] (legacy doc forward-compat)', () => {
+    const snap = makeSnap('run-legacy', validAuditRunData());
+    const parsed = auditRunConverter.fromFirestore(snap);
+    expect(parsed.partialResultTools).toEqual([]);
+  });
+
+  it('preserves a non-empty partialResultTools array', () => {
+    const snap = makeSnap(
+      'run-partial',
+      validAuditRunData({ partialResultTools: ['semgrep', 'osv-scanner'] }),
+    );
+    const parsed = auditRunConverter.fromFirestore(snap);
+    expect(parsed.partialResultTools).toEqual(['semgrep', 'osv-scanner']);
+  });
+
+  it('filters out non-string entries defensively', () => {
+    const snap = makeSnap(
+      'run-mixed',
+      validAuditRunData({ partialResultTools: ['semgrep', 42, null, 'lighthouse'] }),
+    );
+    const parsed = auditRunConverter.fromFirestore(snap);
+    expect(parsed.partialResultTools).toEqual(['semgrep', 'lighthouse']);
+  });
+
+  it('coerces non-array partialResultTools → []', () => {
+    const snap = makeSnap(
+      'run-bad-shape',
+      validAuditRunData({ partialResultTools: 'semgrep' }),
+    );
+    const parsed = auditRunConverter.fromFirestore(snap);
+    expect(parsed.partialResultTools).toEqual([]);
+  });
+
   it('normalizes Firestore Timestamp objects to ISO strings', () => {
     const fakeTimestamp = {
       toDate: () => new Date('2026-05-16T05:00:00.000Z'),
@@ -129,6 +164,7 @@ describe('auditRunConverter.toFirestore', () => {
       deployUrl: null,
       prdText: null,
       enqueueMode: 'cloud-tasks',
+      partialResultTools: [],
       createdAt: ISO,
       updatedAt: ISO,
     };
@@ -136,6 +172,7 @@ describe('auditRunConverter.toFirestore', () => {
     expect(out).not.toHaveProperty('id');
     expect(out.projectId).toBe('proj-1');
     expect(out.enqueueMode).toBe('cloud-tasks');
+    expect(out.partialResultTools).toEqual([]);
   });
 });
 

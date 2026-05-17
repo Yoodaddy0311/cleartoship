@@ -96,14 +96,41 @@ export const step03CloneRepo: Step = {
     }
 
     try {
-      const git = simpleGit!({ baseDir: os.tmpdir() });
+      // git ≥2.51 rejects several inherited env vars when not run inside an
+      // already-trusted directory (CVE-2025-48384 / "the great git env audit"):
+      //   - GIT_ASKPASS  → "Use of GIT_ASKPASS is not permitted ..."
+      //   - GIT_TEMPLATE_DIR → "Use of GIT_TEMPLATE_DIR is not permitted ..."
+      //   - GIT_PROXY_COMMAND, GIT_SSH(_COMMAND), etc.
+      // Editors (VS Code, Cursor) set GIT_ASKPASS automatically, which bricks
+      // EVERY worker clone in dev/CI inheriting that environment. We solve it
+      // by building a minimal, explicit env (whitelist) and passing
+      // GIT_TERMINAL_PROMPT=0 so git never blocks on interactive credentials.
+      //
+      // We intentionally do NOT set GIT_TEMPLATE_DIR to "suppress hooks":
+      // template hooks only execute on commit/push; clone never invokes them,
+      // so the previous "empty template dir" workaround was unnecessary.
+      const baseEnv = process.env;
+      const safeEnv: NodeJS.ProcessEnv = {
+        PATH: baseEnv.PATH,
+        HOME: baseEnv.HOME,
+        USER: baseEnv.USER,
+        USERPROFILE: baseEnv.USERPROFILE,
+        LANG: baseEnv.LANG,
+        LC_ALL: baseEnv.LC_ALL,
+        TMPDIR: baseEnv.TMPDIR,
+        TEMP: baseEnv.TEMP,
+        TMP: baseEnv.TMP,
+        SystemRoot: baseEnv.SystemRoot,
+        APPDATA: baseEnv.APPDATA,
+        LOCALAPPDATA: baseEnv.LOCALAPPDATA,
+        GIT_TERMINAL_PROMPT: '0',
+      };
+      const git = simpleGit!(os.tmpdir()).env(safeEnv);
       await git.clone(ctx.repoUrl, dest, [
         '--depth',
         '1',
         '--single-branch',
         '--no-tags',
-        '--config',
-        'core.hooksPath=/dev/null',
       ]);
     } catch (e) {
       const message = (e as Error).message;

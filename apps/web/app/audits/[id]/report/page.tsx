@@ -1,5 +1,6 @@
 'use client';
 
+import { useParams } from 'next/navigation';
 import { Card, CardBody } from '@cleartoship/ui';
 import { DashboardTabs } from '@/app/audits/[id]/dashboard/page';
 import { MarkdownViewer } from '@/components/report/markdown-viewer';
@@ -10,12 +11,8 @@ import { useAuditResource } from '@/lib/api/use-audit-resource';
 import { t } from '@/lib/i18n';
 import type { AuditReport } from '@/lib/api/audit-runs';
 
-export default function ReportPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const auditId = params.id;
+export default function ReportPage() {
+  const { id: auditId } = useParams<{ id: string }>();
   const state = useAuditResource<AuditReport>(
     () => getReport(auditId),
     [auditId]

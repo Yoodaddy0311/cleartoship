@@ -1,11 +1,11 @@
 import { EvidenceCard } from '@cleartoship/ui';
-import type { MockEvidence } from '@/lib/mock/audit-fixture';
+import type { FindingEvidenceView } from '@/lib/types/finding-view';
 
 /**
  * Screenshot evidence — when a screenshot URL is present, show as image
  * with file/URL caption. Falls back to plain EvidenceCard for URL-only items.
  */
-export function ScreenshotEvidence({ evidence }: { evidence: MockEvidence }) {
+export function ScreenshotEvidence({ evidence }: { evidence: FindingEvidenceView }) {
   return (
     <figure className="overflow-hidden rounded-[12px] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-bg-elevated)]">
       {evidence.url ? (

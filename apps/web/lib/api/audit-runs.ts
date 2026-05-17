@@ -2,6 +2,7 @@ import {
   AuditRunSchema,
   FeatureGraphSchema,
   GetFindingResponseSchema,
+  ListEvidencesResponseSchema,
   ListFindingsResponseSchema,
   AuditReportSchema,
   ImprovementPrdSchema,
@@ -10,6 +11,7 @@ import {
   type EnqueueMode,
   type FeatureGraph,
   type GetFindingResponse,
+  type ListEvidencesResponse,
   type ListFindingsQuery,
   type ListFindingsResponse,
   type AuditReport,
@@ -40,6 +42,11 @@ export interface AuditRunDto {
   currentStep: string | null;
   progress: number;
   enqueueMode: EnqueueMode | null;
+  // S6-03: names of analysis tools that were SKIPPED during the run. Always
+  // an array (possibly empty) — the polling hook normalises legacy responses.
+  // The progress page renders a "partial results" warn banner whenever the
+  // array is non-empty.
+  partialResultTools: string[];
   startedAt?: string;
   completedAt?: string;
   errorMessage?: string;
@@ -53,6 +60,7 @@ export type {
   FeatureGraph,
   GetFindingResponse,
   ImprovementPRD,
+  ListEvidencesResponse,
   ListFindingsQuery,
   ListFindingsResponse,
 };
@@ -118,6 +126,20 @@ export async function listFindings(
     `/api/audit-runs/${encodeURIComponent(id)}/findings${qs ? `?${qs}` : ''}`
   );
   return ListFindingsResponseSchema.parse(raw);
+}
+
+/**
+ * Run-scoped evidence list. Single round-trip replacement for the previous
+ * per-finding `getFinding` loop on the feature-graph page. Response is capped
+ * server-side (`EVIDENCE_CAP`, default 200) — when `truncated: true`, some
+ * node→finding joins may be missing, which `buildFindingIdsByNode` already
+ * tolerates.
+ */
+export async function listEvidences(id: string): Promise<ListEvidencesResponse> {
+  const raw = await apiFetch<unknown>(
+    `/api/audit-runs/${encodeURIComponent(id)}/evidences`
+  );
+  return ListEvidencesResponseSchema.parse(raw);
 }
 
 export async function getFinding(

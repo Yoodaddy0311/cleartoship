@@ -21,14 +21,28 @@ import { createInitialState, type PipelineState } from './index.js';
 // --- Mocks ---
 // Hoisted refs — vi.mock factories run before module top-level code, so any
 // variables they reference must be hoisted with vi.hoisted().
-const { cloneMock, setRunCommitHashMock } = vi.hoisted(() => ({
-  cloneMock: vi.fn(),
-  setRunCommitHashMock: vi.fn(async () => undefined),
-}));
+const { cloneMock, envMock, gitChain, setRunCommitHashMock } = vi.hoisted(() => {
+  const cloneMock = vi.fn();
+  const envMock = vi.fn();
+  const gitChain: { clone: typeof cloneMock; env: typeof envMock } = {
+    clone: cloneMock,
+    env: envMock,
+  };
+  envMock.mockImplementation(() => gitChain);
+  return {
+    cloneMock,
+    envMock,
+    gitChain,
+    setRunCommitHashMock: vi.fn(async () => undefined),
+  };
+});
 
 // We program simpleGit per-test; default returns a working clone harness.
+// `env()` must return the same object so the chain `simpleGit(...).env(...).clone(...)`
+// resolves to our cloneMock — mirrors simple-git's fluent API. envMock captures
+// the env arg so tests can assert sanitization (e.g. GIT_ASKPASS removed).
 vi.mock('simple-git', () => ({
-  simpleGit: vi.fn(() => ({ clone: cloneMock })),
+  simpleGit: vi.fn(() => gitChain),
 }));
 
 vi.mock('../../firestore/writers.js', () => ({
@@ -60,6 +74,8 @@ describe('step03CloneRepo', () => {
 
   beforeEach(async () => {
     cloneMock.mockReset();
+    envMock.mockClear();
+    envMock.mockImplementation(() => gitChain);
     setRunCommitHashMock.mockClear();
     vi.resetModules();
     ({ step03CloneRepo: step } = await import('./03-clone-repo.js'));
@@ -186,6 +202,46 @@ describe('step03CloneRepo', () => {
     await step.execute(ctx, state);
 
     expect(setRunCommitHashMock).toHaveBeenCalledWith(ctx.runId, 'deadbeefcafe1234');
+
+    await cleanupTmp(ctx);
+  });
+
+  it('sanitizes env: drops GIT_ASKPASS/SSH_ASKPASS and forces GIT_TERMINAL_PROMPT=0', async () => {
+    const ctx = makeCtx();
+    const state: PipelineState = createInitialState();
+
+    // Simulate VS Code/Cursor leaking GIT_ASKPASS into the worker's env —
+    // git ≥2.51 would otherwise abort the clone with "GIT_ASKPASS not permitted".
+    const originalAskpass = process.env.GIT_ASKPASS;
+    const originalSshAskpass = process.env.SSH_ASKPASS;
+    const originalPrompt = process.env.GIT_TERMINAL_PROMPT;
+    process.env.GIT_ASKPASS = '/some/leaked/askpass.sh';
+    process.env.SSH_ASKPASS = '/some/leaked/ssh-askpass.sh';
+    process.env.GIT_TERMINAL_PROMPT = '1';
+
+    cloneMock.mockImplementationOnce(async (_url: string, dest: string) => {
+      await fsp.writeFile(path.join(dest, 'ok.txt'), '');
+    });
+
+    try {
+      await step.execute(ctx, state);
+    } finally {
+      if (originalAskpass === undefined) delete process.env.GIT_ASKPASS;
+      else process.env.GIT_ASKPASS = originalAskpass;
+      if (originalSshAskpass === undefined) delete process.env.SSH_ASKPASS;
+      else process.env.SSH_ASKPASS = originalSshAskpass;
+      if (originalPrompt === undefined) delete process.env.GIT_TERMINAL_PROMPT;
+      else process.env.GIT_TERMINAL_PROMPT = originalPrompt;
+    }
+
+    expect(envMock).toHaveBeenCalledTimes(1);
+    const passedEnv = envMock.mock.calls[0]![0] as NodeJS.ProcessEnv;
+    expect(passedEnv.GIT_ASKPASS).toBeUndefined();
+    expect(passedEnv.SSH_ASKPASS).toBeUndefined();
+    expect(passedEnv.GIT_TERMINAL_PROMPT).toBe('0');
+    // Clone still proceeded successfully despite the leaked env.
+    expect(cloneMock).toHaveBeenCalledTimes(1);
+    expect(state.fileTree).toContain('ok.txt');
 
     await cleanupTmp(ctx);
   });

@@ -108,6 +108,11 @@ export async function createAuditRun(
     // Unknown until enqueueAuditTask resolves below. Schema requires the field
     // to be present (nullable, not optional) so the initial doc carries null.
     enqueueMode: null,
+    // S6-03: AuditRun starts with no tools recorded as SKIPPED. The worker's
+    // `markRunCompleted` overwrites this with the aggregated list at the end
+    // of the pipeline; the initial value is just the empty-array baseline so
+    // the schema parses cleanly and downstream UI never reads `undefined`.
+    partialResultTools: [],
     createdAt: now,
     updatedAt: now,
   };

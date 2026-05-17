@@ -57,10 +57,15 @@ describe('calculateScores — empty findings', () => {
     expect(result.launchStatus).toBe('READY');
   });
 
-  it('every category score is 100 baseline', () => {
+  it('measured categories score 100 baseline, unmeasured surface as N/A', () => {
     const result = calculateScores({ findings: [] });
     for (const cs of result.categoryScores) {
-      expect(cs.score).toBe(100);
+      const meta = CATEGORY_META.find((m) => m.category === cs.category)!;
+      if (meta.measuredBy.length === 0) {
+        expect(cs.score).toBeNull();
+      } else {
+        expect(cs.score).toBe(100);
+      }
     }
   });
 
@@ -83,10 +88,12 @@ describe('calculateScores — severity deductions (P1=-8, P2=-4, P3=-1)', () => 
     expect(ux?.score).toBe(96);
   });
 
-  it('one P3 reduces category by 1', () => {
-    const result = calculateScores({ findings: [f('FEATURE_GRAPH', 'P3')] });
-    const fg = result.categoryScores.find((c) => c.category === 'FEATURE_GRAPH');
-    expect(fg?.score).toBe(99);
+  it('one P3 reduces category by 1 (using a measured category)', () => {
+    // FEATURE_GRAPH has no measuredBy (N/A) — use SECURITY_PRIVACY which is
+    // actually measured by static-analysis/secret-scan/etc.
+    const result = calculateScores({ findings: [f('SECURITY_PRIVACY', 'P3')] });
+    const sp = result.categoryScores.find((c) => c.category === 'SECURITY_PRIVACY');
+    expect(sp?.score).toBe(99);
   });
 
   it('multiple findings stack deductions linearly', () => {
@@ -176,9 +183,12 @@ describe('calculateScores — launchStatus thresholds', () => {
       // P0 count = 2, NOT forced NOT_READY
     ];
     const result = calculateScores({ findings });
-    // weighted = (60*15 + 60*15 + 100*70) / 100 = (900+900+7000)/100 = 88
-    expect(result.readinessScore).toBe(88);
-    expect(result.launchStatus).toBe('READY');
+    // After SCORE-1B-a, only measured categories with weight contribute:
+    //   UX_UI(15) + BACKEND_API(15) + SECURITY_PRIVACY(15) + LAUNCH_READINESS(10) = 55
+    // weighted = (100*15 + 60*15 + 60*15 + 100*10) / 55
+    //         = (1500 + 900 + 900 + 1000)/55 = 4300/55 ≈ 78.18 → 78
+    expect(result.readinessScore).toBe(78);
+    expect(result.launchStatus).toBe('CONDITIONAL');
     expect(result.severityCounts.P0).toBe(2);
   });
 
@@ -190,8 +200,11 @@ describe('calculateScores — launchStatus thresholds', () => {
       ...Array.from({ length: 5 }, () => f('BACKEND_API', 'P1') as FindingInput),     // API = 60, w15
     ];
     const result = calculateScores({ findings });
-    // weighted = (60*15*3 + 100*55) / 100 = (2700 + 5500)/100 = 82
-    expect(result.readinessScore).toBe(82);
+    // After SCORE-1B-a, weighted denominator = 55 (only measured categories).
+    // weighted = (60*15 + 60*15 + 60*15 + 100*10) / 55
+    //         = (900+900+900+1000)/55 = 3700/55 ≈ 67.27 → 67
+    expect(result.readinessScore).toBe(67);
+    expect(result.launchStatus).toBe('NEEDS_WORK');
   });
 
   it('AT_RISK when score in [40,55)', () => {
@@ -224,12 +237,16 @@ describe('calculateScores — weighted overall score math', () => {
     expect(result.readinessScore).toBe(100);
   });
 
-  it('MAINTAINABILITY_DOCUMENTATION contributes weight 5 to readinessScore', () => {
+  it('MAINTAINABILITY_DOCUMENTATION is N/A (no measuredBy) — findings do not move readinessScore', () => {
+    // SCORE-1B-a: MAINT has no measuredBy yet, so its score is null and it
+    // is excluded from the weighted average. A P0 still ticks severityCounts
+    // but does not lower the overall.
     const findings: FindingInput[] = [f('MAINTAINABILITY_DOCUMENTATION', 'P0')];
     const result = calculateScores({ findings });
-    // MAINT = 60 (cap), w5. Others = 100, w95.
-    // weighted = (60*5 + 100*95)/100 = (300+9500)/100 = 98
-    expect(result.readinessScore).toBe(98);
+    const maint = result.categoryScores.find((c) => c.category === 'MAINTAINABILITY_DOCUMENTATION');
+    expect(maint?.score).toBeNull();
+    expect(result.readinessScore).toBe(100);
+    expect(result.severityCounts.P0).toBe(1);
   });
 
   it('rounds readinessScore to nearest integer', () => {
@@ -238,8 +255,10 @@ describe('calculateScores — weighted overall score math', () => {
       f('BACKEND_API', 'P2'), // API: 96, w15
     ];
     const result = calculateScores({ findings });
-    // weighted = (92*15 + 96*15 + 100*70)/100 = (1380+1440+7000)/100 = 98.2 -> 98
-    expect(result.readinessScore).toBe(98);
+    // SCORE-1B-a denominator = 55 (UX+BACKEND+SECURITY+LAUNCH).
+    // weighted = (92*15 + 96*15 + 100*15 + 100*10)/55
+    //         = (1380+1440+1500+1000)/55 = 5320/55 ≈ 96.72 → 97
+    expect(result.readinessScore).toBe(97);
     expect(Number.isInteger(result.readinessScore)).toBe(true);
   });
 
@@ -283,5 +302,315 @@ describe('calculateScores — category labels and metadata', () => {
   it('categoryScore.summary is null (Sprint 0 placeholder)', () => {
     const result = calculateScores({ findings: [] });
     expect(result.categoryScores.every((c) => c.summary === null)).toBe(true);
+  });
+});
+
+describe('calculateScores — coverage signal (SCORE-1)', () => {
+  it('omitting coverage preserves legacy multiplier (1) — measured categories still scored', () => {
+    const result = calculateScores({ findings: [] });
+    expect(result.readinessScore).toBe(100);
+    expect(result.launchStatus).toBe('READY');
+    expect(result.confidenceMultiplier).toBe(1);
+    // SCORE-1B-a: categories with no measuredBy are now always N/A, even
+    // when coverage is omitted. Measured categories must NOT be null.
+    for (const cs of result.categoryScores) {
+      const meta = CATEGORY_META.find((m) => m.category === cs.category)!;
+      if (meta.measuredBy.length > 0) expect(cs.score).not.toBeNull();
+    }
+  });
+
+  it('featureNodeCount=0 marks PRODUCT_INTENT and REQUIREMENT_COVERAGE as null (N/A)', () => {
+    const result = calculateScores({
+      findings: [],
+      coverage: { featureNodeCount: 0 },
+    });
+    const intent = result.categoryScores.find((c) => c.category === 'PRODUCT_INTENT');
+    const cov = result.categoryScores.find((c) => c.category === 'REQUIREMENT_COVERAGE');
+    expect(intent?.score).toBeNull();
+    expect(cov?.score).toBeNull();
+  });
+
+  it('featureNodeCount=0 still produces real scores for weighted categories', () => {
+    const result = calculateScores({
+      findings: [],
+      coverage: { featureNodeCount: 0 },
+    });
+    const sec = result.categoryScores.find((c) => c.category === 'SECURITY_PRIVACY');
+    expect(sec?.score).toBe(100);
+  });
+
+  it('featureNodeCount=0 applies 0.5 multiplier in isolation', () => {
+    const result = calculateScores({
+      findings: [],
+      coverage: { featureNodeCount: 0 },
+    });
+    // Only the zero-nodes penalty applies — other signals omitted.
+    expect(result.confidenceMultiplier).toBe(0.5);
+    // Raw weighted = 100, multiplier 0.5 → 50.
+    expect(result.readinessScore).toBe(50);
+  });
+
+  it('analyzedFileCount<10 applies 0.7 multiplier in isolation', () => {
+    const result = calculateScores({
+      findings: [],
+      coverage: { analyzedFileCount: 5 },
+    });
+    expect(result.confidenceMultiplier).toBe(0.7);
+    expect(result.readinessScore).toBe(70);
+  });
+
+  it('analyzedFileCount>=10 does not penalize', () => {
+    const result = calculateScores({
+      findings: [],
+      coverage: { analyzedFileCount: 50 },
+    });
+    expect(result.confidenceMultiplier).toBe(1);
+  });
+
+  it('deployUrlReachable=false applies 0.8 multiplier in isolation', () => {
+    const result = calculateScores({
+      findings: [],
+      coverage: { deployUrlReachable: false },
+    });
+    expect(result.confidenceMultiplier).toBe(0.8);
+    expect(result.readinessScore).toBe(80);
+  });
+
+  it('deployUrlReachable=true does not penalize', () => {
+    const result = calculateScores({
+      findings: [],
+      coverage: { deployUrlReachable: true },
+    });
+    expect(result.confidenceMultiplier).toBe(1);
+  });
+
+  it('multiplies all three penalties together (0.5 * 0.7 * 0.8 = 0.28)', () => {
+    const result = calculateScores({
+      findings: [],
+      coverage: {
+        featureNodeCount: 0,
+        analyzedFileCount: 0,
+        deployUrlReachable: false,
+      },
+    });
+    expect(result.confidenceMultiplier).toBeCloseTo(0.5 * 0.7 * 0.8, 5);
+    // Raw weighted = 100 * 0.28 = 28
+    expect(result.readinessScore).toBe(28);
+  });
+
+  it('confidenceMultiplier<0.6 forces INDETERMINATE (empty findings + zero coverage)', () => {
+    const result = calculateScores({
+      findings: [],
+      coverage: {
+        featureNodeCount: 0,
+        analyzedFileCount: 0,
+        deployUrlReachable: false,
+      },
+    });
+    expect(result.launchStatus).toBe('INDETERMINATE');
+    expect(result.confidenceMultiplier).toBeLessThan(0.6);
+  });
+
+  it('confidenceMultiplier=0.56 (0.7*0.8) forces INDETERMINATE — just below threshold', () => {
+    // featureNodeCount > 0 so no N/A, but two signals miss.
+    const result = calculateScores({
+      findings: [],
+      coverage: {
+        featureNodeCount: 5,
+        analyzedFileCount: 0,
+        deployUrlReachable: false,
+      },
+    });
+    expect(result.confidenceMultiplier).toBeCloseTo(0.7 * 0.8, 5);
+    expect(result.launchStatus).toBe('INDETERMINATE');
+  });
+
+  it('confidenceMultiplier>=0.6 does NOT force INDETERMINATE', () => {
+    // Single penalty (0.7) stays above the 0.6 threshold.
+    const result = calculateScores({
+      findings: [],
+      coverage: { analyzedFileCount: 0 },
+    });
+    expect(result.confidenceMultiplier).toBe(0.7);
+    expect(result.launchStatus).not.toBe('INDETERMINATE');
+  });
+
+  it('INDETERMINATE wins over the score-threshold ladder', () => {
+    const result = calculateScores({
+      findings: [],
+      coverage: {
+        featureNodeCount: 0,
+        analyzedFileCount: 0,
+        deployUrlReachable: false,
+      },
+    });
+    expect(result.launchStatus).toBe('INDETERMINATE');
+  });
+
+  it('INDETERMINATE wins over the P0>=3 NOT_READY override', () => {
+    const findings: FindingInput[] = [
+      f('UX_UI', 'P0'),
+      f('FEATURE_GRAPH', 'P0'),
+      f('FRONTEND_CODE', 'P0'),
+    ];
+    const result = calculateScores({
+      findings,
+      coverage: {
+        featureNodeCount: 0,
+        analyzedFileCount: 0,
+        deployUrlReachable: false,
+      },
+    });
+    expect(result.launchStatus).toBe('INDETERMINATE');
+  });
+
+  it('PRODUCT_INTENT/REQUIREMENT_COVERAGE null score does not contribute to weighted average', () => {
+    // Regression guard: even if a future change raises these categories'
+    // weights, null-marking must still drop them from the denominator.
+    const withCoverage = calculateScores({
+      findings: [],
+      coverage: { featureNodeCount: 0 },
+    });
+    const withoutCoverage = calculateScores({ findings: [] });
+    expect(withCoverage.readinessScore).toBe(50);
+    expect(withoutCoverage.readinessScore).toBe(100);
+  });
+
+  it('featureNodeCount>0 does not produce coverage-driven N/A — but measuredBy-driven N/A still applies', () => {
+    const result = calculateScores({
+      findings: [],
+      coverage: { featureNodeCount: 3 },
+    });
+    // Categories with measuredBy stay scored; the rest remain N/A from SCORE-1B-a.
+    for (const cs of result.categoryScores) {
+      const meta = CATEGORY_META.find((m) => m.category === cs.category)!;
+      if (meta.measuredBy.length > 0) expect(cs.score).not.toBeNull();
+      else expect(cs.score).toBeNull();
+    }
+    expect(result.readinessScore).toBe(100);
+  });
+});
+
+describe('calculateScores — measuredBy + toolsAvailableRatio (SCORE-1B-a)', () => {
+  it('every category with empty measuredBy reports score=null', () => {
+    const result = calculateScores({ findings: [] });
+    const unmeasured = CATEGORY_META.filter((m) => m.measuredBy.length === 0);
+    expect(unmeasured.length).toBeGreaterThan(0);
+    for (const meta of unmeasured) {
+      const cs = result.categoryScores.find((c) => c.category === meta.category);
+      expect(cs?.score).toBeNull();
+    }
+  });
+
+  it('unmeasured categories do not contribute even when their findings exist', () => {
+    // FEATURE_GRAPH has no measuredBy — any number of findings against it
+    // must not change readinessScore (its score stays null + excluded from
+    // the weighted denominator). Severity counts still tick up.
+    const findings: FindingInput[] = [
+      ...Array.from({ length: 10 }, () => f('FEATURE_GRAPH', 'P1') as FindingInput),
+    ];
+    const result = calculateScores({ findings });
+    const fg = result.categoryScores.find((c) => c.category === 'FEATURE_GRAPH');
+    expect(fg?.score).toBeNull();
+    expect(result.readinessScore).toBe(100);
+    expect(result.severityCounts.P1).toBe(10);
+  });
+
+  it('omitting availableTools leaves toolsAvailableRatio undefined and no extra penalty', () => {
+    const result = calculateScores({ findings: [] });
+    expect(result.toolsAvailableRatio).toBeUndefined();
+    expect(result.confidenceMultiplier).toBe(1);
+  });
+
+  it('all tools installed: ratio=1, no penalty', () => {
+    const result = calculateScores({
+      findings: [],
+      availableTools: {
+        semgrep: true,
+        osvScanner: true,
+        lighthouse: true,
+        secretsScanner: true,
+      },
+    });
+    expect(result.toolsAvailableRatio).toBe(1);
+    expect(result.confidenceMultiplier).toBe(1);
+  });
+
+  it('half tools installed: ratio=0.5, NO penalty (threshold is strict <0.5)', () => {
+    const result = calculateScores({
+      findings: [],
+      availableTools: {
+        semgrep: true,
+        osvScanner: true,
+        lighthouse: false,
+        secretsScanner: false,
+      },
+    });
+    expect(result.toolsAvailableRatio).toBe(0.5);
+    // At exactly 0.5 the strict < threshold means no extra multiplier.
+    expect(result.confidenceMultiplier).toBe(1);
+  });
+
+  it('one tool installed (ratio=0.25): applies 0.7 multiplier', () => {
+    const result = calculateScores({
+      findings: [],
+      availableTools: {
+        semgrep: true,
+        osvScanner: false,
+        lighthouse: false,
+        secretsScanner: false,
+      },
+    });
+    expect(result.toolsAvailableRatio).toBe(0.25);
+    expect(result.confidenceMultiplier).toBe(0.7);
+  });
+
+  it('no tools installed (ratio=0): applies 0.7 multiplier', () => {
+    const result = calculateScores({
+      findings: [],
+      availableTools: {
+        semgrep: false,
+        osvScanner: false,
+        lighthouse: false,
+        secretsScanner: false,
+      },
+    });
+    expect(result.toolsAvailableRatio).toBe(0);
+    expect(result.confidenceMultiplier).toBe(0.7);
+    // Raw weighted = 100, multiplier 0.7 → 70.
+    expect(result.readinessScore).toBe(70);
+  });
+
+  it('coverage + tools penalties multiply together (0.5 * 0.7 * 0.8 * 0.7)', () => {
+    const result = calculateScores({
+      findings: [],
+      coverage: {
+        featureNodeCount: 0,
+        analyzedFileCount: 0,
+        deployUrlReachable: false,
+      },
+      availableTools: {
+        semgrep: false,
+        osvScanner: false,
+        lighthouse: false,
+        secretsScanner: false,
+      },
+    });
+    expect(result.confidenceMultiplier).toBeCloseTo(0.5 * 0.7 * 0.8 * 0.7, 5);
+    expect(result.launchStatus).toBe('INDETERMINATE');
+  });
+
+  it('tools penalty alone (0.7) stays above INDETERMINATE threshold', () => {
+    const result = calculateScores({
+      findings: [],
+      availableTools: {
+        semgrep: false,
+        osvScanner: false,
+        lighthouse: false,
+        secretsScanner: false,
+      },
+    });
+    expect(result.confidenceMultiplier).toBe(0.7);
+    expect(result.launchStatus).not.toBe('INDETERMINATE');
   });
 });

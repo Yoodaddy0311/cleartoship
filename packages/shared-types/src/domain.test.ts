@@ -105,3 +105,30 @@ describe('AuditRunSchema.enqueueMode field', () => {
     }
   });
 });
+
+// S6-03: partialResultTools field — collects analysis tools (semgrep,
+// osv-scanner, etc.) that recorded `ToolResult.status === 'SKIPPED'`.
+describe('AuditRunSchema.partialResultTools field', () => {
+  it('defaults to [] when omitted (legacy doc forward-compat)', () => {
+    const { partialResultTools: _drop, ...withoutField } = baseAuditRun() as Record<
+      string,
+      unknown
+    >;
+    const parsed = AuditRunSchema.parse(withoutField);
+    expect(parsed.partialResultTools).toEqual([]);
+  });
+
+  it('preserves a non-empty array of tool names', () => {
+    const parsed = AuditRunSchema.parse(
+      baseAuditRun({ partialResultTools: ['semgrep', 'osv-scanner'] }),
+    );
+    expect(parsed.partialResultTools).toEqual(['semgrep', 'osv-scanner']);
+  });
+
+  it('rejects non-string entries (defensive: only tool names are expected)', () => {
+    const result = AuditRunSchema.safeParse(
+      baseAuditRun({ partialResultTools: ['semgrep', 42] }),
+    );
+    expect(result.success).toBe(false);
+  });
+});

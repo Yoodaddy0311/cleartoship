@@ -7,7 +7,7 @@ import { SeverityChip } from '@/components/common/severity-chip';
 import { categoryLabel } from '@/lib/format/category';
 import { SEVERITY_ORDER } from '@/lib/format/severity';
 import { FindingFilters, type FindingFiltersValue } from './finding-filters';
-import type { MockFinding } from '@/lib/mock/audit-fixture';
+import type { FindingViewModel } from '@/lib/types/finding-view';
 import { t } from '@/lib/i18n';
 
 export function FindingsTable({
@@ -15,7 +15,7 @@ export function FindingsTable({
   findings,
 }: {
   auditId: string;
-  findings: MockFinding[];
+  findings: FindingViewModel[];
 }) {
   const [filters, setFilters] = useState<FindingFiltersValue>({
     severities: new Set(),

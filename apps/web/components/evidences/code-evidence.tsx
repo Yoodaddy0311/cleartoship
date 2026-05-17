@@ -1,7 +1,7 @@
 import { EvidenceCard } from '@cleartoship/ui';
-import type { MockEvidence } from '@/lib/mock/audit-fixture';
+import type { FindingEvidenceView } from '@/lib/types/finding-view';
 
-export function CodeEvidence({ evidence }: { evidence: MockEvidence }) {
+export function CodeEvidence({ evidence }: { evidence: FindingEvidenceView }) {
   return (
     <EvidenceCard
       {...(evidence.filePath !== undefined ? { filePath: evidence.filePath } : {})}

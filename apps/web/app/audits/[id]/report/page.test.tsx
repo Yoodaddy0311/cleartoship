@@ -6,6 +6,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
+vi.mock('next/navigation', () => ({
+  useParams: () => ({ id: 'run-1' }),
+}));
+
 vi.mock('@/lib/api/audit-runs', () => ({
   getReport: vi.fn(),
 }));
@@ -39,7 +43,7 @@ describe('ReportPage', () => {
     vi.mocked(useAuditResource).mockReturnValue({ status: 'loading' } as never);
 
     const { default: ReportPage } = await import('./page');
-    render(<ReportPage params={{ id: 'run-1' }} />);
+    render(<ReportPage />);
 
     expect(
       screen.getByRole('navigation', { name: '감사 결과 탭' })
@@ -54,7 +58,7 @@ describe('ReportPage', () => {
     } as never);
 
     const { default: ReportPage } = await import('./page');
-    render(<ReportPage params={{ id: 'run-1' }} />);
+    render(<ReportPage />);
 
     expect(screen.getByText('# Report Title')).toBeInTheDocument();
   });
@@ -67,7 +71,7 @@ describe('ReportPage', () => {
     } as never);
 
     const { default: ReportPage } = await import('./page');
-    render(<ReportPage params={{ id: 'run-1' }} />);
+    render(<ReportPage />);
 
     expect(screen.getByText(/오류/)).toBeInTheDocument();
   });

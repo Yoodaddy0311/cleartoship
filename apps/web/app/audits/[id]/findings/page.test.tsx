@@ -9,6 +9,7 @@ const refreshMock = vi.fn();
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock, refresh: refreshMock }),
+  useParams: () => ({ id: 'run-1' }),
 }));
 
 vi.mock('@/lib/api/audit-runs', () => ({
@@ -45,7 +46,7 @@ describe('FindingsPage', () => {
     vi.mocked(listFindings).mockImplementation(() => new Promise(() => {}));
 
     const { default: FindingsPage } = await import('./page');
-    render(<FindingsPage params={{ id: 'run-1' }} />);
+    render(<FindingsPage />);
 
     expect(
       screen.getByRole('navigation', { name: '감사 결과 탭' })
@@ -60,7 +61,7 @@ describe('FindingsPage', () => {
     } as never);
 
     const { default: FindingsPage } = await import('./page');
-    render(<FindingsPage params={{ id: 'run-1' }} />);
+    render(<FindingsPage />);
 
     await waitFor(() => {
       expect(vi.mocked(listFindings)).toHaveBeenCalledWith('run-1', {
@@ -74,7 +75,7 @@ describe('FindingsPage', () => {
     vi.mocked(listFindings).mockRejectedValue(new Error('boom'));
 
     const { default: FindingsPage } = await import('./page');
-    render(<FindingsPage params={{ id: 'run-1' }} />);
+    render(<FindingsPage />);
 
     await waitFor(() => {
       expect(screen.getByText(/오류가 발생/)).toBeInTheDocument();

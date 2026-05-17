@@ -100,4 +100,46 @@ describe('FindingDetailPanel', () => {
     render(<FindingDetailPanel finding={finding} />);
     expect(screen.queryByTestId('evidence-truncated-banner')).toBeNull();
   });
+
+  it('renders the friendly explanation (what/why) for semgrep findings', () => {
+    const semgrepFinding = {
+      ...(finding as object),
+      title: 'Semgrep: javascript.lang.security.audit.eval',
+      nonDeveloperExplanation:
+        '코드 검사 도구가 잠재적 보안/품질 문제를 발견했습니다. 개발자가 해당 라인을 확인해야 합니다.',
+    } as never;
+    render(<FindingDetailPanel finding={semgrepFinding} />);
+    const block = screen.getByTestId('friendly-explanation');
+    expect(block).toBeInTheDocument();
+    expect(block).toHaveTextContent('무엇이 문제인가요?');
+    expect(block).toHaveTextContent('왜 위험한가요?');
+    // Detail (analogy + fixGuide) is hidden until the toggle is clicked.
+    expect(screen.queryByTestId('friendly-analogy')).toBeNull();
+    expect(screen.queryByTestId('friendly-fix-guide')).toBeNull();
+    // The default toggle label is "자세히 보기".
+    expect(
+      screen.getByRole('button', { name: '자세히 보기' }),
+    ).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('reveals analogy + fixGuide after clicking "자세히 보기"', async () => {
+    const { fireEvent } = await import('@testing-library/react');
+    const semgrepFinding = {
+      ...(finding as object),
+      title: 'Semgrep: javascript.lang.security.audit.eval',
+    } as never;
+    render(<FindingDetailPanel finding={semgrepFinding} />);
+    fireEvent.click(screen.getByRole('button', { name: '자세히 보기' }));
+    expect(screen.getByTestId('friendly-analogy')).toBeInTheDocument();
+    expect(screen.getByTestId('friendly-fix-guide')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: '간단히 보기' }),
+    ).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('falls back to nonDeveloperExplanation for non-semgrep findings (no regression)', () => {
+    render(<FindingDetailPanel finding={finding} />);
+    expect(screen.queryByTestId('friendly-explanation')).toBeNull();
+    expect(screen.getByText('비개발자 설명')).toBeInTheDocument();
+  });
 });

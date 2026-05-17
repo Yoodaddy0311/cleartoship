@@ -46,7 +46,10 @@ describe('getIdToken', () => {
 
   it('returns null when no user is currently signed in', async () => {
     vi.stubGlobal('window', {});
-    getClientAuthMock.mockReturnValue({ currentUser: null });
+    getClientAuthMock.mockReturnValue({
+      currentUser: null,
+      authStateReady: () => Promise.resolve(),
+    });
     const { getIdToken } = await import('./auth-init');
 
     const out = await getIdToken();
@@ -59,6 +62,7 @@ describe('getIdToken', () => {
     const getIdTokenSpy = vi.fn().mockResolvedValue('fake-token-x');
     getClientAuthMock.mockReturnValue({
       currentUser: { getIdToken: getIdTokenSpy },
+      authStateReady: () => Promise.resolve(),
     });
     const { getIdToken } = await import('./auth-init');
 
@@ -74,6 +78,7 @@ describe('getIdToken', () => {
       currentUser: {
         getIdToken: vi.fn().mockRejectedValue(new Error('network down')),
       },
+      authStateReady: () => Promise.resolve(),
     });
     const { getIdToken } = await import('./auth-init');
 

@@ -72,8 +72,10 @@ export function renderAuditReportMarkdown(input: RenderReportInput): string {
   lines.push('| 카테고리 | 점수 | 상태 | 핵심 요약 |');
   lines.push('|---|---:|---|---|');
   for (const cs of input.categoryScores) {
+    const scoreCell = cs.score === null ? 'N/A' : String(cs.score);
+    const statusCell = cs.score === null ? '판단 불가' : categoryStatusLabel(cs.score);
     lines.push(
-      `| ${cs.label} | ${cs.score} | ${categoryStatusLabel(cs.score)} | ${cs.summary ?? '-'} |`,
+      `| ${cs.label} | ${scoreCell} | ${statusCell} | ${cs.summary ?? '-'} |`,
     );
   }
   lines.push('');

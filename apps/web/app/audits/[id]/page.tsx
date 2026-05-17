@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Card, CardBody, CardHeader, CardTitle, Progress, Button } from '@cleartoship/ui';
 import {
   ProgressTimeline,
@@ -9,26 +9,24 @@ import {
 } from '@/components/audit-progress/progress-timeline';
 import { useAuditRunPolling } from '@/components/audit-progress/use-audit-run-polling';
 import { DevPipelineBanner } from '@/components/common/dev-pipeline-banner';
+import { PartialResultBanner } from '@/components/common/resource-state-panel';
 import { t } from '@/lib/i18n';
 
-interface PageProps {
-  params: { id: string };
-}
-
-export default function AuditProgressPage({ params }: PageProps) {
+export default function AuditProgressPage() {
+  const { id: auditId } = useParams<{ id: string }>();
   const router = useRouter();
-  const { data, loading, error } = useAuditRunPolling(params.id);
+  const { data, loading, error } = useAuditRunPolling(auditId);
 
   useEffect(() => {
     if (data?.status === 'COMPLETED') {
       // Small delay so users perceive completion (Peak-End rule).
       const tm = setTimeout(() => {
-        router.push(`/audits/${params.id}/dashboard`);
+        router.push(`/audits/${auditId}/dashboard`);
       }, 600);
       return () => clearTimeout(tm);
     }
     return undefined;
-  }, [data?.status, params.id, router]);
+  }, [data?.status, auditId, router]);
 
   const currentStep = (data?.currentStep as AuditStep) ?? null;
   const progress = data?.progress ?? 0;
@@ -61,6 +59,10 @@ export default function AuditProgressPage({ params }: PageProps) {
           />
         </div>
         <DevPipelineBanner mode={data?.enqueueMode ?? null} className="mt-4" />
+        <PartialResultBanner
+          toolNames={data?.partialResultTools ?? []}
+          className="mt-3"
+        />
       </header>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_2fr]">

@@ -8,6 +8,7 @@ import express from 'express';
 import { AuditTaskPayloadSchema } from '@cleartoship/shared-types';
 import { runPipeline } from './pipeline/runner.js';
 import { oidcMiddlewareFromEnv } from './auth/verify-oidc.js';
+import { getToolsHealthSync, overallToolsStatus } from './diagnostics/tools-health.js';
 
 const app = express();
 app.use(express.json({ limit: '256kb' }));
@@ -23,13 +24,31 @@ app.get('/healthz', (_req, res) => {
   );
   const devBypassActive =
     process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_BYPASS === '1';
+  // External-tool probe is best-effort and synchronous (spawnSync). If it
+  // throws for any reason we still return 200 with `tools: undefined` and
+  // `status: 'degraded'` so operators see the rest of the readiness data.
+  let tools: ReturnType<typeof getToolsHealthSync> | undefined;
+  let toolsStatus: 'ok' | 'degraded' = 'ok';
+  try {
+    tools = getToolsHealthSync();
+    toolsStatus = overallToolsStatus(tools);
+  } catch {
+    tools = undefined;
+    toolsStatus = 'degraded';
+  }
   res.status(200).json({
+    // `status` stays 'ok' for backward compat with existing consumers;
+    // tool degradation is surfaced via the dedicated `toolsStatus` field
+    // so operators can spot a missing binary without breaking SRE alerts
+    // that key off the top-level status string.
     status: 'ok',
     service: 'audit-worker',
     version: process.env.WORKER_VERSION ?? '0.1.0',
     nodeEnv: process.env.NODE_ENV ?? 'undefined',
     oidcEnabled,
     devBypassActive,
+    toolsStatus,
+    tools,
     timestamp: new Date().toISOString(),
   });
 });

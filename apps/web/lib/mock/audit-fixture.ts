@@ -5,33 +5,7 @@
 import type { ImplementationStatus } from '@/lib/format/status';
 import type { Severity } from '@/lib/format/severity';
 import type { AuditCategory } from '@/lib/format/category';
-
-export interface MockFinding {
-  id: string;
-  title: string;
-  category: AuditCategory;
-  severity: Severity;
-  confidence: 'high' | 'medium' | 'low';
-  summary: string;
-  nonDeveloperExplanation: string;
-  technicalExplanation: string;
-  impact: string[];
-  recommendation: string[];
-  acceptanceCriteria: string[];
-  evidences: MockEvidence[];
-}
-
-export interface MockEvidence {
-  id: string;
-  filePath?: string;
-  lineStart?: number;
-  lineEnd?: number;
-  url?: string;
-  selector?: string;
-  snippet?: string;
-  language?: string;
-  maskedSecret?: boolean;
-}
+import type { FindingViewModel } from '@/lib/types/finding-view';
 
 export interface MockNode {
   id: string;
@@ -51,6 +25,12 @@ export interface MockNode {
   status: ImplementationStatus;
   summary?: string;
   position: { x: number; y: number };
+  /**
+   * Evidence ids associated with this node. Used by the feature-graph page to
+   * link nodes to their findings via `Evidence.findingId`. Optional because
+   * older fixtures and freshly-built nodes may not carry the relation yet.
+   */
+  evidenceIds?: ReadonlyArray<string>;
 }
 
 export interface MockEdge {
@@ -80,7 +60,7 @@ export interface MockAudit {
   oneLineSummary: string;
   severityCounts: Record<Severity, number>;
   categoryScores: Record<AuditCategory, number>;
-  findings: MockFinding[];
+  findings: FindingViewModel[];
   graph: { nodes: MockNode[]; edges: MockEdge[] };
   reportMarkdown: string;
   improvementPrdMarkdown: string;

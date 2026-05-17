@@ -1,5 +1,6 @@
 'use client';
 
+import { useParams } from 'next/navigation';
 import { DashboardTabs } from '@/app/audits/[id]/dashboard/page';
 import { CopyPromptButton } from '@/components/improvement-prd/copy-prompt-button';
 import { PrdViewer } from '@/components/improvement-prd/prd-viewer';
@@ -10,12 +11,8 @@ import { useAuditResource } from '@/lib/api/use-audit-resource';
 import { t } from '@/lib/i18n';
 import type { ImprovementPRD } from '@/lib/api/audit-runs';
 
-export default function ImprovementPrdPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const auditId = params.id;
+export default function ImprovementPrdPage() {
+  const { id: auditId } = useParams<{ id: string }>();
   const state = useAuditResource<ImprovementPRD>(
     () => getImprovementPrd(auditId),
     [auditId]

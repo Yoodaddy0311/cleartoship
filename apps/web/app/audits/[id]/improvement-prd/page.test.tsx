@@ -3,6 +3,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 
+vi.mock('next/navigation', () => ({
+  useParams: () => ({ id: 'run-1' }),
+}));
+
 vi.mock('@/lib/api/audit-runs', () => ({
   getImprovementPrd: vi.fn(),
 }));
@@ -32,7 +36,7 @@ describe('ImprovementPrdPage', () => {
     vi.mocked(getImprovementPrd).mockImplementation(() => new Promise(() => {}));
 
     const { default: ImprovementPrdPage } = await import('./page');
-    render(<ImprovementPrdPage params={{ id: 'run-1' }} />);
+    render(<ImprovementPrdPage />);
 
     expect(
       screen.getByRole('heading', { level: 1 })
@@ -46,7 +50,7 @@ describe('ImprovementPrdPage', () => {
     } as never);
 
     const { default: ImprovementPrdPage } = await import('./page');
-    render(<ImprovementPrdPage params={{ id: 'run-1' }} />);
+    render(<ImprovementPrdPage />);
 
     await waitFor(() => {
       expect(vi.mocked(getImprovementPrd)).toHaveBeenCalledWith('run-1');
@@ -58,7 +62,7 @@ describe('ImprovementPrdPage', () => {
     vi.mocked(getImprovementPrd).mockRejectedValue(new Error('boom'));
 
     const { default: ImprovementPrdPage } = await import('./page');
-    render(<ImprovementPrdPage params={{ id: 'run-1' }} />);
+    render(<ImprovementPrdPage />);
 
     await waitFor(() => {
       expect(screen.getByText(/오류가 발생/)).toBeInTheDocument();

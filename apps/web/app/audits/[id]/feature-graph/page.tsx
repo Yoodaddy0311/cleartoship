@@ -1,15 +1,23 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useMemo } from 'react';
-import { Skeleton } from '@cleartoship/ui';
+import { useEffect, useMemo, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { Button, Skeleton } from '@cleartoship/ui';
 import { DashboardTabs } from '@/app/audits/[id]/dashboard/page';
 import { ResourceStatePanel } from '@/components/common/resource-state-panel';
-import { getFeatureGraph } from '@/lib/api/audit-runs';
+import {
+  createAuditRun,
+  getAuditRun,
+  getFeatureGraph,
+  listEvidences,
+} from '@/lib/api/audit-runs';
 import { adaptFeatureGraph } from '@/lib/api/adapters';
 import { useAuditResource } from '@/lib/api/use-audit-resource';
+import { buildFindingIdsByNode } from '@/lib/feature-graph/adapter';
 import { t } from '@/lib/i18n';
 import type { FeatureGraph } from '@/lib/api/audit-runs';
+import type { Evidence } from '@cleartoship/shared-types';
 
 const GraphCanvas = dynamic(
   () =>
@@ -22,21 +30,68 @@ const GraphCanvas = dynamic(
   }
 );
 
-export default function FeatureGraphPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  const auditId = params.id;
+export default function FeatureGraphPage() {
+  const { id: auditId } = useParams<{ id: string }>();
+  const router = useRouter();
   const state = useAuditResource<FeatureGraph>(
     () => getFeatureGraph(auditId),
     [auditId]
   );
+  const [rerunStatus, setRerunStatus] = useState<
+    'idle' | 'submitting' | 'error'
+  >('idle');
+  const [rerunError, setRerunError] = useState<string | null>(null);
+
+  async function handleRerun() {
+    setRerunStatus('submitting');
+    setRerunError(null);
+    try {
+      const run = await getAuditRun(auditId);
+      const created = await createAuditRun({
+        repoUrl: run.repoUrl,
+        ...(run.deployUrl ? { deployUrl: run.deployUrl } : {}),
+        ...(run.prdText ? { prdText: run.prdText } : {}),
+      });
+      router.push(`/audits/${created.auditRunId}`);
+    } catch (err) {
+      setRerunStatus('error');
+      setRerunError(err instanceof Error ? err.message : '요청에 실패했습니다.');
+    }
+  }
+
+  // Secondary fetch: pull every evidence in the run via a single round-trip
+  // so we can join graph nodes (which carry `evidenceIds`) to their owning
+  // findings via `Evidence.findingId`. Best-effort — failures must NOT block
+  // the graph; we degrade to an empty `findingIdsByNode` map, which the
+  // canvas already handles gracefully.
+  const [evidences, setEvidences] = useState<ReadonlyArray<Evidence>>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setEvidences([]);
+    (async () => {
+      try {
+        const res = await listEvidences(auditId);
+        if (cancelled) return;
+        setEvidences(res.evidences);
+      } catch {
+        if (!cancelled) setEvidences([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [auditId]);
 
   const adapted = useMemo(
     () => (state.status === 'ready' ? adaptFeatureGraph(state.data) : null),
     [state]
   );
+
+  const findingIdsByNode = useMemo(() => {
+    if (state.status !== 'ready') return {};
+    return buildFindingIdsByNode(state.data.nodes, evidences);
+  }, [state, evidences]);
 
   return (
     <section className="mx-auto flex w-full max-w-[1536px] flex-col gap-6 px-4 py-10 sm:px-6">
@@ -45,7 +100,70 @@ export default function FeatureGraphPage({
         {t('graph.title')}
       </h1>
       {adapted ? (
-        <GraphCanvas nodes={adapted.nodes} edges={adapted.edges} />
+        adapted.nodes.length === 0 ? (
+          <div
+            data-testid="feature-graph-empty"
+            role="status"
+            className="rounded-mk border border-app-border bg-mk-bg-soft px-6 py-10 text-center"
+          >
+            <h2 className="text-lg font-semibold text-mk-fg">
+              기능 노드가 비어 있어요
+            </h2>
+            <p className="mx-auto mt-2 max-w-xl text-sm text-mk-fg-muted">
+              아래 두 가지가 가장 흔한 원인이에요. 다시 분석하면 최신 룰로 노드를
+              재구성합니다.
+            </p>
+            <ul className="mx-auto mt-4 max-w-xl space-y-2 text-left text-sm text-mk-fg-muted">
+              <li className="flex gap-2">
+                <span aria-hidden="true">•</span>
+                <span>
+                  <strong className="font-medium text-mk-fg">이전 버전 분석 결과</strong>일
+                  수 있어요. 그래프 생성 룰이 개선된 이후 다시 돌리지 않아 노드가
+                  비어 있을 가능성이 큽니다.
+                </span>
+              </li>
+              <li className="flex gap-2">
+                <span aria-hidden="true">•</span>
+                <span>
+                  <strong className="font-medium text-mk-fg">빌드 산출물만 있는 레포</strong>일
+                  수 있어요. 컴파일된 dist/.next 같은 결과물만 들어 있으면 페이지·API·컴포넌트를
+                  식별하기 어렵습니다.
+                </span>
+              </li>
+            </ul>
+            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Button
+                data-testid="feature-graph-empty-rerun"
+                onClick={handleRerun}
+                variant="primary"
+                disabled={rerunStatus === 'submitting'}
+              >
+                {rerunStatus === 'submitting' ? '다시 분석 요청 중…' : '다시 분석'}
+              </Button>
+              <a
+                href={`/audits/${auditId}/dashboard`}
+                className="text-sm text-mk-accent underline-offset-2 hover:underline"
+              >
+                대시보드에서 다른 결과 보기
+              </a>
+            </div>
+            {rerunStatus === 'error' && rerunError ? (
+              <p
+                role="alert"
+                className="mt-3 text-sm text-[color:var(--color-severity-p0)]"
+              >
+                {rerunError}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <GraphCanvas
+            nodes={adapted.nodes}
+            edges={adapted.edges}
+            auditId={auditId}
+            findingIdsByNode={findingIdsByNode}
+          />
+        )
       ) : (
         <ResourceStatePanel
           state={state as Exclude<typeof state, { status: 'ready' }>}

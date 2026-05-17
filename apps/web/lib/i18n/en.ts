@@ -208,6 +208,32 @@ export const en: Messages = {
   // Footer
   'footer.copyright': '© 2026 ClearToShip. All rights reserved.',
   'footer.note': 'Evidence-based launch audit platform',
+
+  // Errors — audit failures
+  'errors.audit.invalidUrl': 'The repository URL format is invalid',
+  'errors.audit.notFound': 'The requested audit could not be found',
+  'errors.audit.timedOut': 'The audit did not complete within the time limit (5 minutes)',
+  'errors.audit.cloneFailed': 'Repository clone failed. Make sure the repo is public',
+  'errors.audit.deployUrlUnreachable': 'The deploy URL is unreachable',
+  'errors.audit.toolUnavailable': 'Tools {toolNames} are not installed — partial results only',
+  'errors.audit.toolUnavailable.summary': '{count} checks were skipped on this run',
+  'errors.audit.toolUnavailable.disclaimer':
+    'This is an analysis environment issue and does not significantly affect result confidence',
+  'errors.audit.toolUnavailable.deployUrlHint':
+    'Add a deploy URL and we will also measure your site performance and accessibility',
+
+  // Empty / pending guidance for resource panels
+  'audit.empty.unsupportedFramework':
+    'Automatic analysis is currently optimized for frameworks such as Next.js / Vite. Detected framework: {framework}. Partial results are available.',
+  'audit.empty.noDeployUrl':
+    'No deploy URL provided, so performance/accessibility measurement was skipped. Code checks completed normally.',
+  'audit.empty.pipelineNotReached':
+    'This step has not been reached yet. Results will appear automatically as the analysis progresses.',
+  'audit.empty.nextActions': 'What you can do next',
+
+  // Errors — general
+  'errors.general.networkError': 'A network error occurred. Please try again in a moment',
+  'errors.general.unexpected': 'An unexpected error occurred',
 };
 
 export type En = typeof en;

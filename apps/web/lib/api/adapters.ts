@@ -1,8 +1,7 @@
 /**
  * Adapters between API DTOs (shared-types Firestore-aligned shapes) and the
- * UI's MockFinding / MockNode / MockEvidence shapes. Keeping these as a thin
- * mapping layer lets us swap mocks → live data without touching dozens of
- * downstream components.
+ * UI view-model shapes. Keeping these as a thin mapping layer lets us swap
+ * fixture → live data without touching dozens of downstream components.
  */
 import type {
   AuditReport,
@@ -17,12 +16,11 @@ import type {
 import type { LaunchStatus as UiLaunchStatus } from '@/lib/format/status';
 import type { AuditCategory } from '@/lib/format/category';
 import type { Severity } from '@/lib/format/severity';
+import type { MockEdge, MockNode } from '@/lib/mock/audit-fixture';
 import type {
-  MockEdge,
-  MockEvidence,
-  MockFinding,
-  MockNode,
-} from '@/lib/mock/audit-fixture';
+  FindingEvidenceView,
+  FindingViewModel,
+} from '@/lib/types/finding-view';
 
 const LAUNCH_STATUS_MAP: Record<ApiLaunchStatus, UiLaunchStatus> = {
   READY: 'ready',
@@ -30,13 +28,17 @@ const LAUNCH_STATUS_MAP: Record<ApiLaunchStatus, UiLaunchStatus> = {
   NEEDS_WORK: 'needs_work',
   AT_RISK: 'needs_work',
   NOT_READY: 'stop',
+  // Worker scoring sets INDETERMINATE when coverage is too low to trust the
+  // score; UI surfaces an inline "분석 표면 부족" banner instead of a verdict
+  // chip — see ScoreOverview.
+  INDETERMINATE: 'indeterminate',
 };
 
 export function adaptLaunchStatus(s: ApiLaunchStatus): UiLaunchStatus {
   return LAUNCH_STATUS_MAP[s];
 }
 
-const CONFIDENCE_MAP: Record<ApiConfidence, MockFinding['confidence']> = {
+const CONFIDENCE_MAP: Record<ApiConfidence, FindingViewModel['confidence']> = {
   HIGH: 'high',
   MEDIUM: 'medium',
   LOW: 'low',
@@ -65,7 +67,37 @@ export function adaptCategoryScores(
   };
   for (const cs of list) {
     if (isUiCategory(cs.category)) {
-      initial[cs.category] = Math.round(cs.score);
+      // null = N/A from coverage signal; treat as 0 in the legacy numeric
+      // record. UI surfaces 'INDETERMINATE' separately via launchStatus.
+      initial[cs.category] = cs.score === null ? 0 : Math.round(cs.score);
+    }
+  }
+  return initial;
+}
+
+/**
+ * Preserves `null` (= N/A from the coverage signal) so the dashboard's
+ * CategoryGrid can render "N/A" tiles instead of falsely reporting "0점".
+ * Categories not present in the API list default to `null` (unscored).
+ */
+export function adaptCategoryScoresNullable(
+  list: AuditReport['categoryScores']
+): Record<AuditCategory, number | null> {
+  const initial: Record<AuditCategory, number | null> = {
+    PRODUCT_INTENT: null,
+    REQUIREMENT_COVERAGE: null,
+    FEATURE_GRAPH: null,
+    FUNCTIONAL_FLOW: null,
+    UX_UI: null,
+    FRONTEND_CODE: null,
+    BACKEND_API: null,
+    DATA_MODEL: null,
+    SECURITY_PRIVACY: null,
+    LAUNCH_READINESS: null,
+  };
+  for (const cs of list) {
+    if (isUiCategory(cs.category)) {
+      initial[cs.category] = cs.score === null ? null : Math.round(cs.score);
     }
   }
   return initial;
@@ -82,7 +114,7 @@ function splitBulletList(input: string | null): string[] {
 export function adaptFinding(
   finding: Finding,
   evidences: Evidence[] = []
-): MockFinding {
+): FindingViewModel {
   const category: AuditCategory = isUiCategory(finding.category)
     ? finding.category
     : 'LAUNCH_READINESS';
@@ -102,8 +134,8 @@ export function adaptFinding(
   };
 }
 
-export function adaptEvidence(e: Evidence): MockEvidence {
-  const evidence: MockEvidence = {
+export function adaptEvidence(e: Evidence): FindingEvidenceView {
+  const evidence: FindingEvidenceView = {
     id: e.id,
     maskedSecret: e.maskedValue !== null,
   };
@@ -146,6 +178,10 @@ export function adaptFeatureGraph(graph: FeatureGraph): {
     status: n.status,
     ...(n.summary !== null ? { summary: n.summary } : {}),
     position: positions.get(n.id) ?? { x: 0, y: 0 },
+    // Pass evidenceIds through so downstream pages can join nodes ↔ findings
+    // via Evidence.findingId. Omit the key entirely when empty to keep the
+    // serialized MockNode shape stable for snapshot-style assertions.
+    ...(n.evidenceIds.length > 0 ? { evidenceIds: n.evidenceIds } : {}),
   }));
   const edges: MockEdge[] = graph.edges.map<MockEdge>((e: FeatureEdge) => ({
     id: e.id,

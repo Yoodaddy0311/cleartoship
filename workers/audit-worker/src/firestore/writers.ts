@@ -67,11 +67,52 @@ export async function updateRunStep(
     } satisfies Omit<ProgressEvent, 'id' | 'ts'> & { ts: FirebaseFirestore.FieldValue });
 }
 
+/**
+ * Walk the `toolResults` sub-collection for `runId` and collect a stable,
+ * de-duplicated list of tool names whose status is 'SKIPPED'. We aggregate at
+ * completion time (rather than maintaining a running counter on every write)
+ * so the read cost is O(toolResults) per run — well under 20 docs in practice
+ * — and the writer path stays free of cross-document coupling.
+ *
+ * Returns names in insertion order (Firestore default ordering by document id,
+ * which mirrors insertion order for auto-id docs) so the UI banner reads
+ * predictably ("semgrep, osv-scanner, lighthouse").
+ */
+export async function aggregatePartialResultTools(runId: string): Promise<string[]> {
+  const db = getFirestoreClient();
+  const snap = await db
+    .collection(COLL.toolResultsCol(runId))
+    .where('status', '==', 'SKIPPED')
+    .get();
+  const seen = new Set<string>();
+  const out: string[] = [];
+  snap.forEach((doc) => {
+    const name = doc.get('toolName');
+    if (typeof name === 'string' && name.length > 0 && !seen.has(name)) {
+      seen.add(name);
+      out.push(name);
+    }
+  });
+  return out;
+}
+
 export async function markRunCompleted(runId: string): Promise<void> {
   const db = getFirestoreClient();
+  // S6-03: pre-compute the SKIPPED tool list so the AuditRun document carries
+  // the "partial results" signal without the UI having to fan-out to the
+  // sub-collection on every poll. Errors here must NOT block COMPLETED — a
+  // failure to enumerate tool results is strictly less serious than letting
+  // the run get stuck mid-flight, so we degrade to `[]`.
+  let partialResultTools: string[] = [];
+  try {
+    partialResultTools = await aggregatePartialResultTools(runId);
+  } catch {
+    partialResultTools = [];
+  }
   await db.doc(COLL.auditRun(runId)).update({
     status: 'COMPLETED',
     progress: 100,
+    partialResultTools,
     completedAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
   });

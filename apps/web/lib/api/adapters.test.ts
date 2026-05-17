@@ -1,6 +1,6 @@
 // Unit tests for adapters between API DTOs (shared-types Firestore-aligned shapes)
-// and the UI's MockFinding / MockNode / MockEvidence shapes. Pure functions: no
-// mocks needed — call with fixtures and assert structural mapping.
+// and the UI view-model shapes (FindingViewModel / MockNode / FindingEvidenceView).
+// Pure functions: no mocks needed — call with fixtures and assert structural mapping.
 
 import { describe, expect, it } from 'vitest';
 import {

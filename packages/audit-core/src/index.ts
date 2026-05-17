@@ -4,3 +4,7 @@ export * from './scoring/calculate-scores.js';
 export * from './feature-graph/build-graph.js';
 export * from './report/render-markdown.js';
 export * from './improvement-prd/build-prd.js';
+export * from './validation/index.js';
+export * from './data-model/prisma-analyzer.js';
+export * from './intent/risky-functions.js';
+export * from './design/consistency.js';

@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import ReactFlow, {
   Background,
   Controls,
@@ -15,6 +16,7 @@ import 'reactflow/dist/style.css';
 import { FeatureGraphNode } from '@cleartoship/ui';
 import { NodeDetailPanel } from './node-detail-panel';
 import { StatusLegend } from './status-legend';
+import { FindingPopover } from './finding-popover';
 import { ALL_STATUSES, type ImplementationStatus } from '@/lib/format/status';
 import type { MockNode, MockEdge } from '@/lib/mock/audit-fixture';
 
@@ -66,16 +68,41 @@ function edgeStyle(type: MockEdge['type']): { style: React.CSSProperties; animat
   }
 }
 
+export interface GraphCanvasProps {
+  nodes: MockNode[];
+  edges: MockEdge[];
+  /**
+   * Audit run id — used to build deep-link URLs into the Findings detail page.
+   * Required when `findingIdsByNode` is provided; ignored otherwise.
+   */
+  auditId?: string;
+  /**
+   * Map of node id → associated finding ids.
+   * - 1 id: clicking the node navigates directly to that finding.
+   * - 2+ ids: clicking the node opens an inline picker (popover).
+   * - 0 ids (or missing): node is announced as aria-disabled for deep-link;
+   *   selection still updates the detail panel.
+   */
+  findingIdsByNode?: Record<string, ReadonlyArray<string>>;
+}
+
 export function GraphCanvas({
   nodes,
   edges,
-}: {
-  nodes: MockNode[];
-  edges: MockEdge[];
-}) {
+  auditId,
+  findingIdsByNode,
+}: GraphCanvasProps) {
+  const router = useRouter();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [popoverNodeId, setPopoverNodeId] = useState<string | null>(null);
+  const [linkStatus, setLinkStatus] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<Set<ImplementationStatus>>(
     new Set(ALL_STATUSES)
+  );
+
+  const getFindingIds = useCallback(
+    (nodeId: string): ReadonlyArray<string> => findingIdsByNode?.[nodeId] ?? [],
+    [findingIdsByNode]
   );
 
   const rfNodes: Node<NodeData>[] = useMemo(
@@ -92,8 +119,12 @@ export function GraphCanvas({
             status: n.status,
             ...(n.summary !== undefined ? { summary: n.summary } : {}),
           },
+          ariaLabel:
+            getFindingIds(n.id).length === 0
+              ? `${n.label} — 연결된 Finding 없음`
+              : `${n.label} — 연결된 Finding ${getFindingIds(n.id).length}건`,
         })),
-    [nodes, statusFilter]
+    [nodes, statusFilter, getFindingIds]
   );
 
   const rfEdges: Edge[] = useMemo(
@@ -130,9 +161,49 @@ export function GraphCanvas({
     [nodes, selectedId]
   );
 
-  const onNodeClick = useCallback((_evt: React.MouseEvent, node: Node) => {
-    setSelectedId(node.id);
-  }, []);
+  const popoverNode = useMemo(
+    () => nodes.find((n) => n.id === popoverNodeId) ?? null,
+    [nodes, popoverNodeId]
+  );
+
+  const navigateToFinding = useCallback(
+    (findingId: string) => {
+      if (!auditId) return;
+      router.push(`/audits/${auditId}/findings/${findingId}`);
+    },
+    [auditId, router]
+  );
+
+  const handleNodeActivate = useCallback(
+    (nodeId: string, nodeLabel: string) => {
+      setSelectedId(nodeId);
+      const ids = getFindingIds(nodeId);
+      if (ids.length === 0) {
+        setPopoverNodeId(null);
+        setLinkStatus(`${nodeLabel}에 연결된 Finding이 없습니다.`);
+        return;
+      }
+      setLinkStatus('');
+      if (ids.length === 1) {
+        const onlyId = ids[0];
+        if (onlyId !== undefined) {
+          setPopoverNodeId(null);
+          navigateToFinding(onlyId);
+        }
+        return;
+      }
+      setPopoverNodeId(nodeId);
+    },
+    [getFindingIds, navigateToFinding]
+  );
+
+  const onNodeClick = useCallback(
+    (_evt: React.MouseEvent, node: Node) => {
+      const meta = nodes.find((n) => n.id === node.id);
+      handleNodeActivate(node.id, meta?.label ?? node.id);
+    },
+    [nodes, handleNodeActivate]
+  );
 
   const toggleStatus = useCallback((s: ImplementationStatus) => {
     setStatusFilter((prev) => {
@@ -174,8 +245,30 @@ export function GraphCanvas({
             />
           </ReactFlow>
         </div>
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="graph-link-status"
+          className="min-h-[1.25rem] text-xs text-[color:var(--color-fg-muted)]"
+        >
+          {linkStatus}
+        </div>
       </div>
-      <NodeDetailPanel node={selected} />
+      <div className="flex flex-col gap-3">
+        {popoverNode && getFindingIds(popoverNode.id).length > 1 ? (
+          <FindingPopover
+            nodeId={popoverNode.id}
+            nodeLabel={popoverNode.label}
+            findingIds={getFindingIds(popoverNode.id)}
+            onSelect={(id) => {
+              setPopoverNodeId(null);
+              navigateToFinding(id);
+            }}
+            onDismiss={() => setPopoverNodeId(null)}
+          />
+        ) : null}
+        <NodeDetailPanel node={selected} />
+      </div>
     </div>
   );
 }

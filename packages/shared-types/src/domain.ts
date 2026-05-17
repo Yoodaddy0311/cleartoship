@@ -82,6 +82,14 @@ export const AuditRunSchema = z.object({
   // existed will have the key missing — the Firestore converter normalizes
   // missing/undefined to null at the read boundary.
   enqueueMode: EnqueueModeSchema.nullable().optional(),
+  // Names of analysis tools (e.g. 'semgrep', 'osv-scanner', 'lighthouse',
+  // 'playwright') that recorded `ToolResult.status === 'SKIPPED'` during this
+  // run — typically because the binary was absent on the worker host. The UI
+  // surfaces this as a "partial results" banner so the demo audience knows the
+  // score is degraded, not anomalously perfect. Optional / defaulted to []
+  // for forward-compat with legacy documents written before the field
+  // existed; the Firestore converter normalises missing values to `[]`.
+  partialResultTools: z.array(z.string()).optional().default([]),
   createdAt: IsoDateString,
   updatedAt: IsoDateString,
 });
@@ -193,7 +201,9 @@ export type FeatureGraph = z.infer<typeof FeatureGraphSchema>;
 
 export const CategoryScoreSchema = z.object({
   category: AuditCategory,
-  score: z.number().min(0).max(100),
+  // null = N/A (coverage signal could not score this category — surfaced as
+  // '판단 불가' in the UI, excluded from the weighted overall).
+  score: z.number().min(0).max(100).nullable(),
   label: z.string(),
   summary: z.string().nullable(),
 });
@@ -205,6 +215,9 @@ export const LaunchStatus = z.enum([
   'NEEDS_WORK',
   'AT_RISK',
   'NOT_READY',
+  // INDETERMINATE: coverage signal too low to assert a launch verdict.
+  // Distinct from NOT_READY (which is a confident negative).
+  'INDETERMINATE',
 ]);
 export type LaunchStatus = z.infer<typeof LaunchStatus>;
 
@@ -214,6 +227,7 @@ export const LAUNCH_STATUS_LABELS_KO: Record<LaunchStatus, string> = {
   NEEDS_WORK: '출시 전 보완 필요',
   AT_RISK: '위험',
   NOT_READY: '출시 부적합',
+  INDETERMINATE: '판단 불가 (분석 자료 부족)',
 };
 
 export const AuditReportSchema = z.object({

@@ -44,12 +44,22 @@ export function statusVar(s: ImplementationStatus): string {
   return map[s];
 }
 
-/** Launch readiness 4-state */
+/**
+ * Launch readiness state.
+ *
+ * - `ready` / `ready_with_improvements` / `needs_work` / `stop` are the four
+ *   scored verdicts.
+ * - `indeterminate` is a fifth, distinct state for runs where the coverage
+ *   signal was too thin to produce a trustworthy score (worker scoring sets
+ *   `launchStatus = 'INDETERMINATE'`). UI must avoid displaying the score as
+ *   if it were a verdict; instead a "분석 표면 부족" banner is shown.
+ */
 export type LaunchStatus =
   | 'ready'
   | 'ready_with_improvements'
   | 'needs_work'
-  | 'stop';
+  | 'stop'
+  | 'indeterminate';
 
 export function launchStatusLabel(s: LaunchStatus): string {
   const map: Record<LaunchStatus, string> = {
@@ -57,6 +67,7 @@ export function launchStatusLabel(s: LaunchStatus): string {
     ready_with_improvements: t('launch.readyWithImprovements'),
     needs_work: t('launch.needsWork'),
     stop: t('launch.stop'),
+    indeterminate: '판단 불가 (분석 자료 부족)',
   };
   return map[s];
 }
@@ -67,6 +78,7 @@ export function launchStatusToken(s: LaunchStatus): string {
     ready_with_improvements: 'var(--color-severity-p2)',
     needs_work: 'var(--color-severity-p1)',
     stop: 'var(--color-severity-p0)',
+    indeterminate: 'var(--color-fg-muted)',
   };
   return map[s];
 }

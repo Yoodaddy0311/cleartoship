@@ -119,6 +119,86 @@ describe('useAuditRunPolling — behaviour', () => {
     expect(vi.mocked(getAuditRun).mock.calls.length).toBe(callsAfterError);
   });
 
+  // PERF-F4: when the tab is hidden, the polling loop must not schedule the
+  // next setTimeout — no RTT is wasted while the user is on another tab.
+  // When the tab becomes visible again, an immediate tick fires and the
+  // normal cadence resumes.
+  it('pauses scheduling while document.visibilityState === "hidden"', async () => {
+    const { getAuditRun } = await import('@/lib/api/audit-runs');
+    const { useAuditRunPolling } = await import('./use-audit-run-polling');
+
+    vi.mocked(getAuditRun).mockResolvedValue({
+      id: 'run-1',
+      status: 'RUNNING',
+      currentStep: null,
+      progress: 10,
+    } as never);
+
+    // Start hidden — the initial tick still fires (mount expects data), but
+    // no follow-up tick should be scheduled.
+    const visibilityState = vi.spyOn(document, 'visibilityState', 'get');
+    visibilityState.mockReturnValue('hidden');
+
+    renderHook(() => useAuditRunPolling('run-1'));
+
+    await flush();
+    expect(vi.mocked(getAuditRun)).toHaveBeenCalledTimes(1);
+
+    // Advance well past the 2s cadence — no extra calls while hidden.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(vi.mocked(getAuditRun)).toHaveBeenCalledTimes(1);
+
+    // Become visible → expect an immediate resume tick.
+    visibilityState.mockReturnValue('visible');
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(vi.mocked(getAuditRun)).toHaveBeenCalledTimes(2);
+
+    // Normal cadence resumes — next call at 2s after the resume tick.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(vi.mocked(getAuditRun)).toHaveBeenCalledTimes(3);
+
+    visibilityState.mockRestore();
+  });
+
+  it('removes the visibilitychange listener on unmount', async () => {
+    const { getAuditRun } = await import('@/lib/api/audit-runs');
+    const { useAuditRunPolling } = await import('./use-audit-run-polling');
+
+    vi.mocked(getAuditRun).mockResolvedValue({
+      id: 'run-1',
+      status: 'RUNNING',
+      currentStep: null,
+      progress: 10,
+    } as never);
+
+    const addSpy = vi.spyOn(document, 'addEventListener');
+    const removeSpy = vi.spyOn(document, 'removeEventListener');
+
+    const { unmount } = renderHook(() => useAuditRunPolling('run-1'));
+    await flush();
+
+    const added = addSpy.mock.calls.filter(
+      ([type]) => type === 'visibilitychange'
+    ).length;
+    expect(added).toBeGreaterThan(0);
+
+    unmount();
+    const removed = removeSpy.mock.calls.filter(
+      ([type]) => type === 'visibilitychange'
+    ).length;
+    expect(removed).toBe(added);
+
+    addSpy.mockRestore();
+    removeSpy.mockRestore();
+  });
+
   it('clears the timeout when the component unmounts mid-tick', async () => {
     const { getAuditRun } = await import('@/lib/api/audit-runs');
     const { useAuditRunPolling } = await import('./use-audit-run-polling');

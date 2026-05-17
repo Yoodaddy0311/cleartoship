@@ -84,6 +84,43 @@ function resolveEvidenceCap(): number {
   return parsed;
 }
 
+/**
+ * Run-scoped evidence list. Single Firestore read replaces the previous
+ * "per-finding getFinding" N+1 pattern used by the feature-graph page. The
+ * evidence cap (`EVIDENCE_CAP`) is reused so a misbehaving worker cannot
+ * blow up response sizes — `truncated: true` flags when the cap is hit so the
+ * UI can surface a soft warning (currently it degrades silently because
+ * `buildFindingIdsByNode` already tolerates missing evidence rows).
+ */
+export async function listEvidencesForRun(
+  runId: string,
+  ownerId: string,
+): Promise<{ evidences: Evidence[]; truncated: boolean } | null> {
+  const ownership = await checkRunOwnership(runId, ownerId);
+  if (ownership !== 'OK') return null;
+
+  const evidenceCap = resolveEvidenceCap();
+  const db = getAdminFirestore();
+  const snap = await db
+    .collection(COLLECTION_PATHS.evidences(runId))
+    .withConverter(evidenceConverter)
+    .limit(evidenceCap)
+    .get();
+  const truncated = snap.size === evidenceCap;
+  if (truncated) {
+    process.stderr.write(
+      JSON.stringify({
+        level: 'warn',
+        component: 'audit-runs.get-findings',
+        message: 'Run-scoped evidences truncated at cap',
+        cap: evidenceCap,
+        runId,
+      }) + '\n',
+    );
+  }
+  return { evidences: snap.docs.map((d) => d.data()), truncated };
+}
+
 export async function getFinding(
   runId: string,
   findingId: string,

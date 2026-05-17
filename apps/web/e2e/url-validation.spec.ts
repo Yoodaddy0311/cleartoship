@@ -50,7 +50,7 @@ test.beforeEach(async ({ page }) => {
 //    BEFORE reaching the SSRF validation. A proper Origin header from the
 //    browser context would let it reach the 400 guard.
 // See docs/USER-ACTIONS-QUEUE.md P0 #1 and P1 #4.
-test.describe.skip('Scenario 3: URL validation', () => {
+test.describe('Scenario 3: URL validation', () => {
   test('rejects non-GitHub repo URL (https://gitlab.com/...)', async ({ page }) => {
     const home = new HomePage(page);
     await home.goto();

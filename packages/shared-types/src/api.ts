@@ -96,6 +96,22 @@ export const ListFindingsResponseSchema = z.object({
 export type ListFindingsResponse = z.infer<typeof ListFindingsResponseSchema>;
 
 // ---------------------------------------------------------------------------
+// GET /api/audit-runs/:id/evidences
+//
+// Run-scoped evidence list. Used by the feature-graph page to map node
+// `evidenceIds` → owning finding ids in a single round-trip (replaces a
+// per-finding N+1 fetch loop). `truncated: true` indicates the server hit the
+// configured cap; UI degrades gracefully (some node→finding joins may be
+// missing, which buildFindingIdsByNode already handles).
+// ---------------------------------------------------------------------------
+
+export const ListEvidencesResponseSchema = z.object({
+  evidences: z.array(EvidenceSchema),
+  truncated: z.boolean().default(false),
+});
+export type ListEvidencesResponse = z.infer<typeof ListEvidencesResponseSchema>;
+
+// ---------------------------------------------------------------------------
 // GET /api/findings/:id
 // ---------------------------------------------------------------------------
 

@@ -200,6 +200,32 @@ export const ko = {
   // Footer
   'footer.copyright': '© 2026 ClearToShip. All rights reserved.',
   'footer.note': '근거 기반 출시 감사 플랫폼',
+
+  // Errors — audit failures
+  'errors.audit.invalidUrl': 'Repository URL 형식이 올바르지 않습니다',
+  'errors.audit.notFound': '해당 분석을 찾을 수 없습니다',
+  'errors.audit.timedOut': '분석이 시간 내 완료되지 않았습니다 (5분 한도)',
+  'errors.audit.cloneFailed': 'Repository clone에 실패했습니다. public repo인지 확인하세요',
+  'errors.audit.deployUrlUnreachable': '배포 URL에 접속할 수 없습니다',
+  'errors.audit.toolUnavailable': '도구 {toolNames} 미설치 — 부분 결과만 측정됩니다',
+  'errors.audit.toolUnavailable.summary': '{count}개 검사가 이번 분석에서 빠졌어요',
+  'errors.audit.toolUnavailable.disclaimer':
+    '이건 분석 환경 설정 문제이며 결과 신뢰도에 큰 영향이 없습니다',
+  'errors.audit.toolUnavailable.deployUrlHint':
+    '배포 URL을 입력하시면 사이트 성능/접근성도 측정해드릴게요',
+
+  // Empty / pending guidance for resource panels
+  'audit.empty.unsupportedFramework':
+    '현재 자동 분석은 Next.js / Vite 등 일부 프레임워크에 최적화되어 있어요. 감지된 프레임워크: {framework}. 부분 결과를 보실 수 있습니다.',
+  'audit.empty.noDeployUrl':
+    '배포 URL이 없어서 성능/접근성 측정은 생략됐어요. 코드 점검 결과는 정상이에요.',
+  'audit.empty.pipelineNotReached':
+    '아직 이 단계에 도달하지 않았어요. 분석이 진행되면 결과가 자동으로 채워집니다.',
+  'audit.empty.nextActions': '다음에 할 수 있는 일',
+
+  // Errors — general
+  'errors.general.networkError': '네트워크 오류가 발생했습니다. 잠시 후 다시 시도하세요',
+  'errors.general.unexpected': '예기치 못한 오류가 발생했습니다',
 } as const;
 
 export type Ko = typeof ko;
@@ -218,9 +244,11 @@ export const AUDIT_STEP_LABELS: Record<string, string> = {
   ANALYZE_PROJECT_STRUCTURE: '프로젝트 구조 분석',
   DETECT_FEATURES: '기능 탐지',
   RUN_STATIC_ANALYSIS: '정적 분석 실행',
+  DISCOVER_RISKY_FUNCTIONS: '위험 함수 탐지',
   RUN_DEPENDENCY_SCAN: '의존성 취약점 스캔',
   RUN_SECRET_SCAN: 'Secret 노출 검사',
   ANALYZE_DEPLOY_URL: '배포 URL 분석',
+  CHECK_DESIGN_CONSISTENCY: '디자인 일관성 점검',
   GENERATE_FEATURE_GRAPH: '기능 관계도 생성',
   MAP_CHECKLIST: '체크리스트 매핑',
   CALCULATE_SCORES: '점수 계산',

@@ -1,52 +1,37 @@
 import type { Step, PipelineState } from './index.js';
-
-const PAGE_RE = /^app\/(.*?)\/page\.(tsx?|jsx?)$/i;
-const API_RE = /^app\/api\/(.+?)\/route\.(ts|js)$/i;
+import {
+  buildAuthEdges,
+  buildPageApiEdges,
+  buildPageComponentEdges,
+  detectActions,
+  detectApis,
+  detectAuthGuard,
+  detectComponents,
+  detectExternalServices,
+  detectPages,
+  refineFrontBackStatus,
+} from '../feature-heuristics.js';
 
 /**
- * Heuristic feature detection from the (mock) file tree.
- * Outputs nodes the Feature Graph step will consume.
+ * Heuristic feature detection from the cloned repo's file tree.
+ * Outputs nodes the Feature Graph step will consume. Status fields use the
+ * full ImplementationStatus enum where possible (ui_only, logic_only, unknown,
+ * partial). Body content is intentionally not inspected here — that's step 06.
  */
 export const step05DetectFeatures: Step = {
   step: 'DETECT_FEATURES',
   async execute(ctx, state) {
     const features: PipelineState['detectedFeatures'] = [];
 
-    // Pages.
-    for (const path of state.fileTree) {
-      const m = PAGE_RE.exec(path);
-      if (m) {
-        const route = `/${m[1]}`;
-        const id = `page.${m[1]!.replace(/\//g, '.') || 'root'}`;
-        features.push({
-          id,
-          type: 'page',
-          label: route === '/' ? '홈' : route,
-          status: 'partial',
-          confidence: 'MEDIUM',
-          summary: `라우트 ${route}의 페이지 컴포넌트가 확인되었습니다.`,
-        });
-      }
-    }
+    features.push(...detectPages(state.fileTree));
+    features.push(...detectApis(state.fileTree));
+    features.push(...detectComponents(state.fileTree));
+    features.push(...detectActions(state.fileTree));
+    features.push(...detectExternalServices(state.fileTree));
 
-    // APIs.
-    for (const path of state.fileTree) {
-      const m = API_RE.exec(path);
-      if (m) {
-        const route = `/api/${m[1]}`;
-        const id = `api.${m[1]!.replace(/\//g, '.')}`;
-        features.push({
-          id,
-          type: 'api',
-          label: route,
-          status: 'partial',
-          confidence: 'MEDIUM',
-          summary: `API 라우트 ${route}가 확인되었습니다.`,
-        });
-      }
-    }
+    const guard = detectAuthGuard(state.fileTree);
+    if (guard) features.push(guard);
 
-    // Data model (prisma).
     if (state.fileTree.includes('prisma/schema.prisma')) {
       features.push({
         id: 'data_model.prisma',
@@ -58,20 +43,21 @@ export const step05DetectFeatures: Step = {
       });
     }
 
-    // Bridge edges: page → api (best-effort by name).
-    for (const page of features.filter((f) => f.type === 'page')) {
-      const candidate = features.find(
-        (f) => f.type === 'api' && f.label.includes(page.label.replace(/^\//, '').split('/')[0]!),
-      );
-      if (candidate) {
-        page.edges = [
-          ...(page.edges ?? []),
-          { target: candidate.id, type: 'calls_api' },
-        ];
-      }
-    }
+    refineFrontBackStatus(features);
+    buildPageApiEdges(features);
+    buildAuthEdges(features, state.fileTree);
+    buildPageComponentEdges(features, state.fileTree);
 
     state.detectedFeatures = features;
-    ctx.log('info', 'Features detected', { count: features.length });
+    ctx.log('info', 'Features detected', {
+      count: features.length,
+      byType: countByType(features),
+    });
   },
 };
+
+function countByType(features: PipelineState['detectedFeatures']): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const f of features) out[f.type] = (out[f.type] ?? 0) + 1;
+  return out;
+}

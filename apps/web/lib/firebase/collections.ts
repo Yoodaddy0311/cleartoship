@@ -95,9 +95,16 @@ export const auditRunConverter: FirestoreDataConverter<AuditRun> = {
   fromFirestore(snap: QueryDocumentSnapshot<DocumentData>): AuditRun {
     const data = snap.data();
     const candidate = normalizeTimestamps({ id: snap.id, ...data });
+    const rawPartial = (candidate as { partialResultTools?: unknown }).partialResultTools;
     const normalized = {
       ...candidate,
       enqueueMode: (candidate as { enqueueMode?: unknown }).enqueueMode ?? null,
+      // S6-03: legacy AuditRun docs written before this field existed will be
+      // missing it; normalise to [] so downstream consumers can rely on the
+      // array shape without optional-chaining everywhere.
+      partialResultTools: Array.isArray(rawPartial)
+        ? (rawPartial as unknown[]).filter((v): v is string => typeof v === 'string')
+        : [],
     };
     return AuditRunSchema.parse(normalized);
   },
