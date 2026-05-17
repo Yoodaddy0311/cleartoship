@@ -2,11 +2,15 @@ import type {
   AuditCategory,
   AuditStep,
   CategoryScore,
+  Confidence,
+  FCSResult,
   Finding,
   LaunchStatus,
   Severity,
 } from '@cleartoship/shared-types';
 import { CATEGORY_META } from './checklist-mapping.js';
+import { applyProfileWeights, type AuditProfile } from '../profiles/index.js';
+import { computeFCS } from '../fcs/compute-fcs.js';
 
 /**
  * Pure scoring per `03_audit_checklist_scoring_rubric.md` §13.
@@ -102,8 +106,16 @@ export interface AvailableTools {
   readonly secretsScanner: boolean;
 }
 
+/**
+ * W1.3: scoring now also drives FCS, which needs id/confidence/tags. The
+ * extra fields are optional so legacy callers that only pass category+severity
+ * continue to work (FCS will fall back to empty topConcerns / general tags).
+ */
+export type ScoringFinding = Pick<Finding, 'category' | 'severity'> &
+  Partial<Pick<Finding, 'id' | 'confidence' | 'tags'>>;
+
 export interface ScoringInput {
-  readonly findings: ReadonlyArray<Pick<Finding, 'category' | 'severity'>>;
+  readonly findings: ReadonlyArray<ScoringFinding>;
   readonly coverage?: CoverageInput;
   readonly availableTools?: AvailableTools;
   /**
@@ -113,6 +125,13 @@ export interface ScoringInput {
    * Omitting the field preserves legacy behavior (no extra N/A handling).
    */
   readonly executedSteps?: ReadonlyArray<AuditStep>;
+  /**
+   * T2.4: optional domain profile (Landing / SaaS / Ecommerce). When supplied,
+   * `weightOverrides` are merged on top of `CATEGORY_META.weight` so the
+   * weighted overall score reflects the domain's priorities. Omitting it
+   * preserves spec-default scoring.
+   */
+  readonly profile?: AuditProfile | null;
 }
 
 export interface ScoringResult {
@@ -124,6 +143,12 @@ export interface ScoringResult {
   confidenceMultiplier: number;
   /** Fraction of scanner tools available (0..1). Undefined when not supplied. */
   toolsAvailableRatio?: number;
+  /**
+   * W1.3: Founder Confidence Score — single 0~100 metric + (lower, upper)
+   * interval + LaunchStatus + up-to-3 top concerns. Sources from the same
+   * weighted readinessScore so the dashboard's gauge and verdict never drift.
+   */
+  fcs: FCSResult;
 }
 
 export function calculateScores(input: ScoringInput): ScoringResult {
@@ -167,6 +192,14 @@ export function calculateScores(input: ScoringInput): ScoringResult {
   // 100 baseline for UX/UI and inflated readinessScore.
   const executedSet = input.executedSteps ? new Set(input.executedSteps) : null;
 
+  // T2.4: resolve effective per-category weights — profile overrides win over
+  // the spec defaults when supplied. Building a base map first keeps the
+  // override logic data-only (no branching inside the scoring loop).
+  const baseWeights = new Map<AuditCategory, number>(
+    CATEGORY_META.map((m) => [m.category, m.weight]),
+  );
+  const effectiveWeights = applyProfileWeights(baseWeights, input.profile ?? null);
+
   let weightedSum = 0;
   let totalWeight = 0;
   const categoryScores: CategoryScore[] = [];
@@ -187,9 +220,10 @@ export function calculateScores(input: ScoringInput): ScoringResult {
       meta.measuredBy.some((s) => !executedSet.has(s));
     const isNA = noMeasurement || coverageNA || measuredButNotRun;
     const score = isNA ? null : Math.round(bucket.score);
-    if (!isNA && meta.weight > 0) {
-      weightedSum += bucket.score * meta.weight;
-      totalWeight += meta.weight;
+    const weight = effectiveWeights.get(meta.category) ?? meta.weight;
+    if (!isNA && weight > 0) {
+      weightedSum += bucket.score * weight;
+      totalWeight += weight;
     }
     categoryScores.push({
       category: meta.category,
@@ -207,17 +241,39 @@ export function calculateScores(input: ScoringInput): ScoringResult {
     confidenceMultiplier,
   );
 
-  const result: ScoringResult = {
+  // W1.3: FCS reuses the same baseScore + launchStatus so the dashboard's
+  // gauge can never drift from the verdict. Confidence/id/tags on a finding
+  // are optional in ScoringFinding (back-compat for old call sites that only
+  // had category+severity); a HIGH/empty fallback keeps the algorithm pure.
+  const fcs = computeFCS({
+    baseScore: readinessScore,
+    categoryScores,
+    findings: input.findings.map((f, i) => ({
+      id: f.id ?? `idx-${i}`,
+      category: f.category,
+      severity: f.severity,
+      confidence: (f.confidence ?? 'HIGH') as Confidence,
+      tags: f.tags ?? [],
+    })),
+    baseStatus: launchStatus,
+    profileId: input.profile?.id ?? null,
+  });
+
+  // I1: build the result in a single immutable expression rather than the
+  // earlier mutate-after-create pattern. Under `exactOptionalPropertyTypes`
+  // the previous `if (x !== undefined) result.toolsAvailableRatio = x` form
+  // would have to widen the field to `number | undefined`; the spread keeps
+  // the property genuinely *absent* when there's no ratio, matching the
+  // declared `toolsAvailableRatio?: number` (no explicit `undefined`).
+  return {
     readinessScore,
     launchStatus,
     categoryScores,
     severityCounts,
     confidenceMultiplier,
+    fcs,
+    ...(toolsAvailableRatio !== undefined ? { toolsAvailableRatio } : {}),
   };
-  if (toolsAvailableRatio !== undefined) {
-    result.toolsAvailableRatio = toolsAvailableRatio;
-  }
-  return result;
 }
 
 /**
