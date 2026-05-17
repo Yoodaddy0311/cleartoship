@@ -363,6 +363,10 @@ export const step09AnalyzeDeployUrl: Step = {
       });
     }
 
+    // BUG-1: mark as executed only when deployUrl was actually probed.
+    // Skipped early-return above leaves UX_UI / LAUNCH_READINESS measuredBy
+    // unsatisfied → scorer treats those categories as N/A.
+    state.executedSteps.push('ANALYZE_DEPLOY_URL');
     ctx.log('info', 'Deploy URL analysis complete');
   },
 };

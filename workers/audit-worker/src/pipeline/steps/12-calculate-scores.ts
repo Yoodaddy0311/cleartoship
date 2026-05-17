@@ -45,6 +45,9 @@ export const step12CalculateScores: Step = {
       deployUrlReachable: !!ctx.deployUrl,
     };
     const availableTools = probeAvailableTools();
+    // BUG-1: forward which steps actually ran so the scorer can N/A any
+    // category whose measuredBy step skipped (e.g. UX_UI when there was no
+    // deployUrl, so ANALYZE_DEPLOY_URL early-returned without findings).
     const result = calculateScores({
       findings: state.pendingFindings.map((f) => ({
         category: f.category,
@@ -52,6 +55,7 @@ export const step12CalculateScores: Step = {
       })),
       coverage,
       availableTools,
+      executedSteps: state.executedSteps,
     });
     state.severityCounts = result.severityCounts;
     state.readinessScore = result.readinessScore;

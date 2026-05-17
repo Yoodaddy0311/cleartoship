@@ -38,6 +38,35 @@ function osvSeverity(s: string | undefined): 'P0' | 'P1' | 'P2' | 'P3' {
   }
 }
 
+// O2: 동일 (package + ghsaId + version) 조합은 단일 finding으로 합치고,
+// 다른 manifest(예: package.json vs functions/package.json)에서 발견된 경우는
+// path만 evidences 배열에 누적한다. dashboard / report 양쪽의 중복 출력을 막는다.
+export function dedupOsvFindings(findings: NormalizedFinding[]): NormalizedFinding[] {
+  const byKey = new Map<string, NormalizedFinding>();
+  for (const f of findings) {
+    const ev = f.evidences[0];
+    const meta = (ev?.metadata ?? {}) as { id?: unknown; package?: unknown; version?: unknown };
+    const pkg = typeof meta.package === 'string' ? meta.package : 'unknown';
+    const id = typeof meta.id === 'string' ? meta.id : 'OSV-UNKNOWN';
+    const ver = typeof meta.version === 'string' ? meta.version : '?';
+    const key = `${pkg}|${id}|${ver}`;
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, f);
+      continue;
+    }
+    // 동일 vuln이 다른 manifest에서 보고된 경우 — path만 evidences에 누적.
+    const seenPaths = new Set(existing.evidences.map((e) => e.path));
+    for (const incoming of f.evidences) {
+      if (!seenPaths.has(incoming.path)) {
+        existing.evidences.push(incoming);
+        seenPaths.add(incoming.path);
+      }
+    }
+  }
+  return Array.from(byKey.values());
+}
+
 function mapOsv(raw: OsvResult): NormalizedFinding[] {
   const findings: NormalizedFinding[] = [];
   for (const r of raw.results ?? []) {
@@ -86,7 +115,7 @@ function mapOsv(raw: OsvResult): NormalizedFinding[] {
       }
     }
   }
-  return findings.slice(0, 200);
+  return dedupOsvFindings(findings).slice(0, 200);
 }
 
 async function findLockfiles(root: string): Promise<string[]> {
@@ -198,6 +227,8 @@ export const step07DependencyScan: Step = {
       rawSummary: { vulns: findings.length, lockfiles, durationMs: result.durationMs },
       artifactPath: null,
     });
+    // BUG-1: mark RUN_DEPENDENCY_SCAN executed only on SUCCESS path.
+    state.executedSteps.push('RUN_DEPENDENCY_SCAN');
     ctx.log('info', 'Dependency scan complete', { vulns: findings.length });
   },
 };

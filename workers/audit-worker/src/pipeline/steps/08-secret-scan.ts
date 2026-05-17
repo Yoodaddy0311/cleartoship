@@ -175,6 +175,8 @@ export const step08SecretScan: Step = {
       },
       artifactPath: null,
     });
+    // BUG-1: mark RUN_SECRET_SCAN executed only after a successful walk.
+    state.executedSteps.push('RUN_SECRET_SCAN');
     ctx.log('info', 'Secret scan complete', {
       secrets: findings.length,
       scanned,

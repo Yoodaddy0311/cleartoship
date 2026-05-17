@@ -1,5 +1,6 @@
 import type {
   AuditCategory,
+  AuditStep,
   CategoryScore,
   Finding,
   LaunchStatus,
@@ -105,6 +106,13 @@ export interface ScoringInput {
   readonly findings: ReadonlyArray<Pick<Finding, 'category' | 'severity'>>;
   readonly coverage?: CoverageInput;
   readonly availableTools?: AvailableTools;
+  /**
+   * Pipeline steps that actually executed end-to-end. When supplied, any
+   * category whose `measuredBy` lists steps not in this set is reported as
+   * N/A — its 100-baseline is not a real measurement (BUG-1).
+   * Omitting the field preserves legacy behavior (no extra N/A handling).
+   */
+  readonly executedSteps?: ReadonlyArray<AuditStep>;
 }
 
 export interface ScoringResult {
@@ -153,6 +161,11 @@ export function calculateScores(input: ScoringInput): ScoringResult {
   // featureNodeCount is 0 (preserves backward compatibility for callers that
   // omit coverage).
   const zeroFeatureNodes = coverage?.featureNodeCount === 0;
+  // BUG-1: when caller supplies executedSteps, a category whose measuredBy
+  // includes any step that did NOT run is treated as N/A. Without this, a
+  // skipped step (e.g. ANALYZE_DEPLOY_URL with no deployUrl) silently kept the
+  // 100 baseline for UX/UI and inflated readinessScore.
+  const executedSet = input.executedSteps ? new Set(input.executedSteps) : null;
 
   let weightedSum = 0;
   let totalWeight = 0;
@@ -160,14 +173,19 @@ export function calculateScores(input: ScoringInput): ScoringResult {
   for (const meta of CATEGORY_META) {
     const bucket = perCategory.get(meta.category);
     if (!bucket) continue;
-    // Two independent reasons a category may be N/A:
+    // Three independent reasons a category may be N/A:
     //   1) no pipeline step produces findings for it (measuredBy empty) →
     //      score=null always, since "100 baseline" carries no signal.
     //   2) zero feature nodes AND it depends on coverage signals
     //      (PRODUCT_INTENT / REQUIREMENT_COVERAGE).
+    //   3) caller passed executedSteps AND any measuredBy step did not run.
     const noMeasurement = meta.measuredBy.length === 0;
     const coverageNA = zeroFeatureNodes && COVERAGE_DEPENDENT_CATEGORIES.has(meta.category);
-    const isNA = noMeasurement || coverageNA;
+    const measuredButNotRun =
+      executedSet !== null &&
+      meta.measuredBy.length > 0 &&
+      meta.measuredBy.some((s) => !executedSet.has(s));
+    const isNA = noMeasurement || coverageNA || measuredButNotRun;
     const score = isNA ? null : Math.round(bucket.score);
     if (!isNA && meta.weight > 0) {
       weightedSum += bucket.score * meta.weight;

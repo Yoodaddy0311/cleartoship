@@ -152,6 +152,9 @@ export const step03CloneRepo: Step = {
       });
       state.fileTree = [];
       ctx.clonePath = null;
+      // BUG-1: clone failure still produces a P0 LAUNCH_READINESS finding —
+      // that IS a measurement, so mark the step executed.
+      state.executedSteps.push('CLONE_REPO');
       return;
     }
 
@@ -161,6 +164,7 @@ export const step03CloneRepo: Step = {
     const files = await walkTree(dest);
     state.fileTree = files;
     ctx.clonePath = dest;
+    state.executedSteps.push('CLONE_REPO');
     ctx.log('info', 'Repo cloned', {
       fileCount: files.length,
       clonePath: dest,

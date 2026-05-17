@@ -1,5 +1,5 @@
 import type { Step } from './index.js';
-import type { CategoryScore, Finding } from '@cleartoship/shared-types';
+import type { CategoryScore, Finding, LaunchStatus } from '@cleartoship/shared-types';
 import { buildReport } from '@cleartoship/audit-core';
 import { getFirestoreClient } from '../../firestore/client.js';
 import { writeReport } from '../../firestore/writers.js';
@@ -35,7 +35,11 @@ export const step13GenerateReport: Step = {
     const categoryScores: CategoryScore[] =
       (state as unknown as { __categoryScores?: CategoryScore[] }).__categoryScores ?? [];
 
-    const oneLine = composeOneLineSummary(state.readinessScore, state.severityCounts);
+    const oneLine = composeOneLineSummary(
+      state.readinessScore,
+      state.severityCounts,
+      state.launchStatus,
+    );
 
     const report = buildReport({
       projectName: deriveProjectName(ctx.repoUrl),
@@ -71,10 +75,14 @@ function deriveProjectName(repoUrl: string): string {
   return m?.[1] ?? 'project';
 }
 
-function composeOneLineSummary(
+export function composeOneLineSummary(
   score: number,
   counts: Record<'P0' | 'P1' | 'P2' | 'P3', number>,
+  launchStatus: LaunchStatus,
 ): string {
+  if (launchStatus === 'INDETERMINATE') {
+    return '분석 표면이 부족해 출시 준비도를 산정하지 못했습니다. 도구 설치/배포 URL/PRD 입력을 보강한 뒤 다시 분석해 주세요.';
+  }
   if (score >= 85) {
     return `이 프로젝트는 출시 준비도 ${score}점으로 양호한 상태입니다. 세부 개선 항목만 확인하세요.`;
   }

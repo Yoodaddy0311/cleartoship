@@ -34,13 +34,18 @@ export function renderAuditReportMarkdown(input: RenderReportInput): string {
   lines.push(`# ${input.projectName} ClearToShip Audit Report`, '');
 
   // §1 Executive Summary
+  // INDETERMINATE: 분석 표면 부족 → dashboard 헤더(N/A 판단 불가) / 영역 카드 / 한 줄 요약과
+  // 패리티를 맞추기 위해 점수/P-count 노출을 모두 N/A로 대체. 정상 분기는 기존 그대로.
+  const isIndeterminate = input.launchStatus === 'INDETERMINATE';
   lines.push('## 1. Executive Summary', '', '### 종합 판단', '', '```text');
-  lines.push(`Product Readiness Score: ${input.readinessScore}/100`);
+  lines.push(
+    `Product Readiness Score: ${isIndeterminate ? 'N/A' : `${input.readinessScore}/100`}`,
+  );
   lines.push(`출시 가능 상태: ${LAUNCH_STATUS_LABELS_KO[input.launchStatus]}`);
-  lines.push(`P0 이슈: ${input.severityCounts.P0}개`);
-  lines.push(`P1 이슈: ${input.severityCounts.P1}개`);
-  lines.push(`P2 이슈: ${input.severityCounts.P2}개`);
-  lines.push(`P3 이슈: ${input.severityCounts.P3}개`);
+  lines.push(`P0 이슈: ${isIndeterminate ? 'N/A' : `${input.severityCounts.P0}개`}`);
+  lines.push(`P1 이슈: ${isIndeterminate ? 'N/A' : `${input.severityCounts.P1}개`}`);
+  lines.push(`P2 이슈: ${isIndeterminate ? 'N/A' : `${input.severityCounts.P2}개`}`);
+  lines.push(`P3 이슈: ${isIndeterminate ? 'N/A' : `${input.severityCounts.P3}개`}`);
   lines.push('```', '', '### 한 줄 요약', '', `> ${input.oneLineSummary}`, '');
 
   // §1 Top 5

@@ -132,6 +132,9 @@ export const step18DiscoverRiskyFunctions: Step = {
       },
       artifactPath: null,
     });
+    // BUG-1: mark DISCOVER_RISKY_FUNCTIONS executed only after the discovery
+    // pass actually walked the cloned tree.
+    state.executedSteps.push('DISCOVER_RISKY_FUNCTIONS');
     ctx.log('info', 'Risky function discovery complete', {
       count: risky.length,
       byCategory,

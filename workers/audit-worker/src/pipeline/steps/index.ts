@@ -65,6 +65,13 @@ export interface PipelineState {
   persistedFindingIds: string[];
   readinessScore: number;
   launchStatus: 'READY' | 'CONDITIONAL' | 'NEEDS_WORK' | 'AT_RISK' | 'NOT_READY' | 'INDETERMINATE';
+  /**
+   * Steps whose primary work actually ran end-to-end (BUG-1). Drives the
+   * scorer's "measuredBy step missing → category N/A" rule. A step that
+   * early-returned because a precondition was missing (e.g. no deployUrl,
+   * required tool not installed) must NOT push itself.
+   */
+  executedSteps: AuditStep[];
 }
 
 export interface Step {
@@ -86,6 +93,7 @@ export function createInitialState(): PipelineState {
     persistedFindingIds: [],
     readinessScore: 0,
     launchStatus: 'NOT_READY',
+    executedSteps: [],
   };
 }
 

@@ -326,4 +326,241 @@ describe('step07DependencyScan', () => {
 
     await cleanupDir(dir);
   });
+
+  // O2: (package + ghsaId + version) 기준 dedup. 라운드3 self-audit에서
+  // vite@5.4.21 GHSA-4w7w-66w2-5vf9 / esbuild@0.21.5 GHSA-67mh-4wv8-2f99 /
+  // @tootallnate/once@2.0.1 GHSA-vpq2-c234-7xj6 가 각 2회 출력되던 회귀를 막는다.
+  it('dedups identical (pkg+ghsaId+version) across results — single finding emitted', async () => {
+    const ctx = makeCtx();
+    const dir = await makeCloneDirWithLockfile(ctx.runId, ['package-lock.json']);
+    ctx.clonePath = dir;
+    const state: PipelineState = createInitialState();
+    // 동일 source.path, 동일 (pkg, version, id) 가 두 번 보고된 경우.
+    const dupStdout = JSON.stringify({
+      results: [
+        {
+          source: { path: '/repo/package-lock.json' },
+          packages: [
+            {
+              package: { name: 'vite', version: '5.4.21', ecosystem: 'npm' },
+              vulnerabilities: [
+                {
+                  id: 'GHSA-4w7w-66w2-5vf9',
+                  summary: 'vite dev server SSRF',
+                  database_specific: { severity: 'HIGH' },
+                },
+              ],
+            },
+          ],
+        },
+        {
+          source: { path: '/repo/package-lock.json' },
+          packages: [
+            {
+              package: { name: 'vite', version: '5.4.21', ecosystem: 'npm' },
+              vulnerabilities: [
+                {
+                  id: 'GHSA-4w7w-66w2-5vf9',
+                  summary: 'vite dev server SSRF',
+                  database_specific: { severity: 'HIGH' },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    spawnToolMock.mockResolvedValueOnce({
+      notInstalled: false,
+      exitCode: 1,
+      stdout: dupStdout,
+      stderr: '',
+      durationMs: 100,
+    });
+
+    await step.execute(ctx, state);
+
+    expect(state.pendingFindings).toHaveLength(1);
+    const finding = state.pendingFindings[0]!;
+    expect(finding.title).toContain('vite@5.4.21');
+    expect(finding.title).toContain('GHSA-4w7w-66w2-5vf9');
+    // 동일 path는 evidences에 중복 누적되지 않는다.
+    expect(finding.evidences).toHaveLength(1);
+    expect(finding.evidences[0]!.path).toBe('/repo/package-lock.json');
+
+    await cleanupDir(dir);
+  });
+
+  it('merges paths when same (pkg+ghsaId+version) appears in different manifests', async () => {
+    const ctx = makeCtx();
+    const dir = await makeCloneDirWithLockfile(ctx.runId, ['package-lock.json']);
+    ctx.clonePath = dir;
+    const state: PipelineState = createInitialState();
+    // 동일 vuln 이 root + functions 의 두 manifest에서 발견 → finding 1건, evidences 2건.
+    const multiManifestStdout = JSON.stringify({
+      results: [
+        {
+          source: { path: '/repo/package-lock.json' },
+          packages: [
+            {
+              package: { name: 'esbuild', version: '0.21.5', ecosystem: 'npm' },
+              vulnerabilities: [
+                {
+                  id: 'GHSA-67mh-4wv8-2f99',
+                  summary: 'esbuild dev server',
+                  database_specific: { severity: 'MODERATE' },
+                },
+              ],
+            },
+          ],
+        },
+        {
+          source: { path: '/repo/functions/package-lock.json' },
+          packages: [
+            {
+              package: { name: 'esbuild', version: '0.21.5', ecosystem: 'npm' },
+              vulnerabilities: [
+                {
+                  id: 'GHSA-67mh-4wv8-2f99',
+                  summary: 'esbuild dev server',
+                  database_specific: { severity: 'MODERATE' },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    spawnToolMock.mockResolvedValueOnce({
+      notInstalled: false,
+      exitCode: 1,
+      stdout: multiManifestStdout,
+      stderr: '',
+      durationMs: 100,
+    });
+
+    await step.execute(ctx, state);
+
+    expect(state.pendingFindings).toHaveLength(1);
+    const finding = state.pendingFindings[0]!;
+    expect(finding.evidences).toHaveLength(2);
+    const paths = finding.evidences.map((e) => e.path).sort();
+    expect(paths).toEqual([
+      '/repo/functions/package-lock.json',
+      '/repo/package-lock.json',
+    ]);
+  });
+
+  it('does NOT dedup different versions of same package + same GHSA', async () => {
+    const ctx = makeCtx();
+    const dir = await makeCloneDirWithLockfile(ctx.runId, ['package-lock.json']);
+    ctx.clonePath = dir;
+    const state: PipelineState = createInitialState();
+    spawnToolMock.mockResolvedValueOnce({
+      notInstalled: false,
+      exitCode: 1,
+      stdout: makeOsvJson([
+        {
+          name: '@tootallnate/once',
+          version: '2.0.1',
+          vulns: [{ id: 'GHSA-vpq2-c234-7xj6', severity: 'MODERATE' }],
+        },
+        {
+          name: '@tootallnate/once',
+          version: '1.1.2',
+          vulns: [{ id: 'GHSA-vpq2-c234-7xj6', severity: 'MODERATE' }],
+        },
+      ]),
+      stderr: '',
+      durationMs: 100,
+    });
+
+    await step.execute(ctx, state);
+
+    expect(state.pendingFindings).toHaveLength(2);
+    const versions = state.pendingFindings
+      .map((f) => (f.evidences[0]!.metadata as { version: string }).version)
+      .sort();
+    expect(versions).toEqual(['1.1.2', '2.0.1']);
+
+    await cleanupDir(dir);
+  });
+
+  it('does NOT dedup different packages with same GHSA id (defensive — should be impossible in practice)', async () => {
+    const ctx = makeCtx();
+    const dir = await makeCloneDirWithLockfile(ctx.runId, ['package-lock.json']);
+    ctx.clonePath = dir;
+    const state: PipelineState = createInitialState();
+    spawnToolMock.mockResolvedValueOnce({
+      notInstalled: false,
+      exitCode: 1,
+      stdout: makeOsvJson([
+        { name: 'pkg-a', version: '1.0.0', vulns: [{ id: 'GHSA-xxxx', severity: 'HIGH' }] },
+        { name: 'pkg-b', version: '1.0.0', vulns: [{ id: 'GHSA-xxxx', severity: 'HIGH' }] },
+      ]),
+      stderr: '',
+      durationMs: 100,
+    });
+
+    await step.execute(ctx, state);
+
+    expect(state.pendingFindings).toHaveLength(2);
+
+    await cleanupDir(dir);
+  });
+});
+
+describe('dedupOsvFindings (unit)', () => {
+  // Pure-function tests for the dedup helper — independent of step plumbing.
+  // 라운드3 회귀 매트릭스: vite / esbuild / @tootallnate/once 가 각 2회 출력되던 케이스.
+  it('collapses 3 round-3 regression vulns from 6 raw entries to 3 findings', async () => {
+    const { dedupOsvFindings } = await import('./07-dependency-scan.js');
+    const make = (pkg: string, ver: string, id: string, manifestPath: string) => ({
+      title: `${pkg}@${ver} — ${id}`,
+      category: 'SECURITY_PRIVACY' as const,
+      severity: 'P1' as const,
+      confidence: 'HIGH' as const,
+      summary: id,
+      nonDeveloperExplanation: null,
+      technicalExplanation: null,
+      impact: null,
+      recommendation: null,
+      acceptanceCriteria: [],
+      tags: ['osv', 'dependency'],
+      evidences: [
+        {
+          type: 'OSV' as const,
+          source: 'osv-scanner',
+          path: manifestPath,
+          lineStart: null,
+          lineEnd: null,
+          url: `https://osv.dev/vulnerability/${id}`,
+          selector: null,
+          screenshotPath: null,
+          snippet: null,
+          maskedValue: null,
+          metadata: { id, package: pkg, version: ver, ecosystem: 'npm' },
+        },
+      ],
+    });
+    const raw = [
+      make('vite', '5.4.21', 'GHSA-4w7w-66w2-5vf9', '/repo/package-lock.json'),
+      make('vite', '5.4.21', 'GHSA-4w7w-66w2-5vf9', '/repo/package-lock.json'),
+      make('esbuild', '0.21.5', 'GHSA-67mh-4wv8-2f99', '/repo/package-lock.json'),
+      make('esbuild', '0.21.5', 'GHSA-67mh-4wv8-2f99', '/repo/package-lock.json'),
+      make('@tootallnate/once', '2.0.1', 'GHSA-vpq2-c234-7xj6', '/repo/package-lock.json'),
+      make('@tootallnate/once', '2.0.1', 'GHSA-vpq2-c234-7xj6', '/repo/package-lock.json'),
+    ];
+    const deduped = dedupOsvFindings(raw);
+    expect(deduped).toHaveLength(3);
+    const titles = deduped.map((f) => f.title).sort();
+    expect(titles[0]).toContain('@tootallnate/once@2.0.1');
+    expect(titles[1]).toContain('esbuild@0.21.5');
+    expect(titles[2]).toContain('vite@5.4.21');
+  });
+
+  it('returns empty array for empty input', async () => {
+    const { dedupOsvFindings } = await import('./07-dependency-scan.js');
+    expect(dedupOsvFindings([])).toEqual([]);
+  });
 });

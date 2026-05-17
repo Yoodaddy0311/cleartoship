@@ -614,3 +614,90 @@ describe('calculateScores — measuredBy + toolsAvailableRatio (SCORE-1B-a)', ()
     expect(result.launchStatus).not.toBe('INDETERMINATE');
   });
 });
+
+describe('calculateScores — executedSteps (BUG-1)', () => {
+  it('measured category is N/A when its only measuredBy step did not execute', () => {
+    // UX_UI is measured solely by ANALYZE_DEPLOY_URL. If that step did not
+    // run (e.g. no deployUrl provided), UX_UI must NOT report the 100
+    // baseline — that was the bug (UX_UI shown as 100/100 with N/A inputs).
+    const result = calculateScores({
+      findings: [],
+      executedSteps: [],
+    });
+    const ux = result.categoryScores.find((c) => c.category === 'UX_UI');
+    expect(ux?.score).toBeNull();
+  });
+
+  it('partial coverage: SECURITY_PRIVACY N/A when any measuredBy step missed', () => {
+    // SECURITY_PRIVACY depends on 4 steps. Running only one of them is not
+    // enough — the category must report N/A so we do not inflate the score
+    // with un-measured findings.
+    const result = calculateScores({
+      findings: [],
+      executedSteps: ['RUN_STATIC_ANALYSIS'],
+    });
+    const sec = result.categoryScores.find((c) => c.category === 'SECURITY_PRIVACY');
+    expect(sec?.score).toBeNull();
+  });
+
+  it('all measuredBy steps executed → category reports its real score', () => {
+    const result = calculateScores({
+      findings: [],
+      executedSteps: [
+        'CLONE_REPO',
+        'ANALYZE_DEPLOY_URL',
+        'RUN_STATIC_ANALYSIS',
+        'RUN_DEPENDENCY_SCAN',
+        'RUN_SECRET_SCAN',
+        'DISCOVER_RISKY_FUNCTIONS',
+      ],
+    });
+    const ux = result.categoryScores.find((c) => c.category === 'UX_UI');
+    const sec = result.categoryScores.find((c) => c.category === 'SECURITY_PRIVACY');
+    const backend = result.categoryScores.find((c) => c.category === 'BACKEND_API');
+    const launch = result.categoryScores.find((c) => c.category === 'LAUNCH_READINESS');
+    expect(ux?.score).toBe(100);
+    expect(sec?.score).toBe(100);
+    expect(backend?.score).toBe(100);
+    expect(launch?.score).toBe(100);
+  });
+
+  it('omitting executedSteps preserves legacy behavior (no extra N/A)', () => {
+    // Backward-compat guard: existing callers that do not pass executedSteps
+    // must see identical scores to the pre-BUG-1 implementation.
+    const result = calculateScores({ findings: [] });
+    const ux = result.categoryScores.find((c) => c.category === 'UX_UI');
+    expect(ux?.score).toBe(100);
+    expect(result.readinessScore).toBe(100);
+  });
+
+  it('skipped measuredBy step drops the category from the weighted average', () => {
+    // Regression guard for the user-reported scenario: deployUrl missing →
+    // ANALYZE_DEPLOY_URL skipped → UX_UI must be excluded from the weighted
+    // denominator, not silently propped up by the 100 baseline.
+    const withoutExec = calculateScores({ findings: [] });
+    const withExec = calculateScores({
+      findings: [],
+      // Only LAUNCH_READINESS-relevant steps ran (CLONE_REPO), so UX_UI and
+      // SECURITY_PRIVACY and BACKEND_API are all N/A, but LAUNCH_READINESS
+      // still has one of its two measuredBy steps missing (ANALYZE_DEPLOY_URL)
+      // → it is also N/A. Result: only feature/flow categories remain — and
+      // they have empty measuredBy, so totalWeight = 0 → readinessScore = 0.
+      executedSteps: ['CLONE_REPO'],
+    });
+    expect(withoutExec.readinessScore).toBe(100);
+    expect(withExec.readinessScore).toBe(0);
+  });
+
+  it('findings against an N/A-by-executedSteps category still count in severityCounts', () => {
+    // Severity tallies are independent of N/A handling — a P0 still ticks
+    // the counter even if its category is excluded from the weighted score.
+    const result = calculateScores({
+      findings: [f('UX_UI', 'P0')],
+      executedSteps: [], // ANALYZE_DEPLOY_URL did not run
+    });
+    const ux = result.categoryScores.find((c) => c.category === 'UX_UI');
+    expect(ux?.score).toBeNull();
+    expect(result.severityCounts.P0).toBe(1);
+  });
+});

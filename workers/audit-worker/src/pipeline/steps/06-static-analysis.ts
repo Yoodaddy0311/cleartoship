@@ -184,6 +184,9 @@ export const step06StaticAnalysis: Step = {
       },
       artifactPath: null,
     });
+    // BUG-1: only mark RUN_STATIC_ANALYSIS as executed on the SUCCESS path.
+    // The skip/fail branches above already returned without pushing.
+    state.executedSteps.push('RUN_STATIC_ANALYSIS');
     ctx.log('info', 'Static analysis complete', { findings: findings.length });
   },
 };
