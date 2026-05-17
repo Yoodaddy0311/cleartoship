@@ -36,6 +36,7 @@ function makeCtx(overrides: Partial<WorkerCtx> = {}): WorkerCtx {
     repoUrl: 'https://github.com/example/repo',
     deployUrl: null,
     prdText: null,
+    profileId: null,
     clonePath: '/tmp/cleartoship-run-1',
     log: vi.fn(),
     ...overrides,
@@ -282,5 +283,43 @@ describe('step06StaticAnalysis', () => {
     };
     expect(call.rawSummary.rawCount).toBe(250);
     expect(call.rawSummary.findings).toBe(200);
+  });
+
+  it('nonDeveloperExplanation pulls phrasing from audit-core RULE_FAMILY (SSOT)', async () => {
+    // Anchored to the audit-core sql-injection entry's KO summary. If the
+    // SSOT dictionary is replaced or this id renamed, this test fails first —
+    // catching any future drift back into a worker-local definition.
+    const ctx = makeCtx();
+    const state: PipelineState = createInitialState();
+    spawnToolMock.mockResolvedValueOnce({
+      notInstalled: false,
+      exitCode: 1,
+      stdout: makeSemgrepJson([
+        {
+          check_id: 'javascript.lang.security.audit.sql-injection.detect',
+          path: 'src/db.js',
+          start: { line: 7 },
+          extra: { message: 'SQLi sink', severity: 'ERROR' },
+        },
+        {
+          check_id: 'totally-unknown-family-xyz',
+          path: 'src/whatever.js',
+          start: { line: 1 },
+          extra: { message: 'misc', severity: 'INFO' },
+        },
+      ]),
+      stderr: '',
+      durationMs: 200,
+    });
+
+    await step.execute(ctx, state);
+
+    expect(state.pendingFindings).toHaveLength(2);
+    const matched = state.pendingFindings[0]!;
+    expect(matched.nonDeveloperExplanation).toContain('파라미터 바인딩');
+    expect(matched.nonDeveloperExplanation).toContain('가능한 한 빨리 고쳐주세요');
+
+    const fallback = state.pendingFindings[1]!;
+    expect(fallback.nonDeveloperExplanation).toContain('코드 검사 도구가 잠재적');
   });
 });

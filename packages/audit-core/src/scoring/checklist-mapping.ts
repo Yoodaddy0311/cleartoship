@@ -71,6 +71,18 @@ export const CATEGORY_META: ReadonlyArray<CategoryMeta> = [
     measuredBy: ['CLONE_REPO', 'ANALYZE_DEPLOY_URL'],
   },
   { category: 'MAINTAINABILITY_DOCUMENTATION', label: 'Maintainability & Docs', weight: 5, measuredBy: [] },
+  // T2.8 / UPG-06 — BUSINESS_READINESS surfaces Pricing/Legal/Onboarding/
+  // Support/Analytics findings. Weight 0 (Phase 1) preserves the existing
+  // weight-sum=100 invariant. `measuredBy` is non-empty so SCORE-1B-a does NOT
+  // treat this as N/A — the category appears in scoring with its own score
+  // (100 - per-FAIL deduction) but contributes 0 to the weighted overall
+  // until calibrated in a later round.
+  {
+    category: 'BUSINESS_READINESS',
+    label: 'Business Readiness',
+    weight: 0,
+    measuredBy: ['ANALYZE_BUSINESS_READINESS'],
+  },
 ];
 
 const META_BY_CATEGORY = new Map<AuditCategory, CategoryMeta>(

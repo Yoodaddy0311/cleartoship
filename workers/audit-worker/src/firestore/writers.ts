@@ -128,6 +128,35 @@ export async function markRunFailed(runId: string, errorMessage: string): Promis
   });
 }
 
+/**
+ * Persist a guardrail short-circuit (e.g. REPO_TOO_LARGE). The run is marked
+ * COMPLETED so the UI treats it as a finished audit, but `launchStatus` is
+ * forced to 'BLOCKED' and `abortReason` records the machine-readable cause.
+ * step13 (writeReport) is skipped under this path, so we stamp the AuditRun
+ * doc here — otherwise the dashboard would never see the BLOCKED verdict.
+ */
+export async function markRunBlocked(
+  runId: string,
+  abortReason: string,
+): Promise<void> {
+  const db = getFirestoreClient();
+  let partialResultTools: string[] = [];
+  try {
+    partialResultTools = await aggregatePartialResultTools(runId);
+  } catch {
+    partialResultTools = [];
+  }
+  await db.doc(COLL.auditRun(runId)).update({
+    status: 'COMPLETED',
+    progress: 100,
+    launchStatus: 'BLOCKED',
+    abortReason,
+    partialResultTools,
+    completedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+}
+
 export async function setRunCommitHash(runId: string, commitHash: string): Promise<void> {
   const db = getFirestoreClient();
   await db.doc(COLL.auditRun(runId)).update({

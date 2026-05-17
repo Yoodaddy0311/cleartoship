@@ -59,7 +59,15 @@ export const CreateAuditRunRequestSchema = z.object({
       message: 'GitHub repo URL 형식이 아닙니다 (https://github.com/owner/repo).',
     }),
   deployUrl: z.string().url().nullable().optional(),
-  prdText: z.string().max(50_000).nullable().optional(),
+  // W2-A: 200KB는 서버 safety net 한도 (DoS 방어). 사용자 50KB cap은
+  // `create-audit-run.ts`의 `PrdTextTooLargeError` 가 422 + maxBytes/actualBytes
+  // 와 함께 throw — 정상 zod 400 보다 풍부한 에러 응답을 제공한다.
+  prdText: z.string().max(200_000).nullable().optional(),
+  // T2.4: optional domain audit profile id (e.g. 'landing' | 'saas' |
+  // 'ecommerce'). Kept as a free string so adding a profile in audit-core
+  // doesn't force a shared-types release; worker resolves via getProfile()
+  // which returns null on unknown ids (spec-default scoring).
+  profileId: z.string().optional(),
 });
 export type CreateAuditRunRequest = z.infer<typeof CreateAuditRunRequestSchema>;
 
@@ -84,7 +92,10 @@ export type GetAuditRunResponse = z.infer<typeof GetAuditRunResponseSchema>;
 export const ListFindingsQuerySchema = z.object({
   severity: Severity.optional(),
   category: AuditCategory.optional(),
-  limit: z.coerce.number().int().min(1).max(200).default(50).optional(),
+  // W2-A bugfix: categories page는 grouped view 전체를 한 번에 로드하기 위해
+  // limit=500 을 보낸다 (페이징 없는 전수 그룹화). 단일 run의 finding 총합은
+  // 보통 200~500 수준이라 500을 새 cap으로 둔다. DoS 방어선은 유지.
+  limit: z.coerce.number().int().min(1).max(500).default(50).optional(),
   cursor: z.string().optional(),
 });
 export type ListFindingsQuery = z.infer<typeof ListFindingsQuerySchema>;

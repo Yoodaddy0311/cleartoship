@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { calculateScores } from './calculate-scores.js';
 import { CATEGORY_META, getCategoryMeta } from './checklist-mapping.js';
+import { getProfile } from '../profiles/index.js';
 import type { AuditCategory, Finding, Severity } from '@cleartoship/shared-types';
 
 type FindingInput = Pick<Finding, 'category' | 'severity'>;
@@ -699,5 +700,71 @@ describe('calculateScores — executedSteps (BUG-1)', () => {
     const ux = result.categoryScores.find((c) => c.category === 'UX_UI');
     expect(ux?.score).toBeNull();
     expect(result.severityCounts.P0).toBe(1);
+  });
+});
+
+// T2.4: profile templates bias the weighted-average toward domain-priority
+// categories. The tests assert two properties:
+//   (a) supplying a profile changes the resulting readinessScore when findings
+//       hit an over-weighted category (so the override actually flows through),
+//   (b) omitting / null profile keeps legacy parity with the spec defaults.
+describe('calculateScores — profile templates (T2.4)', () => {
+  it('omitting profile keeps spec-default scoring (backward compatibility)', () => {
+    const result = calculateScores({ findings: [] });
+    expect(result.readinessScore).toBe(100);
+  });
+
+  it('passing profile=null is treated the same as omitting it', () => {
+    const omitted = calculateScores({
+      findings: [f('UX_UI', 'P1'), f('BACKEND_API', 'P1')],
+    });
+    const explicitNull = calculateScores({
+      findings: [f('UX_UI', 'P1'), f('BACKEND_API', 'P1')],
+      profile: null,
+    });
+    expect(explicitNull.readinessScore).toBe(omitted.readinessScore);
+  });
+
+  it('landing profile penalises UX_UI failures more than backend failures', () => {
+    // We need a profile-aware import here — using getProfile keeps the test
+    // honest by exercising the public resolver path.
+const landing = getProfile('landing')!;
+    // One P1 on UX_UI: -8 from 100 = 92 on UX_UI.
+    const uxOnly = calculateScores({
+      findings: [f('UX_UI', 'P1')],
+      profile: landing,
+    });
+    // One P1 on BACKEND_API: -8 from 100 = 92 on BACKEND_API.
+    const backendOnly = calculateScores({
+      findings: [f('BACKEND_API', 'P1')],
+      profile: landing,
+    });
+    // Landing has UX_UI weight=30 vs BACKEND_API weight=5 → identical raw
+    // deductions, but the UX_UI one drags the overall harder.
+    expect(uxOnly.readinessScore).toBeLessThan(backendOnly.readinessScore);
+  });
+
+  it('saas profile penalises BACKEND_API failures more than UX_UI failures', () => {
+const saas = getProfile('saas')!;
+    const backendOnly = calculateScores({
+      findings: [f('BACKEND_API', 'P1')],
+      profile: saas,
+    });
+    const uxOnly = calculateScores({
+      findings: [f('UX_UI', 'P1')],
+      profile: saas,
+    });
+    // SaaS bumps BACKEND_API to 25 and drops UX_UI to 10 → backend fail hurts more.
+    expect(backendOnly.readinessScore).toBeLessThan(uxOnly.readinessScore);
+  });
+
+  it('profile does NOT override N/A semantics — unmeasured categories stay null', () => {
+// FRONTEND_CODE has empty measuredBy → always N/A even if profile bumps weight.
+    const result = calculateScores({
+      findings: [],
+      profile: getProfile('landing'),
+    });
+    const fe = result.categoryScores.find((c) => c.category === 'FRONTEND_CODE');
+    expect(fe?.score).toBeNull();
   });
 });

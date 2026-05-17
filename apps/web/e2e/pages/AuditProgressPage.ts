@@ -3,7 +3,7 @@ import { type Page, type Locator, expect } from '@playwright/test';
 /**
  * Page Object for /audits/:id (progress timeline).
  *
- * The page renders a 15-step ordered list inside an `<ol aria-label="감사 단계 진행">`.
+ * The page renders an 18-step ordered list inside an `<ol aria-label="감사 단계 진행">`.
  * Status transitions to COMPLETED via the polling hook; when reached, the
  * client redirects to `/audits/:id/dashboard` after a 600ms peak-end delay.
  */

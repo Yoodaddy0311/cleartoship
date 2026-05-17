@@ -45,7 +45,7 @@ export default function FindingDetailPage() {
         {t('common.back')}
       </Link>
       {finding ? (
-        <FindingDetailPanel finding={finding} truncated={truncated} />
+        <FindingDetailPanel finding={finding} truncated={truncated} auditId={auditId} />
       ) : (
         <ResourceStatePanel
           state={state as Exclude<typeof state, { status: 'ready' }>}

@@ -19,6 +19,13 @@ export interface WorkerCtx {
   repoUrl: string;
   deployUrl: string | null;
   prdText: string | null;
+  /**
+   * T2.4: domain audit profile id selected at audit start ('landing' | 'saas'
+   * | 'ecommerce' | future ids). Null when the user didn't pick one, which
+   * preserves spec-default scoring weights. Kept as a free string so adding
+   * a profile in audit-core doesn't ripple through worker types.
+   */
+  profileId: string | null;
   /** Ephemeral clone path (always /tmp/clone-{runId}). Worker only. */
   clonePath: string | null;
   /** Logger function — structured JSON to stderr. */

@@ -48,7 +48,7 @@ describe('GET /api/audit-runs/:id', () => {
   it('returns 401 UNAUTHORIZED when resolveCaller returns null', async () => {
     resolveCallerMock.mockResolvedValueOnce(null);
     const { GET } = await import('@/app/api/audit-runs/[id]/route');
-    const res = await GET(makeReq(), { params: { id: 'run-1' } });
+    const res = await GET(makeReq(), { params: Promise.resolve({ id: 'run-1' }) });
     expect(res.status).toBe(401);
     const body = await res.json();
     expect(body.error.code).toBe('UNAUTHORIZED');
@@ -57,7 +57,7 @@ describe('GET /api/audit-runs/:id', () => {
 
   it('returns 400 INVALID_INPUT when path param id is empty', async () => {
     const { GET } = await import('@/app/api/audit-runs/[id]/route');
-    const res = await GET(makeReq({ authorization: 'Bearer fake' }), { params: { id: '' } });
+    const res = await GET(makeReq({ authorization: 'Bearer fake' }), { params: Promise.resolve({ id: '' }) });
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error.code).toBe('INVALID_INPUT');
@@ -68,7 +68,7 @@ describe('GET /api/audit-runs/:id', () => {
     getAuditRunMock.mockResolvedValueOnce(null);
     const { GET } = await import('@/app/api/audit-runs/[id]/route');
     const res = await GET(makeReq({ authorization: 'Bearer fake' }), {
-      params: { id: 'run-1' },
+      params: Promise.resolve({ id: 'run-1' }),
     });
     expect(res.status).toBe(404);
     const body = await res.json();
@@ -87,7 +87,7 @@ describe('GET /api/audit-runs/:id', () => {
     getAuditRunMock.mockResolvedValueOnce(auditRun);
     const { GET } = await import('@/app/api/audit-runs/[id]/route');
     const res = await GET(makeReq({ authorization: 'Bearer fake' }), {
-      params: { id: 'run-1' },
+      params: Promise.resolve({ id: 'run-1' }),
     });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -100,7 +100,7 @@ describe('GET /api/audit-runs/:id', () => {
     const stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const { GET } = await import('@/app/api/audit-runs/[id]/route');
     const res = await GET(makeReq({ authorization: 'Bearer fake' }), {
-      params: { id: 'run-1' },
+      params: Promise.resolve({ id: 'run-1' }),
     });
     expect(res.status).toBe(500);
     const body = await res.json();

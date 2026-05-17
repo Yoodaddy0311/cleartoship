@@ -10,7 +10,7 @@ import { AuditFlowPage } from './pages/AuditFlowPage';
  *   Web (Next.js dev @ :3100)
  *     → Firebase Auth Emulator  (anonymous sign-in)
  *     → POST /api/audit-runs    (creates Firestore doc + enqueues task)
- *     → Worker / Cloud Functions (15-step audit pipeline)
+ *     → Worker / Cloud Functions (18-step audit pipeline)
  *     → GET  /api/audit-runs/:id (polled until status=COMPLETED)
  *     → Dashboard render
  *

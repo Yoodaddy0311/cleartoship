@@ -9,6 +9,9 @@
   },
   "scripts": {
     "dev": "pnpm --filter web dev",
+    "dev:full": "node scripts/dev-full.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "free-ports": "node scripts/free-ports.mjs",
     "build": "pnpm -r build",
     "ci": "pnpm -r type-check && pnpm -r lint && pnpm -r test",
     "lint": "pnpm -r --parallel lint",

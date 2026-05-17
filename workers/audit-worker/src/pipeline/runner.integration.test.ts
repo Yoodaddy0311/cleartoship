@@ -18,7 +18,7 @@
 // catch regressions in the registry shape and the runner's loop, not to
 // re-test individual steps.
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AUDIT_STEPS, type AuditStep } from '@cleartoship/shared-types';
 
 // --- Mocks --------------------------------------------------------------
@@ -66,6 +66,13 @@ describe('runPipeline — integration safety net', () => {
     markRunCompletedMock.mockClear();
     markRunFailedMock.mockClear();
     updateRunStepMock.mockClear();
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    // Safety net: ensure steps/index.js mock is always removed even if a test
+    // fails mid-execution before reaching its inline vi.doUnmock() call.
+    vi.doUnmock('./steps/index.js');
     vi.resetModules();
   });
 

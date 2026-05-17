@@ -352,6 +352,74 @@ export async function detectFrameworkProfile(clonePath: string): Promise<Framewo
   return profile;
 }
 
+// W1-A1 (T1.2): README presence detector. Returns true when any
+// `README.{md,markdown,txt,rst,adoc}` (case-insensitive) sits directly in
+// `clonePath`. Used to populate `state.evidence.README_PRESENT`.
+const README_BASENAME_REGEX = /^readme(\.(md|markdown|txt|rst|adoc))?$/i;
+
+export async function detectReadmePresent(clonePath: string): Promise<boolean> {
+  try {
+    const entries = await fsp.readdir(clonePath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isFile() && README_BASENAME_REGEX.test(entry.name)) return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// W1-A2 (T1.2-FU): package.json#scripts non-empty.
+export async function detectPackageScriptsPresent(clonePath: string): Promise<boolean> {
+  const pkg = await safeReadJson<PackageJson>(path.join(clonePath, 'package.json'));
+  if (!pkg?.scripts) return false;
+  return Object.keys(pkg.scripts).length > 0;
+}
+
+// W1-A3 (T1.2-FU): LICENSE / LICENSE.* (case-insensitive) at clone root.
+const LICENSE_BASENAME_REGEX = /^licen[cs]e(\.(md|markdown|txt|rst|adoc))?$/i;
+
+export async function detectLicensePresent(clonePath: string): Promise<boolean> {
+  try {
+    const entries = await fsp.readdir(clonePath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isFile() && LICENSE_BASENAME_REGEX.test(entry.name)) return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// W1-A4 (T1.2-FU): CI config presence — .github/workflows/*.{yml,yaml},
+// .circleci/config.yml, .gitlab-ci.yml, or top-level azure-pipelines.yml.
+export async function detectCiConfigPresent(clonePath: string): Promise<boolean> {
+  const ghWorkflows = path.join(clonePath, '.github', 'workflows');
+  try {
+    const entries = await fsp.readdir(ghWorkflows, { withFileTypes: true });
+    if (entries.some((e) => e.isFile() && /\.ya?ml$/i.test(e.name))) return true;
+  } catch {
+    // fall through — no .github/workflows
+  }
+  for (const rel of ['.circleci/config.yml', '.gitlab-ci.yml', 'azure-pipelines.yml']) {
+    if (await pathExists(path.join(clonePath, rel))) return true;
+  }
+  return false;
+}
+
+// W1-A5 (T1.2-FU): tests directory presence — tests/ or __tests__/ or test/.
+export async function detectTestsDirPresent(clonePath: string): Promise<boolean> {
+  for (const rel of ['tests', '__tests__', 'test']) {
+    try {
+      const stat = await fsp.stat(path.join(clonePath, rel));
+      if (stat.isDirectory()) return true;
+    } catch {
+      // fall through
+    }
+  }
+  return false;
+}
+
 export const step04AnalyzeProjectStructure: Step = {
   step: 'ANALYZE_PROJECT_STRUCTURE',
   async execute(ctx, state) {
@@ -366,12 +434,33 @@ export const step04AnalyzeProjectStructure: Step = {
     const profile = await detectFrameworkProfile(ctx.clonePath);
     state.frameworkProfile = profile;
     state.techStack = profileToTechStack(profile);
+
+    const readmePresent = await detectReadmePresent(ctx.clonePath);
+    state.evidence.README_PRESENT = readmePresent;
+
+    // T1.2-FU: populate full W1-A evidence map (5 keys, all booleans).
+    const [scriptsPresent, licensePresent, ciPresent, testsPresent] = await Promise.all([
+      detectPackageScriptsPresent(ctx.clonePath),
+      detectLicensePresent(ctx.clonePath),
+      detectCiConfigPresent(ctx.clonePath),
+      detectTestsDirPresent(ctx.clonePath),
+    ]);
+    state.w1aEvidence = {
+      README_PRESENT: readmePresent,
+      PACKAGE_SCRIPTS_PRESENT: scriptsPresent,
+      LICENSE_PRESENT: licensePresent,
+      CI_CONFIG_PRESENT: ciPresent,
+      TESTS_DIR_PRESENT: testsPresent,
+    };
+
     ctx.log('info', 'Project structure analyzed', {
       primary: profile.primary,
       secondary: profile.secondary,
       language: profile.language,
       evidenceCount: profile.evidence.length,
       techStack: state.techStack,
+      readmePresent,
+      w1aEvidence: state.w1aEvidence,
     });
   },
 };

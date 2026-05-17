@@ -137,6 +137,180 @@ describe('DashboardPage', () => {
     expect(vi.mocked(usePrefetchGraphCanvas)).toHaveBeenCalled();
   });
 
+  // T1.1d: BLOCKED short-circuit. When the worker calls `markRunBlocked` (e.g.
+  // REPO_TOO_LARGE), no report doc exists — dashboard must render the verdict
+  // chip + abortReason WITHOUT calling getReport (which would 404 and crash
+  // the whole Promise.all).
+  it('renders BLOCKED verdict + abortReason and skips getReport when launchStatus=BLOCKED', async () => {
+    const { getReport, listFindings, getAuditRun } = await import(
+      '@/lib/api/audit-runs'
+    );
+    vi.mocked(getAuditRun).mockResolvedValue({
+      id: 'run-1',
+      launchStatus: 'BLOCKED',
+      abortReason: 'REPO_TOO_LARGE',
+      partialResultTools: [],
+    } as never);
+    // Will explode if called — proves the short-circuit holds.
+    vi.mocked(getReport).mockRejectedValue(new Error('should not be called'));
+    vi.mocked(listFindings).mockRejectedValue(
+      new Error('should not be called')
+    );
+
+    const { default: DashboardPage } = await import('./page');
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-blocked')).toBeInTheDocument();
+    });
+    const panel = screen.getByTestId('dashboard-blocked');
+    expect(panel).toHaveTextContent(/감사 중단 \(가드레일 작동\)/);
+    expect(panel).toHaveTextContent(/REPO_TOO_LARGE/);
+    expect(vi.mocked(getReport)).not.toHaveBeenCalled();
+    expect(vi.mocked(listFindings)).not.toHaveBeenCalled();
+  });
+
+  // T2.12-FU #127: when the run is BLOCKED by a guardrail, the dashboard
+  // verdict view must also mount PartialResultBanner with blockedContext so
+  // the user sees the abortReason note even if partialResultTools is empty.
+  it('mounts PartialResultBanner with blockedContext inside DashboardBlockedBody', async () => {
+    const { getReport, listFindings, getAuditRun } = await import(
+      '@/lib/api/audit-runs'
+    );
+    vi.mocked(getAuditRun).mockResolvedValue({
+      id: 'run-1',
+      launchStatus: 'BLOCKED',
+      abortReason: 'REPO_TOO_LARGE',
+      partialResultTools: [],
+    } as never);
+    vi.mocked(getReport).mockRejectedValue(new Error('should not be called'));
+    vi.mocked(listFindings).mockRejectedValue(
+      new Error('should not be called')
+    );
+
+    const { default: DashboardPage } = await import('./page');
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-blocked')).toBeInTheDocument();
+    });
+    const banner = screen.getByTestId('partial-result-banner');
+    expect(banner).toBeInTheDocument();
+    expect(banner).toHaveAttribute('data-na-reason', 'blocked');
+    expect(
+      screen.getByTestId('partial-result-blocked-note')
+    ).toHaveTextContent(/REPO_TOO_LARGE/);
+  });
+
+  // T2.12-FU #127: when the BLOCKED run also has partialResultTools, the
+  // banner should surface the N/A category chips (semgrep → SECURITY_PRIVACY,
+  // lighthouse → LAUNCH_READINESS) all labelled with the "blocked" reason.
+  it('renders N/A category chips with blocked reason for BLOCKED + partialResultTools', async () => {
+    const { getReport, listFindings, getAuditRun } = await import(
+      '@/lib/api/audit-runs'
+    );
+    vi.mocked(getAuditRun).mockResolvedValue({
+      id: 'run-1',
+      launchStatus: 'BLOCKED',
+      abortReason: 'BUDGET_EXCEEDED',
+      partialResultTools: ['semgrep', 'lighthouse'],
+    } as never);
+    vi.mocked(getReport).mockRejectedValue(new Error('should not be called'));
+    vi.mocked(listFindings).mockRejectedValue(
+      new Error('should not be called')
+    );
+
+    const { default: DashboardPage } = await import('./page');
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-blocked')).toBeInTheDocument();
+    });
+    const banner = screen.getByTestId('partial-result-banner');
+    expect(banner).toHaveAttribute('data-na-reason', 'blocked');
+    expect(
+      screen.getByTestId('partial-result-categories')
+    ).toBeInTheDocument();
+    // semgrep contributes both SECURITY_PRIVACY and FRONTEND_CODE; lighthouse
+    // contributes LAUNCH_READINESS and UX_UI. All four chips must render.
+    expect(
+      screen.getByTestId('partial-result-category-SECURITY_PRIVACY')
+    ).toHaveTextContent(/가드레일 작동으로 중단/);
+    expect(
+      screen.getByTestId('partial-result-category-LAUNCH_READINESS')
+    ).toHaveTextContent(/가드레일 작동으로 중단/);
+  });
+
+  // T2.5-FU #139: re-audit diff link surfaces on the dashboard ONLY when the
+  // current run has a previousRunId. First-time audits must not see a dangling
+  // link to a comparison view that would render an empty state.
+  it('renders "재감사 비교" link when run has previousRunId', async () => {
+    const { getReport, listFindings, getAuditRun } = await import(
+      '@/lib/api/audit-runs'
+    );
+    vi.mocked(getReport).mockResolvedValue({
+      readinessScore: 70,
+      launchStatus: 'NEEDS_WORK',
+      executiveSummary: 'second audit',
+      categoryScores: [],
+      severityCounts: { P0: 0, P1: 0, P2: 0, P3: 0 },
+    } as never);
+    vi.mocked(listFindings).mockResolvedValue({
+      findings: [],
+      nextCursor: null,
+    } as never);
+    vi.mocked(getAuditRun).mockResolvedValue({
+      id: 'run-2',
+      partialResultTools: [],
+      previousRunId: 'run-1',
+    } as never);
+
+    const { default: DashboardPage } = await import('./page');
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId('dashboard-rerun-diff-link')
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByTestId('dashboard-rerun-diff-link')
+    ).toHaveAttribute('href', '/audits/run-1/diff');
+  });
+
+  it('hides "재감사 비교" link when run has no previousRunId (first audit)', async () => {
+    const { getReport, listFindings, getAuditRun } = await import(
+      '@/lib/api/audit-runs'
+    );
+    vi.mocked(getReport).mockResolvedValue({
+      readinessScore: 70,
+      launchStatus: 'NEEDS_WORK',
+      executiveSummary: 'first audit',
+      categoryScores: [],
+      severityCounts: { P0: 0, P1: 0, P2: 0, P3: 0 },
+    } as never);
+    vi.mocked(listFindings).mockResolvedValue({
+      findings: [],
+      nextCursor: null,
+    } as never);
+    vi.mocked(getAuditRun).mockResolvedValue({
+      id: 'run-1',
+      partialResultTools: [],
+    } as never);
+
+    const { default: DashboardPage } = await import('./page');
+    render(<DashboardPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('navigation', { name: '감사 결과 탭' })
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId('dashboard-rerun-diff-link')
+    ).not.toBeInTheDocument();
+  });
+
   // S6-03: partial-results warn banner. When the audit run reports tools that
   // were SKIPPED, the dashboard must render the warn banner above the score
   // section so the user understands the score is degraded.

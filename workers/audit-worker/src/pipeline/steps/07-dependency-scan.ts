@@ -7,6 +7,7 @@ import type { Step } from './index.js';
 import type { NormalizedFinding } from '../../adapters/index.js';
 import { writeToolResult } from '../../firestore/writers.js';
 import { spawnTool } from '../tool-runner.js';
+import { recordStepOutcome } from '../lib/record-step-outcome.js';
 
 interface OsvResult {
   results?: Array<{
@@ -228,7 +229,7 @@ export const step07DependencyScan: Step = {
       artifactPath: null,
     });
     // BUG-1: mark RUN_DEPENDENCY_SCAN executed only on SUCCESS path.
-    state.executedSteps.push('RUN_DEPENDENCY_SCAN');
+    recordStepOutcome(state, 'RUN_DEPENDENCY_SCAN', 'CHECKPOINT');
     ctx.log('info', 'Dependency scan complete', { vulns: findings.length });
   },
 };

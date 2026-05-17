@@ -58,6 +58,7 @@ function makeCtx(overrides: Partial<WorkerCtx> = {}): WorkerCtx {
     repoUrl: 'https://github.com/example/repo',
     deployUrl: null,
     prdText: null,
+    profileId: null,
     clonePath: null,
     log: vi.fn(),
     ...overrides,
@@ -242,6 +243,92 @@ describe('step03CloneRepo', () => {
     // Clone still proceeded successfully despite the leaked env.
     expect(cloneMock).toHaveBeenCalledTimes(1);
     expect(state.fileTree).toContain('ok.txt');
+
+    await cleanupTmp(ctx);
+  });
+
+  it('T1.1b guardrail: aborts when file count exceeds REPO_MAX_FILES cap', async () => {
+    const ctx = makeCtx();
+    const state: PipelineState = createInitialState();
+
+    // Lower the file cap via env so we do not have to create 5000+ files.
+    const originalMaxFiles = process.env.REPO_MAX_FILES;
+    process.env.REPO_MAX_FILES = '50';
+
+    cloneMock.mockImplementationOnce(async (_url: string, dest: string) => {
+      await fsp.mkdir(path.join(dest, 'src'), { recursive: true });
+      // Create more files than the cap (60 > 50) so walkTree exceeds.
+      for (let i = 0; i < 60; i++) {
+        await fsp.writeFile(path.join(dest, 'src', `f${i}.ts`), 'export const x = 1;');
+      }
+    });
+
+    try {
+      await step.execute(ctx, state);
+    } finally {
+      if (originalMaxFiles === undefined) delete process.env.REPO_MAX_FILES;
+      else process.env.REPO_MAX_FILES = originalMaxFiles;
+    }
+
+    expect(state.launchStatus).toBe('BLOCKED');
+    expect(state.abortReason).toBe('REPO_TOO_LARGE');
+    expect(state.executedSteps).toContain('CLONE_REPO');
+    expect(state.pendingFindings).toHaveLength(1);
+    const finding = state.pendingFindings[0]!;
+    expect(finding.severity).toBe('P0');
+    expect(finding.category).toBe('LAUNCH_READINESS');
+    expect(finding.tags).toContain('repo-too-large');
+    expect(finding.tags).toContain('guardrail-tripped');
+    expect(finding.tags).toContain('REPO_TOO_LARGE');
+
+    await cleanupTmp(ctx);
+  });
+
+  it('T1.1b guardrail: aborts when total size exceeds REPO_MAX_BYTES cap', async () => {
+    const ctx = makeCtx();
+    const state: PipelineState = createInitialState();
+
+    // 4KB cap; we write a 10KB blob to trip the byte guardrail without
+    // tripping the file-count one (single file).
+    const originalMaxBytes = process.env.REPO_MAX_BYTES;
+    process.env.REPO_MAX_BYTES = '4096';
+
+    cloneMock.mockImplementationOnce(async (_url: string, dest: string) => {
+      await fsp.writeFile(path.join(dest, 'big.bin'), Buffer.alloc(10_000, 'x'));
+    });
+
+    try {
+      await step.execute(ctx, state);
+    } finally {
+      if (originalMaxBytes === undefined) delete process.env.REPO_MAX_BYTES;
+      else process.env.REPO_MAX_BYTES = originalMaxBytes;
+    }
+
+    expect(state.launchStatus).toBe('BLOCKED');
+    expect(state.abortReason).toBe('REPO_TOO_LARGE');
+    expect(state.pendingFindings[0]!.summary).toMatch(/bytes=\d+\/4096/);
+  });
+
+  it('T1.1b guardrail: normal-sized repo (well under caps) passes through', async () => {
+    const ctx = makeCtx();
+    const state: PipelineState = createInitialState();
+
+    cloneMock.mockImplementationOnce(async (_url: string, dest: string) => {
+      await fsp.mkdir(path.join(dest, 'src'), { recursive: true });
+      // 50 small files — well under default 5000 cap and 500MB cap.
+      for (let i = 0; i < 50; i++) {
+        await fsp.writeFile(path.join(dest, 'src', `f${i}.ts`), 'export {};');
+      }
+      await fsp.writeFile(path.join(dest, 'README.md'), '# ok');
+    });
+
+    await step.execute(ctx, state);
+
+    expect(state.launchStatus).not.toBe('BLOCKED');
+    expect(state.abortReason).toBeNull();
+    expect(state.pendingFindings).toHaveLength(0);
+    expect(state.fileTree.length).toBe(51);
+    expect(state.executedSteps).toContain('CLONE_REPO');
 
     await cleanupTmp(ctx);
   });

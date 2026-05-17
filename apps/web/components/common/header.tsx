@@ -16,14 +16,14 @@ export function Header() {
         {t('common.skipToMain')}
       </a>
       <header
-        className="sticky top-0 z-50 border-b border-[color:var(--color-border-subtle)]"
+        className="sticky top-0 z-50 border-b border-[color:var(--color-border-subtle)] safe-area-top"
         style={{
           background: 'rgba(7,7,11,0.6)',
           backdropFilter: 'blur(16px) saturate(140%)',
           WebkitBackdropFilter: 'blur(16px) saturate(140%)',
         }}
       >
-        <div className="mx-auto flex h-14 w-full max-w-[1536px] items-center justify-between px-4 sm:px-6">
+        <div className="mx-auto flex h-14 w-full max-w-[1536px] items-center justify-between px-4 safe-area-x sm:px-6">
           <Link
             href="/"
             aria-label={t('app.brand')}

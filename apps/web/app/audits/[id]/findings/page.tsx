@@ -3,6 +3,10 @@
 import { useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { FilterChips, FindingCard } from '@cleartoship/ui';
+// W2-A bugfix: audit-core barrel pulls in node:dns via validation/deploy-url.
+// SEVERITY_LANGUAGE_KO is a thin alias of SEVERITY_LABELS_KO — import from
+// shared-types directly to keep this client bundle node-free.
+import { SEVERITY_LABELS_KO } from '@cleartoship/shared-types';
 import { DashboardTabs } from '@/app/audits/[id]/dashboard/page';
 import { ResourceStatePanel } from '@/components/common/resource-state-panel';
 import { listFindings } from '@/lib/api/audit-runs';
@@ -15,6 +19,15 @@ import type { ListFindingsResponse } from '@/lib/api/audit-runs';
 import type { FindingViewModel } from '@/lib/types/finding-view';
 
 type StatusFilter = 'all' | 'confirmed' | 'open';
+
+// FindingCard 는 audit-core 에 의존하지 않으므로 SSOT 라벨(SEVERITY_LABELS_KO)
+// 을 호스트 앱에서 prop 으로 주입한다. P0..P3 → 한국어 label 만 추출.
+const SEVERITY_LABEL_MAP: Record<Severity, string> = {
+  P0: SEVERITY_LABELS_KO.P0.label,
+  P1: SEVERITY_LABELS_KO.P1.label,
+  P2: SEVERITY_LABELS_KO.P2.label,
+  P3: SEVERITY_LABELS_KO.P3.label,
+};
 
 export default function FindingsPage() {
   const { id: auditId } = useParams<{ id: string }>();
@@ -73,7 +86,7 @@ export default function FindingsPage() {
   }));
 
   return (
-    <section className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-8 py-6">
+    <section className="mx-auto flex w-full max-w-[1280px] flex-col gap-6 px-4 py-6 safe-area-x sm:px-6 lg:px-8">
       <DashboardTabs auditId={auditId} active="findings" />
       <header className="flex flex-col gap-1">
         <h1
@@ -140,6 +153,7 @@ export default function FindingsPage() {
                     line={firstEvidence?.lineStart ?? 0}
                     category={categoryLabel(f.category)}
                     excerpt={f.summary}
+                    severityLabels={SEVERITY_LABEL_MAP}
                     onView={() =>
                       router.push(`/audits/${auditId}/findings/${f.id}`)
                     }

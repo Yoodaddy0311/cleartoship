@@ -1,4 +1,4 @@
-// Pipeline orchestrator — walks the 15-step STEP_REGISTRY for a single run.
+// Pipeline orchestrator — walks the 19-step STEP_REGISTRY for a single run.
 // On error: marks AuditRun as FAILED with the offending step name; otherwise
 // marks COMPLETED on the final step.
 //
@@ -17,9 +17,15 @@ import {
   markRunStarted,
   markRunCompleted,
   markRunFailed,
+  markRunBlocked,
   updateRunStep,
 } from '../firestore/writers.js';
 import { getAuditRunOrThrow } from '../firestore/readers.js';
+import {
+  recordAuditDuration,
+  incrementAuditCompleted,
+  incrementAuditBlocked,
+} from '../observability/metrics.js';
 
 export async function runPipeline(payload: AuditTaskPayload): Promise<void> {
   // Trust ONLY the runId from the payload. Re-fetch the source-of-truth
@@ -55,6 +61,10 @@ export async function runPipeline(payload: AuditTaskPayload): Promise<void> {
     repoUrl: run.repoUrl,
     deployUrl: run.deployUrl,
     prdText: run.prdText,
+    // T2.4: forward the optional audit profile id to the scoring step. The
+    // Firestore converter normalises missing keys to undefined; coerce to null
+    // so WorkerCtx stays strictly `string | null`.
+    profileId: run.profileId ?? null,
     clonePath: null,
     log: (level, message, meta) => {
       process.stderr.write(
@@ -71,6 +81,7 @@ export async function runPipeline(payload: AuditTaskPayload): Promise<void> {
   };
 
   await markRunStarted(run.id);
+  const runStartMs = Date.now();
 
   const state = createInitialState();
   const total = STEP_REGISTRY.length;
@@ -78,6 +89,17 @@ export async function runPipeline(payload: AuditTaskPayload): Promise<void> {
   for (let i = 0; i < STEP_REGISTRY.length; i++) {
     const step = STEP_REGISTRY[i]!;
     const percent = Math.round(((i + 1) / total) * 100);
+    // T1.1 guardrail short-circuit: once a step sets `abortReason` (e.g.
+    // REPO_TOO_LARGE in CLONE_REPO), skip every remaining analysis step.
+    // Letting downstream steps run on a too-large clone defeats the point
+    // of the cap, so this is fail-fast by design. The CLEANUP step (last)
+    // is still allowed so the working directory gets reclaimed.
+    if (state.abortReason && step.step !== 'CLEANUP') {
+      ctx.log('info', `Skipping step due to guardrail: ${step.step}`, {
+        abortReason: state.abortReason,
+      });
+      continue;
+    }
     try {
       await updateRunStep(run.id, step.step, percent);
       ctx.log('info', `Step start: ${step.step}`, { index: i + 1, total });
@@ -86,6 +108,8 @@ export async function runPipeline(payload: AuditTaskPayload): Promise<void> {
       const message = err instanceof Error ? err.message : String(err);
       ctx.log('error', `Step failed: ${step.step}`, { error: message });
       await markRunFailed(run.id, `[${step.step}] ${message}`);
+      recordAuditDuration((Date.now() - runStartMs) / 1000, 'FAILED');
+      incrementAuditCompleted('FAILED');
       return;
     }
   }
@@ -98,5 +122,17 @@ export async function runPipeline(payload: AuditTaskPayload): Promise<void> {
     });
   }
 
+  if (state.abortReason) {
+    // Guardrail short-circuit (T1.1): step13 generate-report was skipped, so
+    // the AuditRun doc would otherwise carry no launchStatus. Stamp BLOCKED
+    // directly so the dashboard surfaces the verdict + reason code.
+    await markRunBlocked(run.id, state.abortReason);
+    recordAuditDuration((Date.now() - runStartMs) / 1000, 'BLOCKED');
+    incrementAuditBlocked(state.abortReason);
+    return;
+  }
+
   await markRunCompleted(run.id);
+  recordAuditDuration((Date.now() - runStartMs) / 1000, 'COMPLETED');
+  incrementAuditCompleted('COMPLETED');
 }

@@ -78,7 +78,7 @@ export function ProgressTimeline({
             </span>
             <span
               className={cn(
-                'text-sm',
+                'ko-text min-w-0 flex-1 text-sm',
                 state === 'done' && 'text-[color:var(--color-fg-secondary)]',
                 state === 'current' && 'text-[color:var(--color-fg-primary)] font-medium',
                 state === 'pending' && 'text-[color:var(--color-fg-muted)]'

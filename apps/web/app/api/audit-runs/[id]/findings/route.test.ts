@@ -44,7 +44,7 @@ describe('GET /api/audit-runs/:id/findings', () => {
     resolveCallerMock.mockResolvedValueOnce(null);
     const { GET } = await import('@/app/api/audit-runs/[id]/findings/route');
     const req = makeReq('http://localhost/api/audit-runs/run-1/findings');
-    const res = await GET(req, { params: { id: 'run-1' } });
+    const res = await GET(req, { params: Promise.resolve({ id: 'run-1' }) });
     expect(res.status).toBe(401);
     const body = await res.json();
     expect(body.error.code).toBe('UNAUTHORIZED');
@@ -56,7 +56,7 @@ describe('GET /api/audit-runs/:id/findings', () => {
     const req = makeReq('http://localhost/api/audit-runs//findings', {
       authorization: 'Bearer fake',
     });
-    const res = await GET(req, { params: { id: '' } });
+    const res = await GET(req, { params: Promise.resolve({ id: '' }) });
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error.code).toBe('INVALID_INPUT');
@@ -69,7 +69,7 @@ describe('GET /api/audit-runs/:id/findings', () => {
       'http://localhost/api/audit-runs/run-1/findings?severity=BANANA',
       { authorization: 'Bearer fake' },
     );
-    const res = await GET(req, { params: { id: 'run-1' } });
+    const res = await GET(req, { params: Promise.resolve({ id: 'run-1' }) });
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error.code).toBe('INVALID_INPUT');
@@ -83,7 +83,7 @@ describe('GET /api/audit-runs/:id/findings', () => {
     const req = makeReq('http://localhost/api/audit-runs/run-1/findings', {
       authorization: 'Bearer fake',
     });
-    const res = await GET(req, { params: { id: 'run-1' } });
+    const res = await GET(req, { params: Promise.resolve({ id: 'run-1' }) });
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error.code).toBe('NOT_FOUND');
@@ -103,7 +103,7 @@ describe('GET /api/audit-runs/:id/findings', () => {
       'http://localhost/api/audit-runs/run-1/findings?severity=P0&limit=2',
       { authorization: 'Bearer fake' },
     );
-    const res = await GET(req, { params: { id: 'run-1' } });
+    const res = await GET(req, { params: Promise.resolve({ id: 'run-1' }) });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.findings).toHaveLength(2);
@@ -122,7 +122,7 @@ describe('GET /api/audit-runs/:id/findings', () => {
     const req = makeReq('http://localhost/api/audit-runs/run-1/findings', {
       authorization: 'Bearer fake',
     });
-    const res = await GET(req, { params: { id: 'run-1' } });
+    const res = await GET(req, { params: Promise.resolve({ id: 'run-1' }) });
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error.code).toBe('INTERNAL');

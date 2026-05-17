@@ -30,6 +30,9 @@ export interface AuditRunCreateInput {
   repoUrl: string;
   deployUrl?: string;
   prdText?: string;
+  // T2.4: optional domain audit profile id (e.g. 'landing' | 'saas' |
+  // 'ecommerce'). Omit / undefined preserves spec-default scoring.
+  profileId?: string;
 }
 
 /**

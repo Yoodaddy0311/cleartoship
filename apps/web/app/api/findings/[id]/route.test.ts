@@ -47,7 +47,7 @@ describe('GET /api/findings/:id', () => {
     resolveCallerMock.mockResolvedValueOnce(null);
     const { GET } = await import('@/app/api/findings/[id]/route');
     const req = makeReq('http://localhost/api/findings/f-1?runId=run-1');
-    const res = await GET(req, { params: { id: 'f-1' } });
+    const res = await GET(req, { params: Promise.resolve({ id: 'f-1' }) });
     expect(res.status).toBe(401);
     const body = await res.json();
     expect(body.error.code).toBe('UNAUTHORIZED');
@@ -59,7 +59,7 @@ describe('GET /api/findings/:id', () => {
     const req = makeReq('http://localhost/api/findings/?runId=run-1', {
       authorization: 'Bearer fake',
     });
-    const res = await GET(req, { params: { id: '' } });
+    const res = await GET(req, { params: Promise.resolve({ id: '' }) });
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error.code).toBe('INVALID_INPUT');
@@ -71,7 +71,7 @@ describe('GET /api/findings/:id', () => {
     const req = makeReq('http://localhost/api/findings/f-1', {
       authorization: 'Bearer fake',
     });
-    const res = await GET(req, { params: { id: 'f-1' } });
+    const res = await GET(req, { params: Promise.resolve({ id: 'f-1' }) });
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error.code).toBe('INVALID_INPUT');
@@ -85,7 +85,7 @@ describe('GET /api/findings/:id', () => {
     const req = makeReq('http://localhost/api/findings/f-1?runId=run-1', {
       authorization: 'Bearer fake',
     });
-    const res = await GET(req, { params: { id: 'f-1' } });
+    const res = await GET(req, { params: Promise.resolve({ id: 'f-1' }) });
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error.code).toBe('NOT_FOUND');
@@ -103,7 +103,7 @@ describe('GET /api/findings/:id', () => {
     const req = makeReq('http://localhost/api/findings/f-1?runId=run-1', {
       authorization: 'Bearer fake',
     });
-    const res = await GET(req, { params: { id: 'f-1' } });
+    const res = await GET(req, { params: Promise.resolve({ id: 'f-1' }) });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toEqual({ finding, evidences, truncated: false });
@@ -121,7 +121,7 @@ describe('GET /api/findings/:id', () => {
     const req = makeReq('http://localhost/api/findings/f-1?runId=run-1', {
       authorization: 'Bearer fake',
     });
-    const res = await GET(req, { params: { id: 'f-1' } });
+    const res = await GET(req, { params: Promise.resolve({ id: 'f-1' }) });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.truncated).toBe(true);
@@ -135,7 +135,7 @@ describe('GET /api/findings/:id', () => {
     const req = makeReq('http://localhost/api/findings/f-1?runId=run-1', {
       authorization: 'Bearer fake',
     });
-    const res = await GET(req, { params: { id: 'f-1' } });
+    const res = await GET(req, { params: Promise.resolve({ id: 'f-1' }) });
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error.code).toBe('INTERNAL');

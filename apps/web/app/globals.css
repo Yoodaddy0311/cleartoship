@@ -82,12 +82,26 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  /* T2.11: prevent unintended horizontal scroll from overflow regressions in
+     deeply nested grids (audit-progress + category cards). Children that
+     legitimately scroll horizontally (DashboardTabs, code blocks, tables)
+     opt back in with explicit overflow-x:auto. */
+  overflow-x: hidden;
 }
 
 body {
+  /* T2.11 WCAG 1.4.4 + iOS 자동 zoom 방지: 본문은 16px 유지, 한국어 가독성을
+     위해 line-height를 1.6으로 올린다 (작업 명세 §"한국어 line-height 1.6+"). */
   font-size: 16px;
-  line-height: 1.55;
+  line-height: 1.6;
   min-height: 100dvh;
+  /* iOS Safari notch / Android gesture bar: body padding이 아닌 fixed/sticky
+     요소에서 env(safe-area-inset-*)를 직접 참조한다. body는 100dvh + safe-area
+     min을 유지해 하단 잘림 방지. */
+  min-height: calc(100dvh + env(safe-area-inset-bottom, 0px));
+  /* T2.11: 가로 overflow 보험 — 자식 컴포넌트가 vw 단위를 잘못 쓰는 경우에도
+     문서 자체는 absorb. */
+  overflow-x: clip;
 }
 
 /* =========================================================================
@@ -171,5 +185,88 @@ a {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* =========================================================================
+   T2.11 Mobile polish (#122)
+   - WCAG 2.5.5 (Target Size): interactive targets ≥ 44×44 CSS px on coarse
+     pointers. We can't widen every <button> globally without breaking dense
+     desktop UI, so we scope this to coarse pointers (touch). Designers can
+     still ship compact desktop chips because `pointer: fine` skips this rule.
+   - .touch-target: opt-in utility used by chips/tab triggers that would
+     otherwise stay below 44px.
+   - .safe-area-top / .safe-area-bottom: respect notches and home indicators
+     on iOS / Android edge-to-edge displays.
+   - .mobile-line-clamp-3: standard 3-line clamp for Korean long content
+     (finding-card excerpt, etc.).
+   ========================================================================= */
+@media (pointer: coarse) {
+  button,
+  [role='button'],
+  [role='radio'],
+  [role='checkbox'],
+  a.touch-target,
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-x {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+.mobile-line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* T2.11: Korean long content reflow guard. `word-break: keep-all` keeps
+   Korean phrase units intact while letting English fall back to break-word.
+   Applied via .ko-text on long body copy (finding summaries, recommendation
+   lists). overflow-wrap: anywhere is the fallback for URL-heavy excerpts. */
+.ko-text {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+
+/* T2.11: horizontal scroll containers (DashboardTabs, FilterChips on
+   narrow screens). Hide scrollbar visually but keep it operable via touch
+   swipe; expose scroll-snap so each chip clicks into place. */
+.mobile-scroll-x {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.mobile-scroll-x::-webkit-scrollbar {
+  display: none;
+}
+.mobile-scroll-x > * {
+  scroll-snap-align: start;
+}
+
+/* T2.11: Prevent iOS from auto-zooming when focusing form fields. iOS only
+   zooms when the input's computed font-size is < 16px. Our Input component
+   already uses 16px (text-md) but native file inputs / search inputs may
+   not — pin them globally. */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1rem);
   }
 }

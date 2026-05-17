@@ -29,12 +29,10 @@ vi.mock('lucide-react', () => ({
 
 const { DownloadMarkdownButton } = await import('./download-button.js');
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
 describe('DownloadMarkdownButton', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let createSpy: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let revokeSpy: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let clickSpy: any;
 
   beforeEach(() => {
@@ -52,9 +50,7 @@ describe('DownloadMarkdownButton', () => {
       value: revokeSpy,
     });
     // Stub anchor.click so jsdom doesn't try to navigate.
-    clickSpy = vi
-      .spyOn(HTMLAnchorElement.prototype, 'click')
-      .mockImplementation(() => {});
+    clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {}) as unknown as ReturnType<typeof vi.fn>;
   });
 
   afterEach(() => {

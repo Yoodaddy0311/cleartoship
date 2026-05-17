@@ -2,7 +2,7 @@
 // safety net for runaway evidence lists). Firestore admin and ownership
 // check are mocked end-to-end so the test runs purely in-process.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 
 // --- Hoisted mocks -----------------------------------------------------------
 const { getMock } = vi.hoisted(() => ({ getMock: vi.fn() }));
@@ -70,10 +70,13 @@ function setupEvidenceCollection(docs: Array<{ data: () => EvidenceRow }>) {
 
 // --- Tests -------------------------------------------------------------------
 describe('getFinding — evidence cap (Item #14)', () => {
-  // Use the no-op write spy as `any` because process.stderr.write's overloaded
-  // signature trips vi.SpyInstance's generic constraints. The runtime behavior
-  // (recording calls) is what matters.
-  let stderrSpy: any;
+  // Spy on the no-op stderr write. We match the overload signature that the
+  // spy actually intercepts at runtime (string|Uint8Array → boolean) so the
+  // MockInstance generics align without resorting to `any`.
+  let stderrSpy: MockInstance<
+    [str: string | Uint8Array, encoding?: BufferEncoding, cb?: (err?: Error | null) => void],
+    boolean
+  >;
   const originalEvidenceCap = process.env.EVIDENCE_CAP;
 
   beforeEach(() => {

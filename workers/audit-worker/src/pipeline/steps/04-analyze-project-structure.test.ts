@@ -41,6 +41,7 @@ function makeCtx(clonePath: string | null): WorkerCtx {
     repoUrl: 'https://github.com/example/repo',
     deployUrl: null,
     prdText: null,
+    profileId: null,
     clonePath,
     log: vi.fn(),
   };
@@ -307,5 +308,168 @@ describe('step04AnalyzeProjectStructure - framework detection', () => {
     const ev = state.frameworkProfile!.evidence[0]!;
     expect(ev.file).toBe('package.json');
     expect(ev.signal.toLowerCase()).toContain('fastify');
+  });
+
+  // T1.2 W1-A1 — README presence evidence emission
+  it('sets evidence.README_PRESENT=true when README.md exists at root', async () => {
+    const { dir, state } = await setup();
+    await writeFile(dir, 'README.md', '# project');
+    await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+    expect(state.evidence.README_PRESENT).toBe(true);
+  });
+
+  it('sets evidence.README_PRESENT=true for case-insensitive variants (readme.MD, README.rst)', async () => {
+    {
+      const { dir, state } = await setup();
+      await writeFile(dir, 'readme.MD', 'x');
+      await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+      expect(state.evidence.README_PRESENT).toBe(true);
+    }
+    {
+      const { dir, state } = await setup();
+      await writeFile(dir, 'README.rst', 'x');
+      await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+      expect(state.evidence.README_PRESENT).toBe(true);
+    }
+    {
+      const { dir, state } = await setup();
+      await writeFile(dir, 'README', 'x');
+      await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+      expect(state.evidence.README_PRESENT).toBe(true);
+    }
+  });
+
+  it('sets evidence.README_PRESENT=false when no README file at root', async () => {
+    const { dir, state } = await setup();
+    await writePkg(dir, { dependencies: { next: '14.0.0' } });
+    await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+    expect(state.evidence.README_PRESENT).toBe(false);
+  });
+
+  it('does NOT match README in subdirectories (root-only check)', async () => {
+    const { dir, state } = await setup();
+    await writeFile(dir, 'docs/README.md', 'subdir readme');
+    await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+    expect(state.evidence.README_PRESENT).toBe(false);
+  });
+
+  it('does not touch evidence.README_PRESENT when clonePath is null', async () => {
+    const state = createInitialState();
+    await step04AnalyzeProjectStructure.execute(makeCtx(null), state);
+    expect(state.evidence.README_PRESENT).toBeUndefined();
+  });
+
+  // T1.2-FU W1-A2..A5 — full W1AEvidence emission
+  it('w1aEvidence.PACKAGE_SCRIPTS_PRESENT=true when package.json scripts is non-empty', async () => {
+    const { dir, state } = await setup();
+    await writePkg(dir, { scripts: { test: 'vitest' } });
+    await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+    expect(state.w1aEvidence.PACKAGE_SCRIPTS_PRESENT).toBe(true);
+  });
+
+  it('w1aEvidence.PACKAGE_SCRIPTS_PRESENT=false when package.json missing or scripts empty', async () => {
+    {
+      const { dir, state } = await setup();
+      await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+      expect(state.w1aEvidence.PACKAGE_SCRIPTS_PRESENT).toBe(false);
+    }
+    {
+      const { dir, state } = await setup();
+      await writePkg(dir, { scripts: {} });
+      await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+      expect(state.w1aEvidence.PACKAGE_SCRIPTS_PRESENT).toBe(false);
+    }
+  });
+
+  it('w1aEvidence.LICENSE_PRESENT=true for LICENSE / LICENSE.md / license.txt (case-insensitive)', async () => {
+    for (const name of ['LICENSE', 'LICENSE.md', 'license.txt']) {
+      const { dir, state } = await setup();
+      await writeFile(dir, name, 'MIT');
+      await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+      expect(state.w1aEvidence.LICENSE_PRESENT).toBe(true);
+    }
+  });
+
+  it('w1aEvidence.LICENSE_PRESENT=false when no license file at root', async () => {
+    const { dir, state } = await setup();
+    await writeFile(dir, 'README.md', '# x');
+    await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+    expect(state.w1aEvidence.LICENSE_PRESENT).toBe(false);
+  });
+
+  it('w1aEvidence.CI_CONFIG_PRESENT=true for .github/workflows/*.yml', async () => {
+    const { dir, state } = await setup();
+    await writeFile(dir, '.github/workflows/ci.yml', 'on: push');
+    await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+    expect(state.w1aEvidence.CI_CONFIG_PRESENT).toBe(true);
+  });
+
+  it('w1aEvidence.CI_CONFIG_PRESENT=true for .circleci/config.yml', async () => {
+    const { dir, state } = await setup();
+    await writeFile(dir, '.circleci/config.yml', 'version: 2');
+    await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+    expect(state.w1aEvidence.CI_CONFIG_PRESENT).toBe(true);
+  });
+
+  it('w1aEvidence.CI_CONFIG_PRESENT=true for .gitlab-ci.yml', async () => {
+    const { dir, state } = await setup();
+    await writeFile(dir, '.gitlab-ci.yml', 'stages:');
+    await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+    expect(state.w1aEvidence.CI_CONFIG_PRESENT).toBe(true);
+  });
+
+  it('w1aEvidence.CI_CONFIG_PRESENT=false when no CI config exists', async () => {
+    const { dir, state } = await setup();
+    await writePkg(dir, {});
+    await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+    expect(state.w1aEvidence.CI_CONFIG_PRESENT).toBe(false);
+  });
+
+  it('w1aEvidence.TESTS_DIR_PRESENT=true when tests/ directory exists at root', async () => {
+    const { dir, state } = await setup();
+    await mkSubdir(dir, 'tests');
+    await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+    expect(state.w1aEvidence.TESTS_DIR_PRESENT).toBe(true);
+  });
+
+  it('w1aEvidence.TESTS_DIR_PRESENT=true when __tests__/ exists', async () => {
+    const { dir, state } = await setup();
+    await mkSubdir(dir, '__tests__');
+    await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+    expect(state.w1aEvidence.TESTS_DIR_PRESENT).toBe(true);
+  });
+
+  it('w1aEvidence.TESTS_DIR_PRESENT=true when test/ exists', async () => {
+    const { dir, state } = await setup();
+    await mkSubdir(dir, 'test');
+    await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+    expect(state.w1aEvidence.TESTS_DIR_PRESENT).toBe(true);
+  });
+
+  it('w1aEvidence.TESTS_DIR_PRESENT=false when no test directory present', async () => {
+    const { dir, state } = await setup();
+    await writePkg(dir, {});
+    await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+    expect(state.w1aEvidence.TESTS_DIR_PRESENT).toBe(false);
+  });
+
+  it('w1aEvidence.README_PRESENT mirrors evidence.README_PRESENT', async () => {
+    const { dir, state } = await setup();
+    await writeFile(dir, 'README.md', '# x');
+    await step04AnalyzeProjectStructure.execute(makeCtx(dir), state);
+    expect(state.w1aEvidence.README_PRESENT).toBe(true);
+    expect(state.evidence.README_PRESENT).toBe(true);
+  });
+
+  it('w1aEvidence all-false when clonePath is null (no inspection performed)', async () => {
+    const state = createInitialState();
+    await step04AnalyzeProjectStructure.execute(makeCtx(null), state);
+    expect(state.w1aEvidence).toEqual({
+      README_PRESENT: false,
+      PACKAGE_SCRIPTS_PRESENT: false,
+      LICENSE_PRESENT: false,
+      CI_CONFIG_PRESENT: false,
+      TESTS_DIR_PRESENT: false,
+    });
   });
 });

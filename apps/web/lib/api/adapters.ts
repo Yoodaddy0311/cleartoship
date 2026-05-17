@@ -32,6 +32,10 @@ const LAUNCH_STATUS_MAP: Record<ApiLaunchStatus, UiLaunchStatus> = {
   // score; UI surfaces an inline "분석 표면 부족" banner instead of a verdict
   // chip — see ScoreOverview.
   INDETERMINATE: 'indeterminate',
+  // T1.1 guardrails (e.g. REPO_TOO_LARGE) abort the audit before measurement
+  // can meaningfully start. Worker writes BLOCKED + abortReason — UI shows a
+  // "가드레일 작동" banner and the BLOCKED chip alongside the reason code.
+  BLOCKED: 'blocked',
 };
 
 export function adaptLaunchStatus(s: ApiLaunchStatus): UiLaunchStatus {
@@ -44,7 +48,7 @@ const CONFIDENCE_MAP: Record<ApiConfidence, FindingViewModel['confidence']> = {
   LOW: 'low',
 };
 
-/** Categorize the 11 shared categories down to the 10 the UI renders. */
+/** Categorize the 12 shared categories down to the 11 the UI renders. */
 function isUiCategory(c: Finding['category']): c is AuditCategory {
   return c !== 'MAINTAINABILITY_DOCUMENTATION';
 }
@@ -64,6 +68,7 @@ export function adaptCategoryScores(
     DATA_MODEL: 0,
     SECURITY_PRIVACY: 0,
     LAUNCH_READINESS: 0,
+    BUSINESS_READINESS: 0,
   };
   for (const cs of list) {
     if (isUiCategory(cs.category)) {
@@ -94,6 +99,7 @@ export function adaptCategoryScoresNullable(
     DATA_MODEL: null,
     SECURITY_PRIVACY: null,
     LAUNCH_READINESS: null,
+    BUSINESS_READINESS: null,
   };
   for (const cs of list) {
     if (isUiCategory(cs.category)) {
@@ -131,6 +137,9 @@ export function adaptFinding(
     recommendation: splitBulletList(finding.recommendation),
     acceptanceCriteria: finding.acceptanceCriteria,
     evidences: evidences.map(adaptEvidence),
+    // L-P0-6: forward optional `actionHint` straight through — schema 가 이미
+    // strict-validated 이고 view shape 도 같은 ladder 를 쓴다 (5/30/60/240).
+    ...(finding.actionHint ? { actionHint: finding.actionHint } : {}),
   };
 }
 

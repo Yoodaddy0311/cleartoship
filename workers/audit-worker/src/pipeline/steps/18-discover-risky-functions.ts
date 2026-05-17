@@ -8,11 +8,15 @@ import * as path from 'node:path';
 import type { Step } from './index.js';
 import type { NormalizedFinding } from '../../adapters/index.js';
 import {
+  W1B_GROUP_TAG,
   discoverRiskyFunctions,
+  getW1BId,
+  getW1BIdByName,
   type RiskCategory,
   type RiskyFunction,
 } from '@cleartoship/audit-core';
 import type { AuditCategory } from '@cleartoship/shared-types';
+import { recordStepOutcome } from '../lib/record-step-outcome.js';
 import { writeToolResult } from '../../firestore/writers.js';
 
 const MAX_RISKY = 30;
@@ -43,7 +47,17 @@ function riskyToFinding(r: RiskyFunction): NormalizedFinding {
       '해당 함수의 권한 체크/인증 경계가 명시적으로 검증되었다.',
       '데이터 변경 시 트랜잭션과 감사 로그가 포함되어 있다.',
     ],
-    tags: ['risky-function', r.category],
+    // T1.3 + T1.3-FU: emit checklist tags so report-renderer §7 can group by
+    // W1-B IDs. Includes BOTH the category baseline (W1-B1..W1-B6) and the
+    // most specific fine-grained sub-ID (W1-B7..) when the function name
+    // matches a known pattern. When no pattern matches, both tags collapse to
+    // the baseline ID (deduplicated downstream).
+    tags: (() => {
+      const baseline = getW1BId(r.category);
+      const fine = getW1BIdByName(r.category, r.name);
+      const ids = fine === baseline ? [baseline] : [baseline, fine];
+      return ['risky-function', r.category, W1B_GROUP_TAG, ...ids];
+    })(),
     evidences: [
       {
         type: 'CODE_SNIPPET',
@@ -134,7 +148,7 @@ export const step18DiscoverRiskyFunctions: Step = {
     });
     // BUG-1: mark DISCOVER_RISKY_FUNCTIONS executed only after the discovery
     // pass actually walked the cloned tree.
-    state.executedSteps.push('DISCOVER_RISKY_FUNCTIONS');
+    recordStepOutcome(state, 'DISCOVER_RISKY_FUNCTIONS', 'CHECKPOINT');
     ctx.log('info', 'Risky function discovery complete', {
       count: risky.length,
       byCategory,

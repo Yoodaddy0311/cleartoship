@@ -30,8 +30,21 @@ describe('CreateAuditRunRequestSchema', () => {
     }
   });
 
-  it('rejects prdText longer than 50,000 chars', () => {
-    const huge = 'x'.repeat(50_001);
+  // W2-A: schema cap is 200KB server safety net. The 50KB user cap is enforced
+  // in `apps/web/lib/audit-runs/create-audit-run.ts` via PrdTextTooLargeError →
+  // 422 + maxBytes/actualBytes (richer than zod's 400). 50_001 chars therefore
+  // passes the schema and is rejected downstream by createAuditRun().
+  it('accepts prdText up to 200,000 chars (50KB user cap enforced downstream)', () => {
+    const within = 'x'.repeat(50_001);
+    const result = CreateAuditRunRequestSchema.safeParse({
+      repoUrl: 'https://github.com/a/b',
+      prdText: within,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects prdText longer than 200,000 chars (server safety net)', () => {
+    const huge = 'x'.repeat(200_001);
     const result = CreateAuditRunRequestSchema.safeParse({
       repoUrl: 'https://github.com/a/b',
       prdText: huge,

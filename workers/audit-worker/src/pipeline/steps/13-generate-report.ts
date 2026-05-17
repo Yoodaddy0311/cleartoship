@@ -1,6 +1,14 @@
-import type { Step } from './index.js';
-import type { CategoryScore, Finding, LaunchStatus } from '@cleartoship/shared-types';
-import { buildReport } from '@cleartoship/audit-core';
+import type { Step, PipelineState } from './index.js';
+import type {
+  CategoryScore,
+  Finding,
+  LaunchStatus,
+} from '@cleartoship/shared-types';
+import {
+  buildCoverageMatrix,
+  buildReport,
+  type DetectedFeatureHint,
+} from '@cleartoship/audit-core';
 import { getFirestoreClient } from '../../firestore/client.js';
 import { writeReport } from '../../firestore/writers.js';
 
@@ -32,14 +40,24 @@ export const step13GenerateReport: Step = {
       };
     });
 
-    const categoryScores: CategoryScore[] =
-      (state as unknown as { __categoryScores?: CategoryScore[] }).__categoryScores ?? [];
+    const categoryScores: CategoryScore[] = state.categoryScores ?? [];
 
     const oneLine = composeOneLineSummary(
       state.readinessScore,
       state.severityCounts,
       state.launchStatus,
     );
+
+    // L-P0-5 (USP-2) — PRD Coverage Matrix. Built here (not in step04c) so we
+    // can cross-reference the final persisted findings + stable detected
+    // features. ctx.prdText may be null when the user didn't upload one — in
+    // that case buildCoverageMatrix returns [] and the renderer skips §2.1.
+    const coverageMatrix = buildCoverageMatrix({
+      prdText: ctx.prdText,
+      detectedFeatures: toFeatureHints(state),
+      findings,
+    });
+    state.prdCoverageMatrix = [...coverageMatrix];
 
     const report = buildReport({
       projectName: deriveProjectName(ctx.repoUrl),
@@ -55,6 +73,7 @@ export const step13GenerateReport: Step = {
       findings,
       graphSummary: null,
       oneLineSummary: oneLine,
+      coverageMatrix,
     });
 
     await writeReport(ctx.runId, {
@@ -65,10 +84,42 @@ export const step13GenerateReport: Step = {
       severityCounts: report.severityCounts,
       executiveSummary: report.executiveSummary,
       markdown: report.markdown,
+      ...(report.coverageMatrix ? { coverageMatrix: report.coverageMatrix } : {}),
+      // L-P0-3: persist the deterministic ship verdict alongside the
+      // markdown so the dashboard can render the §1 한 줄 결론 chip without
+      // re-parsing the markdown body. buildReport always populates this
+      // field (audit-core SSOT — worker never inlines the rules).
+      ...(report.shipVerdict ? { shipVerdict: report.shipVerdict } : {}),
     });
-    ctx.log('info', 'Report generated', { length: report.markdown.length });
+    ctx.log('info', 'Report generated', {
+      length: report.markdown.length,
+      coverageEntries: coverageMatrix.length,
+      shipVerdict: report.shipVerdict?.verdict ?? null,
+    });
   },
 };
+
+/**
+ * Adapt `state.detectedFeatures` into the lean DetectedFeatureHint shape that
+ * the coverage-matrix builder consumes. Keeps the SSOT inside audit-core (the
+ * worker only knows how to flatten its own state).
+ */
+function toFeatureHints(state: PipelineState): DetectedFeatureHint[] {
+  return state.detectedFeatures.map((feat) => ({
+    id: feat.id,
+    label: feat.label,
+    primaryPath: feat.summary ?? feat.label,
+    keywords: tokenizeLabel(feat.label),
+  }));
+}
+
+function tokenizeLabel(label: string): string[] {
+  return label
+    .toLowerCase()
+    .split(/[\s/\\,.\-_()'"`]+/u)
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 2);
+}
 
 function deriveProjectName(repoUrl: string): string {
   const m = /\/([^/]+?)(?:\.git)?\/?$/.exec(repoUrl);
@@ -82,6 +133,9 @@ export function composeOneLineSummary(
 ): string {
   if (launchStatus === 'INDETERMINATE') {
     return '분석 표면이 부족해 출시 준비도를 산정하지 못했습니다. 도구 설치/배포 URL/PRD 입력을 보강한 뒤 다시 분석해 주세요.';
+  }
+  if (launchStatus === 'BLOCKED') {
+    return '비용 가드레일이 작동해 감사를 중단했습니다. 저장소 크기/파일 수 한도를 확인하거나 운영자에게 상한 조정을 요청하세요.';
   }
   if (score >= 85) {
     return `이 프로젝트는 출시 준비도 ${score}점으로 양호한 상태입니다. 세부 개선 항목만 확인하세요.`;

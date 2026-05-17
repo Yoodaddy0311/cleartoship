@@ -16,6 +16,7 @@
     "build": "echo \"transpiled by consumer (Next.js transpilePackages)\" && exit 0"
   },
   "dependencies": {
+    "@cleartoship/shared-types": "workspace:*",
     "clsx": "^2.1.1",
     "lucide-react": "^0.456.0",
     "tailwind-merge": "^2.5.4",

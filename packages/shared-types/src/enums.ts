@@ -14,10 +14,12 @@ export const AuditRunStatus = z.enum([
 export type AuditRunStatus = z.infer<typeof AuditRunStatus>;
 
 /**
- * 10 audit categories from `03_audit_checklist_scoring_rubric.md`.
- * Note: the spec also includes MAINTAINABILITY_DOCUMENTATION which we keep
- * for completeness (11 values total) — UI displays main 10, but workers may
- * emit findings against it.
+ * Audit categories from `03_audit_checklist_scoring_rubric.md` (10 base) +
+ * BUSINESS_READINESS (T2.8/UPG-06). MAINTAINABILITY_DOCUMENTATION is kept for
+ * completeness — UI displays main 10, but workers may emit findings against
+ * it. BUSINESS_READINESS surfaces Pricing/Legal/Onboarding/Support/Analytics
+ * sub-categories; weight is 0 (Phase 1) so the existing weight-sum=100
+ * invariant is preserved.
  */
 export const AuditCategory = z.enum([
   'PRODUCT_INTENT',
@@ -31,6 +33,7 @@ export const AuditCategory = z.enum([
   'SECURITY_PRIVACY',
   'LAUNCH_READINESS',
   'MAINTAINABILITY_DOCUMENTATION',
+  'BUSINESS_READINESS',
 ]);
 export type AuditCategory = z.infer<typeof AuditCategory>;
 

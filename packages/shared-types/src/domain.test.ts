@@ -132,3 +132,55 @@ describe('AuditRunSchema.partialResultTools field', () => {
     expect(result.success).toBe(false);
   });
 });
+
+// T1.1d: guardrail short-circuit fields. The audit-worker `markRunBlocked`
+// helper writes these directly to the AuditRun doc when a guardrail (e.g.
+// REPO_TOO_LARGE) aborts before step13 (report writer) runs. Without them
+// in the schema, the Firestore converter zod-strips them and the UI never
+// sees the BLOCKED verdict.
+describe('AuditRunSchema.launchStatus + abortReason fields (T1.1d)', () => {
+  it('omits both keys by default (normal run path — no guardrail fired)', () => {
+    const parsed = AuditRunSchema.parse(baseAuditRun());
+    expect(parsed.launchStatus).toBeUndefined();
+    expect(parsed.abortReason).toBeUndefined();
+  });
+
+  it('round-trips BLOCKED + abortReason through the schema (guardrail path)', () => {
+    const parsed = AuditRunSchema.parse(
+      baseAuditRun({ launchStatus: 'BLOCKED', abortReason: 'REPO_TOO_LARGE' }),
+    );
+    expect(parsed.launchStatus).toBe('BLOCKED');
+    expect(parsed.abortReason).toBe('REPO_TOO_LARGE');
+  });
+
+  it.each([
+    'READY',
+    'CONDITIONAL',
+    'NEEDS_WORK',
+    'AT_RISK',
+    'NOT_READY',
+    'INDETERMINATE',
+    'BLOCKED',
+  ] as const)('accepts launchStatus=%s (full enum on the run doc)', (status) => {
+    const parsed = AuditRunSchema.parse(baseAuditRun({ launchStatus: status }));
+    expect(parsed.launchStatus).toBe(status);
+  });
+
+  it('rejects an unknown launchStatus literal', () => {
+    const result = AuditRunSchema.safeParse(
+      baseAuditRun({ launchStatus: 'UNCERTAIN' }),
+    );
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const paths = result.error.issues.map((i) => i.path.join('.'));
+      expect(paths).toContain('launchStatus');
+    }
+  });
+
+  it('rejects a non-string abortReason (defensive: machine-readable code expected)', () => {
+    const result = AuditRunSchema.safeParse(
+      baseAuditRun({ abortReason: 123 }),
+    );
+    expect(result.success).toBe(false);
+  });
+});

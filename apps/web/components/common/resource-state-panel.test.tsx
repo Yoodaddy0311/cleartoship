@@ -308,3 +308,147 @@ describe('PartialResultBanner — warn variant', () => {
     expect(screen.getByText(/mystery-tool/)).toBeInTheDocument();
   });
 });
+
+// T2.12 #112: PartialResultBanner — surfaces affected N/A categories so the
+// non-developer user understands *which areas* of the report were not
+// measured, plus distinguishes BLOCKED (guardrail) from FAILED (tool error).
+describe('PartialResultBanner — N/A category labels (T2.12 #112)', () => {
+  it('renders the N/A category section with the SECURITY_PRIVACY label when osv-scanner skipped', () => {
+    render(<PartialResultBanner toolNames={['osv-scanner']} />);
+    const section = screen.getByTestId('partial-result-categories');
+    expect(section).toBeInTheDocument();
+    expect(
+      screen.getByTestId('partial-result-category-SECURITY_PRIVACY')
+    ).toHaveTextContent(/보안 검사 \(실행되지 않음\)/);
+  });
+
+  it('aggregates and de-duplicates categories across multiple SKIPPED tools', () => {
+    render(
+      <PartialResultBanner
+        toolNames={['semgrep', 'osv-scanner', 'gitleaks', 'lighthouse']}
+      />
+    );
+    // semgrep → FRONTEND_CODE + SECURITY_PRIVACY, osv-scanner → SECURITY_PRIVACY (dedup),
+    // gitleaks → SECURITY_PRIVACY (dedup), lighthouse → LAUNCH_READINESS + UX_UI
+    expect(
+      screen.getByTestId('partial-result-category-FRONTEND_CODE')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId('partial-result-category-SECURITY_PRIVACY')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId('partial-result-category-LAUNCH_READINESS')
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId('partial-result-category-UX_UI')
+    ).toBeInTheDocument();
+    // Only one chip per category despite three tools sharing SECURITY_PRIVACY.
+    expect(
+      screen.getAllByTestId('partial-result-category-SECURITY_PRIVACY')
+    ).toHaveLength(1);
+  });
+
+  it('omits the category section when no SKIPPED tool maps to a known category', () => {
+    render(<PartialResultBanner toolNames={['mystery-tool']} />);
+    expect(screen.queryByTestId('partial-result-categories')).toBeNull();
+  });
+
+  it('labels affected categories as "실행되지 않음" (skipped) by default', () => {
+    render(<PartialResultBanner toolNames={['semgrep']} />);
+    const chip = screen.getByTestId('partial-result-category-SECURITY_PRIVACY');
+    expect(chip).toHaveAttribute('data-na-reason', 'skipped');
+    expect(chip).toHaveTextContent(/실행되지 않음/);
+    expect(chip).not.toHaveTextContent(/가드레일/);
+  });
+
+  it('flips to "가드레일 작동으로 중단" labels when blockedContext is supplied', () => {
+    render(
+      <PartialResultBanner
+        toolNames={['semgrep']}
+        blockedContext={{ abortReason: 'REPO_TOO_LARGE' }}
+      />
+    );
+    const banner = screen.getByTestId('partial-result-banner');
+    expect(banner).toHaveAttribute('data-na-reason', 'blocked');
+    const chip = screen.getByTestId('partial-result-category-SECURITY_PRIVACY');
+    expect(chip).toHaveAttribute('data-na-reason', 'blocked');
+    expect(chip).toHaveTextContent(/가드레일 작동으로 중단/);
+    expect(chip).not.toHaveTextContent(/실행되지 않음/);
+  });
+
+  it('renders the blocked note with the abortReason interpolated', () => {
+    render(
+      <PartialResultBanner
+        toolNames={['semgrep']}
+        blockedContext={{ abortReason: 'REPO_TOO_LARGE' }}
+      />
+    );
+    const note = screen.getByTestId('partial-result-blocked-note');
+    expect(note).toHaveTextContent(/가드레일에 의해 분석이 중단/);
+    expect(note).toHaveTextContent(/REPO_TOO_LARGE/);
+  });
+
+  it('renders even when toolNames is empty if blockedContext is supplied', () => {
+    // BLOCKED runs may surface the banner with no skipped tools recorded yet.
+    render(
+      <PartialResultBanner
+        toolNames={[]}
+        blockedContext={{ abortReason: 'DEPLOY_URL_UNREACHABLE' }}
+      />
+    );
+    expect(screen.getByTestId('partial-result-banner')).toBeInTheDocument();
+    expect(
+      screen.getByTestId('partial-result-blocked-note')
+    ).toHaveTextContent(/DEPLOY_URL_UNREACHABLE/);
+  });
+
+  it('omits the blocked note when blockedContext is not supplied', () => {
+    render(<PartialResultBanner toolNames={['semgrep']} />);
+    expect(screen.queryByTestId('partial-result-blocked-note')).toBeNull();
+  });
+});
+
+// T2.12 #112: a11y — category chips must be screen-reader-accessible and
+// keep the role=status/aria-live behaviour even with the richer payload.
+describe('PartialResultBanner — a11y for N/A category labels (T2.12 #112)', () => {
+  it('keeps role="status" + aria-live="polite" with the category section mounted', () => {
+    render(
+      <PartialResultBanner toolNames={['osv-scanner', 'lighthouse']} />
+    );
+    const banner = screen.getByTestId('partial-result-banner');
+    expect(banner).toHaveAttribute('role', 'status');
+    expect(banner).toHaveAttribute('aria-live', 'polite');
+  });
+
+  it('labels the category section via aria-label so screen readers announce its purpose', () => {
+    render(<PartialResultBanner toolNames={['gitleaks']} />);
+    const section = screen.getByTestId('partial-result-categories');
+    expect(section).toHaveAttribute(
+      'aria-label',
+      '점수가 N/A로 표시되는 카테고리'
+    );
+  });
+
+  it('exposes a "왜 N/A인가?" tooltip via title and a sr-only description on each chip', () => {
+    render(<PartialResultBanner toolNames={['osv-scanner']} />);
+    const chip = screen.getByTestId('partial-result-category-SECURITY_PRIVACY');
+    // Native tooltip — no extra deps, screen readers get the same string via
+    // aria-describedby to the sr-only sibling below.
+    expect(chip).toHaveAttribute('title', '왜 N/A인가요?');
+    const describedById = chip.getAttribute('aria-describedby');
+    expect(describedById).toBeTruthy();
+    const desc = document.getElementById(describedById ?? '');
+    expect(desc).not.toBeNull();
+    expect(desc).toHaveTextContent(/왜 N\/A인가요\?/);
+    expect(desc).toHaveTextContent(/실행되지 않음/);
+  });
+
+  it('does not duplicate the decorative ⚠️ emoji into the accessible name', () => {
+    render(<PartialResultBanner toolNames={['osv-scanner']} />);
+    const chip = screen.getByTestId('partial-result-category-SECURITY_PRIVACY');
+    // The icon is wrapped in aria-hidden so screen readers do not read it.
+    const decorative = chip.querySelector('[aria-hidden="true"]');
+    expect(decorative).not.toBeNull();
+    expect(decorative?.textContent).toContain('⚠️');
+  });
+});

@@ -4,7 +4,7 @@ import { AuditProgressPage } from './pages/AuditProgressPage';
 import { AuditDashboardPage } from './pages/AuditDashboardPage';
 
 /**
- * Golden path E2E: Home → submit URL → progress (15 steps) → dashboard.
+ * Golden path E2E: Home → submit URL → progress (18 steps) → dashboard.
  *
  * Sprint 0 mocking strategy:
  *   - POST /api/audit-runs → fulfilled with a deterministic id ("e2e-golden").
@@ -86,7 +86,7 @@ test.beforeEach(async ({ page }) => {
 // submit on auth.uid which never resolves without real Firebase config or an
 // Auth Emulator). See docs/USER-ACTIONS-QUEUE.md P0 #1 and P1 #4.
 test.describe.skip('Scenario 1: Anonymous user runs audit (golden path)', () => {
-  test('Home → submit → progress (15 steps) → dashboard', async ({ page }) => {
+  test('Home → submit → progress (18 steps) → dashboard', async ({ page }) => {
     const home = new HomePage(page);
     const progress = new AuditProgressPage(page);
     const dashboard = new AuditDashboardPage(page);
@@ -107,7 +107,7 @@ test.describe.skip('Scenario 1: Anonymous user runs audit (golden path)', () => 
     expect(auditId).toBe(STUB_AUDIT_ID);
 
     await progress.expectVisible();
-    await progress.expectStepCount(15);
+    await progress.expectStepCount(18);
     await progress.expectKoreanStepLabels([
       '입력 검증',
       '저장소 복제',
@@ -135,7 +135,7 @@ test.describe.skip('Scenario 1: Anonymous user runs audit (golden path)', () => 
     await home.submit();
 
     const auditId = await home.waitForNavigationToAudit();
-    await progress.expectStepCount(15);
+    await progress.expectStepCount(18);
     await progress.waitForDashboardRedirect(auditId, 30_000);
     await dashboard.expectLoaded(auditId);
   });

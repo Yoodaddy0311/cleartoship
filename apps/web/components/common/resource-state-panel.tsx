@@ -35,14 +35,47 @@ interface ResourceStatePanelProps {
   emptyContext?: ResourceEmptyContext;
 }
 
+/**
+ * T2.12 #112: Categories that go N/A when a given tool is missing. Used by
+ * the banner to surface "보안 검사 (실행되지 않음)" labels instead of dumping
+ * raw tool names. Single source of truth so future tools only need one entry
+ * here. Categories use the canonical UPPER_SNAKE keys from
+ * `shared-types` `AuditCategory`, mapped to UI strings via i18n.
+ */
+const TOOL_TO_CATEGORIES: Record<string, readonly string[]> = {
+  semgrep: ['FRONTEND_CODE', 'SECURITY_PRIVACY'],
+  'osv-scanner': ['SECURITY_PRIVACY'],
+  gitleaks: ['SECURITY_PRIVACY'],
+  lighthouse: ['LAUNCH_READINESS', 'UX_UI'],
+  'lighthouse-axe': ['LAUNCH_READINESS', 'UX_UI'],
+};
+
+/** Why each category went N/A. Stored on the affected category cell so the
+ * banner can distinguish ops-env skipping (FAILED) from guardrail short-circuit
+ * (BLOCKED). The user-facing copy lives in i18n. */
+type NaReason = 'skipped' | 'blocked' | 'failed';
+
+interface BlockedContext {
+  /** Machine code from `AuditRun.abortReason` (e.g. `REPO_TOO_LARGE`). */
+  abortReason: string;
+}
+
 interface PartialResultBannerProps {
   /**
    * Names of analysis tools that returned `ToolResult.status === 'SKIPPED'`
    * during this audit run (typically because the binary was absent on the
    * worker host, or — for lighthouse — the user did not supply a deploy URL).
-   * Empty array → renders nothing.
+   * Empty array → renders nothing (unless `blockedContext` is supplied).
    */
   toolNames: readonly string[];
+  /**
+   * T2.12 #112: when present, the banner switches to "BLOCKED (guardrail)"
+   * mode. The affected categories are still derived from `toolNames`, but the
+   * N/A reason chip flips from "실행되지 않음" → "가드레일 작동으로 중단"
+   * and a top note shows the abortReason. Optional so the existing call sites
+   * keep their behaviour unchanged.
+   */
+  blockedContext?: BlockedContext;
   className?: string;
 }
 
@@ -99,6 +132,49 @@ function describeTool(name: string): {
 }
 
 /**
+ * T2.12 #112: derive the de-duplicated set of N/A categories from the
+ * SKIPPED tool list. Unknown tools (no entry in `TOOL_TO_CATEGORIES`) are
+ * silently ignored — they will still surface in the per-tool details list
+ * via {@link describeTool}, so the user is not left in the dark.
+ *
+ * The output preserves a stable order driven by the iteration order of
+ * `TOOL_TO_CATEGORIES` values so the banner reads consistently between
+ * runs ("보안 검사, 코드 품질 검사, 성능 검사").
+ */
+function categoriesFromTools(toolNames: readonly string[]): readonly string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const name of toolNames) {
+    const cats = TOOL_TO_CATEGORIES[name];
+    if (!cats) continue;
+    for (const c of cats) {
+      if (seen.has(c)) continue;
+      seen.add(c);
+      out.push(c);
+    }
+  }
+  return out;
+}
+
+/** Localised label for an audit category, using the dedicated
+ * `errors.audit.category.<KEY>` key. Falls back to the raw key when missing
+ * (defensive — every entry in `TOOL_TO_CATEGORIES` should have a string). */
+function categoryLabel(category: string): string {
+  const key = `errors.audit.category.${category}` as Parameters<typeof t>[0];
+  return t(key);
+}
+
+function naReasonLabel(reason: NaReason): string {
+  if (reason === 'blocked') {
+    return t('errors.audit.toolUnavailable.naReason.blocked');
+  }
+  if (reason === 'failed') {
+    return t('errors.audit.toolUnavailable.naReason.failed');
+  }
+  return t('errors.audit.toolUnavailable.naReason.skipped');
+}
+
+/**
  * "Partial results" warn banner used by the audit-progress and dashboard
  * pages. Surfaces missing-tool degradation that would otherwise be invisible
  * (the run completes with score 0 with no obvious cause).
@@ -114,20 +190,27 @@ function describeTool(name: string): {
  */
 export function PartialResultBanner({
   toolNames,
+  blockedContext,
   className,
 }: PartialResultBannerProps) {
-  if (toolNames.length === 0) {
+  if (toolNames.length === 0 && blockedContext === undefined) {
     return null;
   }
 
   const described = toolNames.map(describeTool);
   const hasDeployUrlGap = described.some((d) => d.requiresDeployUrl);
+  const naCategories = categoriesFromTools(toolNames);
+  // T2.12 #112: BLOCKED (guardrail) vs FAILED (도구 오류) 구분 — when the
+  // caller knows the run was aborted by a guardrail, every affected category
+  // is labelled as "가드레일 작동으로 중단" instead of "실행되지 않음".
+  const naReason: NaReason = blockedContext !== undefined ? 'blocked' : 'skipped';
 
   return (
     <div
       role="status"
       aria-live="polite"
       data-testid="partial-result-banner"
+      data-na-reason={naReason}
       className={cn(
         'flex flex-col gap-2 rounded-md border px-3 py-2 text-sm',
         'border-[color:var(--color-severity-p2)]',
@@ -142,9 +225,24 @@ export function PartialResultBanner({
           className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--color-severity-p2)]"
         />
         <span data-testid="partial-result-summary" className="font-medium">
-          {tf('errors.audit.toolUnavailable.summary', { count: toolNames.length })}
+          {toolNames.length === 0 && blockedContext !== undefined
+            ? t('errors.audit.toolUnavailable.categoryHeading')
+            : tf('errors.audit.toolUnavailable.summary', {
+                count: toolNames.length,
+              })}
         </span>
       </div>
+
+      {blockedContext !== undefined ? (
+        <p
+          data-testid="partial-result-blocked-note"
+          className="ml-6 text-[color:var(--color-fg-secondary)]"
+        >
+          {tf('errors.audit.toolUnavailable.blockedNote', {
+            abortReason: blockedContext.abortReason,
+          })}
+        </p>
+      ) : null}
 
       {hasDeployUrlGap ? (
         <p
@@ -160,24 +258,65 @@ export function PartialResultBanner({
         </p>
       ) : null}
 
-      <details className="ml-6">
-        <summary className="cursor-pointer text-[color:var(--color-fg-secondary)] hover:text-[color:var(--color-fg-primary)]">
-          어떤 검사가 빠졌나요?
-        </summary>
-        <ul className="mt-2 list-disc space-y-1 pl-5 text-[color:var(--color-fg-secondary)]">
-          {described.map((d, idx) => (
-            <li key={`${toolNames[idx]}`}>
-              <span className="font-medium text-[color:var(--color-fg-primary)]">
-                {d.label}
-              </span>
-              <span className="ml-1">— {d.analyzes}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-2 text-[color:var(--color-fg-muted)]">
-          {t('errors.audit.toolUnavailable.disclaimer')}
-        </p>
-      </details>
+      {naCategories.length > 0 ? (
+        <section
+          data-testid="partial-result-categories"
+          aria-label={t('errors.audit.toolUnavailable.categoryHeading')}
+          className="ml-6"
+        >
+          <p className="font-medium text-[color:var(--color-fg-primary)]">
+            {t('errors.audit.toolUnavailable.categoryHeading')}
+          </p>
+          <ul className="mt-1 flex flex-wrap gap-1.5">
+            {naCategories.map((cat) => {
+              const descId = `na-cat-desc-${cat}`;
+              return (
+                <li
+                  key={cat}
+                  data-testid={`partial-result-category-${cat}`}
+                  data-na-reason={naReason}
+                  aria-describedby={descId}
+                  title={t('errors.audit.toolUnavailable.whyNa')}
+                  className="inline-flex items-center gap-1 rounded border border-[color:var(--color-severity-p2)] bg-[rgba(245,158,11,0.12)] px-2 py-0.5 text-xs text-[color:var(--color-fg-primary)]"
+                >
+                  <span aria-hidden="true">⚠️</span>
+                  <span>
+                    {categoryLabel(cat)}{' '}
+                    <span className="text-[color:var(--color-fg-muted)]">
+                      ({naReasonLabel(naReason)})
+                    </span>
+                  </span>
+                  <span id={descId} className="sr-only">
+                    {t('errors.audit.toolUnavailable.whyNa')}{' '}
+                    {naReasonLabel(naReason)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
+
+      {described.length > 0 ? (
+        <details className="ml-6">
+          <summary className="cursor-pointer text-[color:var(--color-fg-secondary)] hover:text-[color:var(--color-fg-primary)]">
+            {t('errors.audit.toolUnavailable.whyNa')}
+          </summary>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-[color:var(--color-fg-secondary)]">
+            {described.map((d, idx) => (
+              <li key={`${toolNames[idx]}`}>
+                <span className="font-medium text-[color:var(--color-fg-primary)]">
+                  {d.label}
+                </span>
+                <span className="ml-1">— {d.analyzes}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[color:var(--color-fg-muted)]">
+            {t('errors.audit.toolUnavailable.disclaimer')}
+          </p>
+        </details>
+      ) : null}
     </div>
   );
 }

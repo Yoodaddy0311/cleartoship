@@ -61,6 +61,7 @@ function makeCtx(overrides: Partial<WorkerCtx> = {}): WorkerCtx {
     repoUrl: 'https://github.com/example/repo',
     deployUrl: 'https://example.com',
     prdText: null,
+    profileId: null,
     clonePath: null,
     log: vi.fn(),
     ...overrides,
@@ -283,6 +284,94 @@ describe('step09AnalyzeDeployUrl', () => {
 
     const lhFinding = state.pendingFindings.find((f) => f.tags.includes('lighthouse'))!;
     expect(lhFinding.severity).toBe('P1');
+  });
+
+  it('profile metadata: SUCCESS write + finding tag reflect LIGHTHOUSE_PROFILE env', async () => {
+    const originalProfile = process.env.LIGHTHOUSE_PROFILE;
+    process.env.LIGHTHOUSE_PROFILE = 'desktop-cable';
+    try {
+      const ctx = makeCtx();
+      const state: PipelineState = createInitialState();
+      chromiumLaunchMock.mockResolvedValueOnce(makeBrowserStub());
+      axeAnalyzeMock.mockResolvedValueOnce({ violations: [] });
+      chromeLauncherLaunchMock.mockResolvedValueOnce({
+        port: 9222,
+        kill: chromeLauncherKillMock,
+      });
+      lighthouseMock.mockResolvedValueOnce(
+        makeLighthouseLhr({ performance: 80, accessibility: 90, bestPractices: 85, seo: 88 }),
+      );
+
+      await step.execute(ctx, state);
+
+      const lhCall = writeToolResultMock.mock.calls.find(
+        (c) => (c[0] as { toolName: string }).toolName === 'lighthouse',
+      )![0] as { status: string; rawSummary: { profile: string } };
+      expect(lhCall.status).toBe('SUCCESS');
+      expect(lhCall.rawSummary.profile).toBe('desktop-cable');
+
+      const lhFinding = state.pendingFindings.find((f) => f.tags.includes('lighthouse'))!;
+      expect(lhFinding.tags).toContain('profile:desktop-cable');
+      expect(lhFinding.summary).toContain('Profile: desktop-cable');
+      expect(lhFinding.evidences[0]!.metadata).toMatchObject({
+        profileId: 'desktop-cable',
+      });
+
+      // The lighthouse fn was called with formFactor=desktop + screenEmulation 1350x940.
+      const lhCallArgs = lighthouseMock.mock.calls[0]![1] as {
+        formFactor: string;
+        screenEmulation: { mobile: boolean; width: number };
+      };
+      expect(lhCallArgs.formFactor).toBe('desktop');
+      expect(lhCallArgs.screenEmulation.mobile).toBe(false);
+      expect(lhCallArgs.screenEmulation.width).toBe(1350);
+    } finally {
+      if (originalProfile === undefined) delete process.env.LIGHTHOUSE_PROFILE;
+      else process.env.LIGHTHOUSE_PROFILE = originalProfile;
+    }
+  });
+
+  it('profile fallback: unknown LIGHTHOUSE_PROFILE warns and uses mobile-slow4G default', async () => {
+    const originalProfile = process.env.LIGHTHOUSE_PROFILE;
+    process.env.LIGHTHOUSE_PROFILE = 'mobile-3G';
+    try {
+      const ctx = makeCtx();
+      const state: PipelineState = createInitialState();
+      chromiumLaunchMock.mockResolvedValueOnce(makeBrowserStub());
+      axeAnalyzeMock.mockResolvedValueOnce({ violations: [] });
+      chromeLauncherLaunchMock.mockResolvedValueOnce({
+        port: 9222,
+        kill: chromeLauncherKillMock,
+      });
+      lighthouseMock.mockResolvedValueOnce(
+        makeLighthouseLhr({ performance: 70, accessibility: 80, bestPractices: 70, seo: 75 }),
+      );
+
+      await step.execute(ctx, state);
+
+      const lhCall = writeToolResultMock.mock.calls.find(
+        (c) => (c[0] as { toolName: string }).toolName === 'lighthouse',
+      )![0] as { rawSummary: { profile: string } };
+      expect(lhCall.rawSummary.profile).toBe('mobile-slow4G');
+
+      const lhCallArgs = lighthouseMock.mock.calls[0]![1] as {
+        formFactor: string;
+        screenEmulation: { width: number; height: number };
+      };
+      expect(lhCallArgs.formFactor).toBe('mobile');
+      expect(lhCallArgs.screenEmulation.width).toBe(375);
+      expect(lhCallArgs.screenEmulation.height).toBe(667);
+
+      // The fallback warning is logged via ctx.log('warn', 'Unknown LIGHTHOUSE_PROFILE...').
+      const logFn = ctx.log as ReturnType<typeof vi.fn>;
+      const sawWarn = logFn.mock.calls.some(
+        (call) => call[0] === 'warn' && String(call[1]).includes('Unknown LIGHTHOUSE_PROFILE'),
+      );
+      expect(sawWarn).toBe(true);
+    } finally {
+      if (originalProfile === undefined) delete process.env.LIGHTHOUSE_PROFILE;
+      else process.env.LIGHTHOUSE_PROFILE = originalProfile;
+    }
   });
 
   it('axe-core severity mapping: critical->P0, serious->P1, moderate->P2, other->P3', async () => {

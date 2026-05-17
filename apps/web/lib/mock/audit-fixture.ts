@@ -87,6 +87,7 @@ export function getMockAudit(id: string): MockAudit {
       DATA_MODEL: 68,
       SECURITY_PRIVACY: 40,
       LAUNCH_READINESS: 58,
+      BUSINESS_READINESS: 60,
     },
     findings: [
       {

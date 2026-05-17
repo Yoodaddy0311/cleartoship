@@ -110,7 +110,10 @@ describe('POST /api/audit-runs — SSRF guard (Item #13)', () => {
     expect(createAuditRunMock).toHaveBeenCalledOnce();
     expect(createAuditRunMock).toHaveBeenCalledWith(
       expect.objectContaining({ deployUrl: 'https://example.com/' }),
-      { ownerId: 'user-1' },
+      // T1.1a: route forwards clientIp (null on this request — no XFF header)
+      // alongside ownerId. objectContaining keeps the assertion robust to
+      // additional options the route may forward in the future.
+      expect.objectContaining({ ownerId: 'user-1' }),
     );
   });
 

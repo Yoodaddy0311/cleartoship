@@ -3,13 +3,16 @@
 > GitHub Repo와 배포 URL을 입력받아 바이브 코딩 산출물의 출시 준비도를 감사하고,
 > 점수 리포트와 개선 PRD를 자동 생성하는 AI Product Auditor.
 
-**상태:** Sprint 0 (Mock Worker 단계) | **라이선스:** MIT
+**상태:** Phase 0 진입 — Round 4 self-audit 완료, O1–O4 fix 통합 (commit `7809ba6`) | **라이선스:** MIT
+
+> 라운드 3·4 self-audit으로 audit-core / audit-worker 테스트 132→154, 205→211개로 확장하고
+> INDETERMINATE 표면 5곳 정합·risky-functions 동적 import 스캔 등 O1–O4 보강을 반영했습니다.
 
 ---
 
 ## 핵심 기능
 
-1. GitHub 리포 + 배포 URL 입력 → 15단계 Audit 파이프라인 자동 실행
+1. GitHub 리포 + 배포 URL 입력 → 18단계 Audit 파이프라인 자동 실행
 2. 정적 분석 / 의존성 취약점 / 시크릿 누출 / UI 접근성 자동 탐지
 3. 카테고리별 AuditScore 산출 + Markdown 리포트 자동 생성
 4. Feature Graph (mermaid) 시각화 및 개선 PRD 자동 작성
@@ -55,10 +58,19 @@ pnpm install
 #   NEXT_PUBLIC_FIREBASE_APP_ID=1:000000000000:web:000000000000
 # 전체 변수 목록은 docs/DEVELOPMENT.md §3 참조
 
-# 3. 개발 서버 시작 (두 터미널)
+# 3. 환경 진단 (선택, 권장)
+pnpm doctor              # Node/pnpm/Firebase CLI/Java/포트/.env/도구 12종 PASS/WARN/FAIL
+
+# 4. 개발 서버 시작 — 통합 (권장)
+pnpm dev:full            # emulators + web + worker 병렬 부팅, Ctrl+C로 일괄 종료
+
+# 4. (대안) 터미널 분리
 pnpm emulators           # 터미널 A: Firebase emulator suite
 pnpm --filter web dev    # 터미널 B: Next.js (http://localhost:3000)
 ```
+
+> Emulator 포트(4000/5000/5001/8080/9099/9199)가 이전 세션의 좀비 프로세스로 점유돼 있다면
+> `pnpm free-ports` 로 점유자를 확인하고, 안전하다고 판단되면 `pnpm free-ports --kill` 로 정리하세요.
 
 상세 환경변수 목록과 Firebase Emulator 셋업은 [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md)를 참고합니다.
 
@@ -71,7 +83,7 @@ cleartoship/
 ├── apps/
 │   └── web/                   # Next.js 14 — Firebase Hosting + SSR
 ├── workers/
-│   └── audit-worker/          # Cloud Run 컨테이너 (Express) — 15단계 파이프라인
+│   └── audit-worker/          # Cloud Run 컨테이너 (Express) — 18단계 파이프라인
 ├── functions/                 # Cloud Functions 2nd gen — Firestore 트리거 + Cloud Tasks 큐잉
 ├── packages/
 │   ├── shared-types/          # Zod 스키마 + TypeScript 타입 (공유)
@@ -94,6 +106,9 @@ cleartoship/
 | 명령어 | 설명 |
 |--------|------|
 | `pnpm dev` | Next.js 개발 서버 (`apps/web`) |
+| `pnpm dev:full` | emulators + web + worker 병렬 부팅 (한 명령으로 onboarding) |
+| `pnpm doctor` | 개발 환경 진단 (Node/pnpm/Firebase CLI/Java/포트/.env/도구) |
+| `pnpm free-ports` | Emulator 포트 점유 프로세스 식별 (`--kill` 옵션으로 종료) |
 | `pnpm build` | 전체 워크스페이스 빌드 |
 | `pnpm emulators` | Firebase Emulator Suite 시작 |
 | `pnpm -r type-check` | 전체 타입체크 |

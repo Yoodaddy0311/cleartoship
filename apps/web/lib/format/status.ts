@@ -53,13 +53,17 @@ export function statusVar(s: ImplementationStatus): string {
  *   signal was too thin to produce a trustworthy score (worker scoring sets
  *   `launchStatus = 'INDETERMINATE'`). UI must avoid displaying the score as
  *   if it were a verdict; instead a "분석 표면 부족" banner is shown.
+ * - `blocked` is a sixth state set when a T1.1 cost guardrail short-circuits
+ *   the audit (e.g. repo too large). Worker writes `launchStatus = 'BLOCKED'`
+ *   plus an `abortReason` code; UI surfaces a "가드레일 작동" banner.
  */
 export type LaunchStatus =
   | 'ready'
   | 'ready_with_improvements'
   | 'needs_work'
   | 'stop'
-  | 'indeterminate';
+  | 'indeterminate'
+  | 'blocked';
 
 export function launchStatusLabel(s: LaunchStatus): string {
   const map: Record<LaunchStatus, string> = {
@@ -68,6 +72,7 @@ export function launchStatusLabel(s: LaunchStatus): string {
     needs_work: t('launch.needsWork'),
     stop: t('launch.stop'),
     indeterminate: '판단 불가 (분석 자료 부족)',
+    blocked: '감사 중단 (가드레일 작동)',
   };
   return map[s];
 }
@@ -79,6 +84,7 @@ export function launchStatusToken(s: LaunchStatus): string {
     needs_work: 'var(--color-severity-p1)',
     stop: 'var(--color-severity-p0)',
     indeterminate: 'var(--color-fg-muted)',
+    blocked: 'var(--color-severity-p0)',
   };
   return map[s];
 }

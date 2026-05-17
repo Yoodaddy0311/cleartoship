@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { EvidenceCard } from '@cleartoship/ui';
 import type { FindingEvidenceView } from '@/lib/types/finding-view';
 
@@ -9,11 +10,14 @@ export function ScreenshotEvidence({ evidence }: { evidence: FindingEvidenceView
   return (
     <figure className="overflow-hidden rounded-[12px] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-bg-elevated)]">
       {evidence.url ? (
-        <img
+        <Image
           src={evidence.url}
           alt="스크린샷 근거 자료"
           loading="lazy"
-          decoding="async"
+          width={0}
+          height={0}
+          sizes="100vw"
+          unoptimized
           className="block w-full h-auto"
         />
       ) : null}
