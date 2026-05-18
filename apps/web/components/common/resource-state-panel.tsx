@@ -249,12 +249,12 @@ export function PartialResultBanner({
           data-testid="partial-result-deploy-hint"
           className="ml-6 text-[color:var(--color-fg-secondary)]"
         >
-          <strong>배포 URL을 입력하시면</strong>{' '}
-          {t('errors.audit.toolUnavailable.deployUrlHint')} —{' '}
+          <strong>{t('errors.audit.toolUnavailable.deployUrlPrefix')}</strong>{' '}
+          {t('errors.audit.toolUnavailable.deployUrlBody')}{' '}
           <Link href="/audits/new" className="underline-offset-2 hover:underline">
-            &lsquo;새 감사&rsquo; 폼
+            {t('errors.audit.toolUnavailable.deployUrlCtaLabel')}
           </Link>
-          에서 배포 URL 칸을 채워주세요.
+          {t('errors.audit.toolUnavailable.deployUrlSuffix')}
         </p>
       ) : null}
 
@@ -377,14 +377,14 @@ function EmptyGuidance({ context, auditId }: EmptyGuidanceProps) {
           </span>
           <ul className="mt-1 list-disc space-y-1 pl-5">
             <li>
-              성능/접근성도 보고 싶다면{' '}
+              {t('audit.empty.noDeployUrl.cta.prefix')}
               <Link
                 href="/audits/new"
                 className="underline-offset-2 hover:underline"
               >
-                새 감사를 시작
+                {t('audit.empty.noDeployUrl.cta.linkLabel')}
               </Link>
-              하면서 배포 URL을 함께 입력해 주세요.
+              {t('audit.empty.noDeployUrl.cta.suffix')}
             </li>
             <li>
               <Link
@@ -420,9 +420,9 @@ function EmptyGuidance({ context, auditId }: EmptyGuidanceProps) {
                 href={`/audits/${auditId}`}
                 className="underline-offset-2 hover:underline"
               >
-                진행 화면
+                {t('audit.empty.pipelineNotReached.cta.linkLabel')}
               </Link>
-              에서 현재 단계를 확인할 수 있어요.
+              {t('audit.empty.pipelineNotReached.cta.suffix')}
             </li>
             <li>완료되면 이 화면이 자동으로 새로고침됩니다.</li>
           </ul>

@@ -1,9 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { useParams } from 'next/navigation';
 import { Card, CardBody, CardHeader, CardTitle } from '@cleartoship/ui';
-import { ScoreOverview } from '@/components/dashboard/score-overview';
+import { ScoreSkeleton } from '@/components/skeletons';
 import { SeverityCounts } from '@/components/dashboard/severity-counts';
 import { CategoryGrid } from '@/components/dashboard/category-grid';
 import { SeverityChip } from '@/components/common/severity-chip';
@@ -27,6 +28,23 @@ import type {
   AuditRun,
   ListFindingsResponse,
 } from '@/lib/api/audit-runs';
+
+// L-P1-6 — defer the ScoreOverview chunk. The score card pulls in ScoreRing
+// (SVG gauge + label formatting), LaunchStatusChip, and the i18n module via
+// `launchStatusLabel`. Splitting it off the dashboard's initial JS payload and
+// rendering <ScoreSkeleton /> as the fallback gives the section a CLS-safe
+// placeholder while the chunk streams in. SSR stays enabled (default) so the
+// dashboard HTML still ships with the score region populated when the chunk
+// is already warm; the skeleton only paints on cold first-load.
+const ScoreOverview = dynamic(
+  () =>
+    import('@/components/dashboard/score-overview').then(
+      (m) => m.ScoreOverview
+    ),
+  {
+    loading: () => <ScoreSkeleton />,
+  }
+);
 
 // T1.1d: when the worker short-circuits a run via `markRunBlocked` (e.g.
 // REPO_TOO_LARGE), no AuditReport doc is produced — `getReport` would 404.

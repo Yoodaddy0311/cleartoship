@@ -228,6 +228,16 @@ export const en: Messages = {
   'graph.filter.byStatus': 'Filter by status',
   'graph.legend.title': 'Legend',
   'graph.empty': 'No feature nodes have been analyzed yet.',
+  // W3.QA.2 mixed-JSX migration: split each `<strong>noun</strong>일 수 있어요`
+  // bullet from feature-graph empty-state into a noun label + post-position body
+  // so en/ko can each pick a natural word order. EN intentionally moves the
+  // post-position (which doesn't exist) inline.
+  'graph.empty.cause.stale.label': 'Stale analysis result',
+  'graph.empty.cause.stale.body':
+    ' — this audit likely pre-dates our updated graph rules, so no feature nodes were extracted. Re-running will rebuild the graph.',
+  'graph.empty.cause.buildArtifacts.label': 'Build-output-only repo',
+  'graph.empty.cause.buildArtifacts.body':
+    ' — when the repo only contains compiled output (dist/.next), pages, APIs, and components are hard to identify.',
   'graph.node.summary': 'Summary',
   'graph.node.evidence': 'Related files',
   'graph.node.improvement': 'Recommendation',
@@ -315,6 +325,17 @@ export const en: Messages = {
     'This is an analysis environment issue and does not significantly affect result confidence',
   'errors.audit.toolUnavailable.deployUrlHint':
     'Add a deploy URL and we will also measure your site performance and accessibility',
+  // W3.QA.2 mixed-JSX migration: split the inline `<strong>`/`<Link>` line in
+  // PartialResultBanner. prefix wraps the `<strong>`; body is the standalone
+  // sentence; ctaLabel is the link text; suffix is the trailing fragment after
+  // the link. Both locales render naturally without relying on adjacent JSX
+  // for grammar.
+  'errors.audit.toolUnavailable.deployUrlPrefix': 'With a deploy URL',
+  'errors.audit.toolUnavailable.deployUrlBody':
+    'we can also measure your site performance and accessibility.',
+  'errors.audit.toolUnavailable.deployUrlCtaLabel': 'Start a new audit',
+  'errors.audit.toolUnavailable.deployUrlSuffix':
+    ' and add it in the deploy URL field.',
   // T2.12 #112: N/A category labels (BLOCKED vs FAILED distinction)
   'errors.audit.toolUnavailable.categoryHeading': 'Categories shown as N/A',
   'errors.audit.toolUnavailable.whyNa': 'Why is this N/A?',
@@ -336,6 +357,16 @@ export const en: Messages = {
   'audit.empty.pipelineNotReached':
     'This step has not been reached yet. Results will appear automatically as the analysis progresses.',
   'audit.empty.nextActions': 'What you can do next',
+  // W3.QA.2 mixed-JSX migration: split the no-deploy-url + pipeline-not-reached
+  // `<li>` items so the embedded `<Link>` no longer requires inline 한글 후치사.
+  'audit.empty.noDeployUrl.cta.prefix':
+    'If you want performance/accessibility too, ',
+  'audit.empty.noDeployUrl.cta.linkLabel': 'start a new audit',
+  'audit.empty.noDeployUrl.cta.suffix':
+    ' and include the deploy URL.',
+  'audit.empty.pipelineNotReached.cta.linkLabel': 'the progress screen',
+  'audit.empty.pipelineNotReached.cta.suffix':
+    ' shows the current step.',
 
   // Errors — general
   'errors.general.networkError': 'A network error occurred. Please try again in a moment',
