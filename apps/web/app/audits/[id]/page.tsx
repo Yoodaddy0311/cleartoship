@@ -56,12 +56,12 @@ export default function AuditProgressPage() {
             indeterminate={loading && progress === 0}
             label={`${progress}% · ${
               status === 'RUNNING' || status === 'PENDING'
-                ? '진행 중'
+                ? t('progress.status.running')
                 : status === 'COMPLETED'
-                ? '완료'
+                ? t('progress.status.completed')
                 : status === 'FAILED'
-                ? '실패'
-                : '취소됨'
+                ? t('progress.status.failed')
+                : t('progress.status.cancelled')
             }`}
             showValue
           />
@@ -88,7 +88,7 @@ export default function AuditProgressPage() {
       >
         <Card variant="default" padding="md" aria-live="polite">
           <CardHeader>
-            <CardTitle>18단계 분석</CardTitle>
+            <CardTitle>{t('progress.panel.timeline')}</CardTitle>
           </CardHeader>
           <CardBody>
             <ProgressTimeline currentStep={currentStep} status={status} />
@@ -97,13 +97,13 @@ export default function AuditProgressPage() {
 
         <Card variant="default" padding="md" className="min-h-[420px]">
           <CardHeader>
-            <CardTitle>실시간 분석 결과</CardTitle>
+            <CardTitle>{t('progress.panel.liveResults')}</CardTitle>
           </CardHeader>
           <CardBody>
             {showFetchError ? (
               <div className="flex flex-col items-start gap-3">
                 <p className="text-md text-[color:var(--color-severity-p0)]">
-                  진행 상태를 불러오지 못했습니다.
+                  {t('progress.fetchError')}
                 </p>
                 <pre className="max-w-full overflow-auto text-xs text-[color:var(--color-fg-muted)]">
                   {error}
@@ -128,7 +128,7 @@ export default function AuditProgressPage() {
               </div>
             ) : (
               <p className="text-sm text-[color:var(--color-fg-muted)]">
-                Finding이 도착하는 대로 여기에 표시됩니다.
+                {t('progress.findingsPending')}
               </p>
             )}
           </CardBody>

@@ -370,6 +370,46 @@ export const ko = {
   'next30Min.heading': '지금 30분 안에',
   'next30Min.empty': '30분 안에 처리할 우선 작업이 없습니다.',
   'next30Min.eta.minutes': '{n}분',
+
+  // L-P1-6: Suspense fallback skeletons (ShipVerdict / Score / Narrative).
+  // Visual-only — only the wrapper aria-label is i18n'd so screen readers
+  // announce "loading" once per Suspense boundary.
+  'skeleton.loading.aria': '로딩 중',
+
+  // W2.C-i18n: audit items found during Wave 2 Batch C audit pass.
+
+  // findings.detail.friendly — Semgrep-friendly explanation labels in the
+  // non-developer explanation card. These head each paragraph of the friendly
+  // explanation block (what/why/analogy/fixGuide) and the expand/collapse
+  // toggle button.
+  'findings.detail.friendly.whatLabel': '무엇이 문제인가요?',
+  'findings.detail.friendly.whyLabel': '왜 위험한가요?',
+  'findings.detail.friendly.analogyLabel': '비유:',
+  'findings.detail.friendly.fixGuideLabel': '어떻게 고치나요?',
+  'findings.detail.friendly.collapse': '간단히 보기',
+  'findings.detail.friendly.expand': '자세히 보기',
+
+  // progress.panel — live audit progress page card titles (skeleton + live).
+  // Both cold-start-skeleton.tsx and the live audits/[id]/page.tsx share these.
+  'progress.panel.timeline': '분석 단계',
+  'progress.panel.liveResults': '실시간 분석 결과',
+
+  // progress.status — inline Progress bar label strings.
+  'progress.status.running': '진행 중',
+  'progress.status.completed': '완료',
+  'progress.status.failed': '실패',
+  'progress.status.cancelled': '취소됨',
+
+  // progress.fetchError / progress.findingsPending — body text in the live
+  // results card for the fetch-error and idle branches.
+  'progress.fetchError': '진행 상태를 불러오지 못했습니다.',
+  'progress.findingsPending': 'Finding이 도착하는 대로 여기에 표시됩니다.',
+
+  // category.na — CategoryNATile in the dashboard category grid. Shown when
+  // the audit could not produce a score for a given category (e.g. lighthouse
+  // skipped because no deploy URL was supplied).
+  'category.na.label': '판단 불가',
+  'category.na.description': '분석 자료가 부족해 점수를 산정하지 않았습니다.',
 } as const;
 
 export type Ko = typeof ko;
