@@ -68,6 +68,9 @@ jobs:
       - name: Lint (all workspaces — 0 warnings allowed)
         run: pnpm -r lint
 
+      - name: Copy lint (forbidden marketing words — 표시광고법)
+        run: pnpm lint:copy
+
   test:
     name: Test
     runs-on: ubuntu-latest

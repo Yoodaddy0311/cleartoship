@@ -1,0 +1,177 @@
+{
+  "_comment": "Cloud Monitoring dashboard for ClearToShip audit pipeline (W3.INF.4). Apply with: gcloud monitoring dashboards create --config-from-file=infra/monitoring/dashboard.json --project=$PROJECT_ID",
+  "displayName": "ClearToShip — Audit Pipeline Health",
+  "mosaicLayout": {
+    "columns": 12,
+    "tiles": [
+      {
+        "xPos": 0,
+        "yPos": 0,
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "audit-worker latency (p50 / p95 / p99)",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "timeshiftDuration": "0s",
+            "yAxis": {
+              "label": "seconds",
+              "scale": "LINEAR"
+            },
+            "dataSets": [
+              {
+                "legendTemplate": "p50",
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_50",
+                      "perSeriesAligner": "ALIGN_PERCENTILE_50"
+                    },
+                    "filter": "metric.type=\"custom.googleapis.com/cleartoship/audit_run_duration_seconds\" resource.type=\"global\""
+                  }
+                }
+              },
+              {
+                "legendTemplate": "p95",
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_95",
+                      "perSeriesAligner": "ALIGN_PERCENTILE_95"
+                    },
+                    "filter": "metric.type=\"custom.googleapis.com/cleartoship/audit_run_duration_seconds\" resource.type=\"global\""
+                  }
+                }
+              },
+              {
+                "legendTemplate": "p99",
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_PERCENTILE_99",
+                      "perSeriesAligner": "ALIGN_PERCENTILE_99"
+                    },
+                    "filter": "metric.type=\"custom.googleapis.com/cleartoship/audit_run_duration_seconds\" resource.type=\"global\""
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "xPos": 6,
+        "yPos": 0,
+        "width": 6,
+        "height": 4,
+        "widget": {
+          "title": "Cloud Tasks backlog — audit-jobs queue depth",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "timeshiftDuration": "0s",
+            "yAxis": {
+              "label": "tasks",
+              "scale": "LINEAR"
+            },
+            "dataSets": [
+              {
+                "legendTemplate": "queue depth (custom emit)",
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_MAX",
+                      "perSeriesAligner": "ALIGN_MAX"
+                    },
+                    "filter": "metric.type=\"custom.googleapis.com/cleartoship/queue_depth\" resource.type=\"global\""
+                  }
+                }
+              },
+              {
+                "legendTemplate": "queue depth (gcp builtin)",
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_MAX",
+                      "perSeriesAligner": "ALIGN_MAX"
+                    },
+                    "filter": "metric.type=\"cloudtasks.googleapis.com/queue/depth\" resource.type=\"cloud_tasks_queue\" resource.label.queue_id=\"audit-jobs\""
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "xPos": 0,
+        "yPos": 4,
+        "width": 12,
+        "height": 4,
+        "widget": {
+          "title": "audit-worker error rate (FAILED / total completed)",
+          "xyChart": {
+            "chartOptions": {
+              "mode": "COLOR"
+            },
+            "timeshiftDuration": "0s",
+            "yAxis": {
+              "label": "runs per minute",
+              "scale": "LINEAR"
+            },
+            "dataSets": [
+              {
+                "legendTemplate": "FAILED",
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "perSeriesAligner": "ALIGN_RATE"
+                    },
+                    "filter": "metric.type=\"custom.googleapis.com/cleartoship/audit_run_completed_total\" metric.label.status=\"FAILED\" resource.type=\"global\""
+                  }
+                }
+              },
+              {
+                "legendTemplate": "COMPLETED",
+                "minAlignmentPeriod": "60s",
+                "plotType": "LINE",
+                "timeSeriesQuery": {
+                  "timeSeriesFilter": {
+                    "aggregation": {
+                      "alignmentPeriod": "60s",
+                      "crossSeriesReducer": "REDUCE_SUM",
+                      "perSeriesAligner": "ALIGN_RATE"
+                    },
+                    "filter": "metric.type=\"custom.googleapis.com/cleartoship/audit_run_completed_total\" metric.label.status=\"COMPLETED\" resource.type=\"global\""
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

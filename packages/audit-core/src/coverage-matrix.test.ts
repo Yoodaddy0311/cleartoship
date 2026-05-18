@@ -7,8 +7,10 @@ import { describe, expect, it } from 'vitest';
 import type { Finding } from '@cleartoship/shared-types';
 import {
   COVERAGE_MATRIX_CLAIM_CAP,
+  COVERAGE_PRIMARY_PATH_MAX_BYTES,
   buildCoverageMatrix,
   extractClaims,
+  resolvePrimaryPath,
   summarizeCoverageMatrix,
   type DetectedFeatureHint,
 } from './coverage-matrix.js';

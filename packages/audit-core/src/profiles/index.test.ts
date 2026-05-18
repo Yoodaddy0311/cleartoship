@@ -164,3 +164,35 @@ describe('vibe-coded profile (L-P0-7 / USP-1)', () => {
     }
   });
 });
+
+// W3.CLN.1 — Per-profile deep-freeze. Each profile is a singleton shared
+// across worker calls; without runtime freeze a stray write
+// (e.g. `getProfile('saas')!.ghostButtonHeuristicForced = true`) would leak
+// into every subsequent audit. The four tests below assert mutation throws
+// for each profile's nested objects independently — running per profile
+// catches regressions where someone forgets to freeze ONE of the four.
+describe('AUDIT_PROFILES deep-freeze (W3.CLN.1 — singleton mutation guard)', () => {
+  it.each(['landing', 'saas', 'ecommerce', 'vibe-coded'] as const)(
+    '%s profile and all nested objects are frozen',
+    (id) => {
+      const p = getProfile(id)!;
+      expect(Object.isFrozen(p)).toBe(true);
+      expect(Object.isFrozen(p.displayName)).toBe(true);
+      expect(Object.isFrozen(p.weightOverrides)).toBe(true);
+      expect(Object.isFrozen(p.emphasizedCategories)).toBe(true);
+      expect(Object.isFrozen(p.mandatoryEvidence)).toBe(true);
+      // The ghost-button leak the PRD A.4.1 calls out: assigning to this
+      // optional field on a frozen object must throw in strict mode
+      // (vitest runs ESM in strict mode by default).
+      expect(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (p as any).ghostButtonHeuristicForced = !p.ghostButtonHeuristicForced;
+      }).toThrow();
+      // weightOverrides mutation also must throw — prevents weight leak across runs.
+      expect(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (p.weightOverrides as any).BACKEND_API = 99;
+      }).toThrow();
+    },
+  );
+});

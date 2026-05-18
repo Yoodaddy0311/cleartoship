@@ -130,8 +130,25 @@ jobs:
       - name: Deploy Cloud Run worker
         id: run-deploy
         run: |
-          # Cold-start mitigation (#96 / T1.6-FU): prod keeps 1 warm instance,
-          # staging/dev stay at 0. Detected from GCP_PROJECT_ID substring.
+          # ---------------------------------------------------------------
+          # Cold-start mitigation (#96 / T1.6-FU / W3.INF.1)
+          # ---------------------------------------------------------------
+          # Source of truth: this workflow. Terraform deliberately does NOT
+          # manage the Cloud Run service resource (no cloud-run.tf) — gcloud
+          # is the single owner so we never get drift between IaC and the
+          # GitHub Actions pipeline that ships every push to main.
+          #
+          # Policy:
+          #   prod        → min-instances=1 (keeps one warm container, kills
+          #                 the 8–12 s Node + tool boot tax on first request,
+          #                 cost ≈ $13/mo for 4 vCPU/4 GiB idle in
+          #                 asia-northeast3 — see infra/README.deploy.md §3)
+          #   staging/dev → min-instances=0 (scale-to-zero, no idle cost)
+          #
+          # Detection: GCP_PROJECT_ID substring match on "prod". Mirrored in
+          # infra/scripts/03-deploy-worker.sh; both branches MUST stay in
+          # sync. If you change this policy, update README.deploy.md §3.
+          # ---------------------------------------------------------------
           if [[ "${{ secrets.GCP_PROJECT_ID }}" == *"prod"* ]]; then
             MIN_INSTANCES=1
           else

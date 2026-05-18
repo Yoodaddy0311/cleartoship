@@ -129,9 +129,20 @@ PROJECT_ID=cleartoship-prod bash infra/scripts/03-deploy-worker.sh
 - `--no-allow-unauthenticated` (OIDC 필수)
 - `cloud-run-invoker@...`에 `roles/run.invoker` 부여
 - 배포 후 추출한 URL을 Secret Manager `cloud-run-worker-url`에 새 버전으로 저장
-- **`--min-instances` 자동 분기 (#96 T1.6-FU)**: `PROJECT_ID`에 `prod`가 포함되면 `1` (cold start 차단, 월 약 $13 추가 예상), 그 외(staging/dev)는 `0` (idle 비용 0). 수동 오버라이드는 `MIN_INSTANCES=<n>` 환경변수.
+- **`--min-instances` 자동 분기 (#96 T1.6-FU / W3.INF.1)**: `PROJECT_ID`에 `prod`가 포함되면 `1` (cold start 차단, 월 약 $13 추가 예상), 그 외(staging/dev)는 `0` (idle 비용 0). 수동 오버라이드는 `MIN_INSTANCES=<n>` 환경변수.
   - 예: `MIN_INSTANCES=2 PROJECT_ID=cleartoship-prod bash infra/scripts/03-deploy-worker.sh`
   - GitHub Actions `deploy.yml`도 동일 로직 적용 (`GCP_PROJECT_ID` secret 기반)
+
+#### Cold-start 정책 (W3.INF.1)
+
+| 환경 | min-instances | Cold start | 월 idle 비용 (asia-northeast3, 4 vCPU/4 GiB) | 근거 |
+|------|---------------|------------|-----------------------------------------------|------|
+| prod (`*prod*`) | **1** | 없음 (첫 요청도 warm container) | ≈ $13 USD | T1.6-FU PR #96, p95 latency budget < 60s 충족 필요 |
+| staging / dev | 0 | 8–12s (Node 런타임 + lighthouse/git 부트) | $0 | 트래픽 거의 없는 비프로덕션은 idle 비용 우선 |
+
+**Source of truth**: `.github/workflows/deploy.yml`의 `Deploy Cloud Run worker` 스텝 + `infra/scripts/03-deploy-worker.sh`. Terraform은 의도적으로 Cloud Run 리소스를 관리하지 않습니다 (drift 방지). 정책 변경 시 두 파일의 substring 분기를 같이 수정하세요.
+
+**모니터링 연동**: `infra/monitoring/alerts.tf`의 p99 latency 알림(5s, 5min window) — cold-start로 인한 spike 감지. min-instances=0 환경에서 false positive를 피하려면 staging에서는 알림 정책을 disable 하거나 threshold를 완화하세요.
 
 ### 4. Functions + Firestore/Storage 규칙 배포 (`04-deploy-functions.sh`)
 

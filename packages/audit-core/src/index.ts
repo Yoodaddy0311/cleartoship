@@ -22,3 +22,4 @@ export * from './i18n/severity-ko.js';
 export * from './i18n/rule-family-explanations.js';
 export * from './fcs/compute-fcs.js';
 export * from './narrative/render-narrative.js';
+export * from './utils/truncate.js';
