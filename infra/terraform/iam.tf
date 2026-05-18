@@ -76,6 +76,10 @@ resource "google_project_iam_member" "functions_logging" {
 # - iam.serviceAccountUser: act as runtime SAs during deploy
 # - cloudbuild.builds.editor: trigger builds if needed
 # - firebase.admin: deploy firestore.rules / storage.rules / indexes
+# - resourcemanager.projectIamAdmin: grant project-level IAM bindings to
+#   GCP service agents (Cloud Functions runtime, Eventarc, Pub/Sub) that
+#   `firebase deploy --only functions` provisions on demand. Without this
+#   the CLI errors with "We failed to modify the IAM policy for the project".
 locals {
   deployer_roles = [
     "roles/run.admin",
@@ -87,6 +91,7 @@ locals {
     "roles/firebase.admin",
     "roles/datastore.indexAdmin",
     "roles/secretmanager.admin",
+    "roles/resourcemanager.projectIamAdmin",
   ]
 }
 
