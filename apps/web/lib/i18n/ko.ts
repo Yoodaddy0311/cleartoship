@@ -50,6 +50,10 @@ export const ko = {
   'home.form.profile.option.landing': '랜딩 페이지 (UX·프론트엔드·런칭 준비도 강조)',
   'home.form.profile.option.saas': 'SaaS / API (백엔드·보안·데이터 모델 강조)',
   'home.form.profile.option.ecommerce': '이커머스 (보안·결제·UX 흐름 강조)',
+  // L-P1-1: ProfileBadge displays the audit profile picked at start time.
+  // The vibe-coded key is new (added by Sprint 4 W2 Batch A) — landing/saas/
+  // ecommerce already exist above and are reused.
+  'home.form.profile.option.vibeCoded': '바이브 코딩 (프롬프트 일관성·구현 정합성 강조)',
   'home.form.submit': '감사 시작',
   'home.form.submitting': '감사 요청 중...',
   'home.form.auth.initializing': '인증 준비 중...',
@@ -169,7 +173,19 @@ export const ko = {
   'findings.title': '이슈 목록',
   'findings.filter.severity': '위험도',
   'findings.filter.category': '카테고리',
+  'findings.filter.confidence': '신뢰도',
+  'findings.filter.confidence.high': '높음',
+  'findings.filter.confidence.medium': '보통',
+  'findings.filter.confidence.low': '낮음',
+  'findings.filter.falsePositive': '오탐 표시',
+  'findings.filter.falsePositive.all': '전체',
+  'findings.filter.falsePositive.show': '오탐만',
+  'findings.filter.falsePositive.hide': '숨김',
   'findings.filter.all': '전체',
+  'findings.filter.reset': '필터 초기화',
+  'findings.sort.ariaAsc': '오름차순 정렬',
+  'findings.sort.ariaDesc': '내림차순 정렬',
+  'findings.sort.ariaNone': '정렬 없음',
   'findings.empty.title': '발견된 이슈가 없습니다',
   'findings.empty.desc': '훌륭합니다! 추가 권장 체크리스트를 확인해보세요.',
   'findings.column.title': '문제명',
@@ -316,6 +332,12 @@ export const ko = {
   // Errors — general
   'errors.general.networkError': '네트워크 오류가 발생했습니다. 잠시 후 다시 시도하세요',
   'errors.general.unexpected': '예기치 못한 오류가 발생했습니다',
+
+  // W2.C10.1: RunMetadataStrip — short run id + KST timestamp + version pill.
+  // Keys live under the `audit.run.*` namespace so other run-detail widgets
+  // (status header, share button, etc.) can extend the group later.
+  'audit.run.id.copy.aria': 'Run ID 클립보드 복사',
+  'audit.run.id.copied': '복사됨',
 } as const;
 
 export type Ko = typeof ko;

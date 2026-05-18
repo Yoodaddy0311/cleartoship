@@ -1,10 +1,15 @@
 import type { Metadata, Viewport } from 'next';
 import { headers } from 'next/headers';
 import './globals.css';
-import { t } from '@/lib/i18n';
+import { t, getLocale } from '@/lib/i18n';
 import { Header } from '@/components/common/header';
 import { Footer } from '@/components/common/footer';
 
+// NOTE (L-P1-5 follow-up): `export const metadata` evaluates at build time so
+// `t()` here always resolves to the default (ko) locale. LangToggle does NOT
+// update <title> / OG tags at runtime. To make <head> locale-reactive,
+// migrate to `export async function generateMetadata()` and call
+// `getLocale()` per request. Deferred to Wave 3 to keep Batch A scope small.
 export const metadata: Metadata = {
   title: t('app.title'),
   description: t('app.description'),
@@ -42,11 +47,12 @@ export default async function RootLayout({
   // CSP. Any future `<Script>` tag we add should pass `nonce={nonce}` explicitly.
   // See: https://nextjs.org/docs/app/building-your-application/configuring/content-security-policy
   void (await headers()).get('x-nonce');
+  const locale = await getLocale();
   return (
-    <html lang="ko" suppressHydrationWarning>
+    <html lang={locale} suppressHydrationWarning>
       <body className="bg-mk-bg text-mk-fg font-display antialiased">
         <a href="#main-content" className="skip-link">
-          {t('common.skipToMain')}
+          {t('common.skipToMain', locale)}
         </a>
         <div className="relative flex min-h-dvh flex-col">
           <Header />

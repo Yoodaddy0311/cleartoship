@@ -58,6 +58,8 @@ export const en: Messages = {
   'home.form.profile.option.landing': 'Landing page (UX, frontend, launch readiness)',
   'home.form.profile.option.saas': 'SaaS / API (backend, security, data model)',
   'home.form.profile.option.ecommerce': 'E-commerce (security, checkout, UX flows)',
+  'home.form.profile.option.vibeCoded':
+    'Vibe-coded (prompt consistency, implementation alignment)',
   'home.form.submit': 'Start Audit',
   'home.form.submitting': 'Requesting audit...',
   'home.form.auth.initializing': 'Preparing authentication...',
@@ -173,7 +175,19 @@ export const en: Messages = {
   'findings.title': 'Findings',
   'findings.filter.severity': 'Severity',
   'findings.filter.category': 'Category',
+  'findings.filter.confidence': 'Confidence',
+  'findings.filter.confidence.high': 'High',
+  'findings.filter.confidence.medium': 'Medium',
+  'findings.filter.confidence.low': 'Low',
+  'findings.filter.falsePositive': 'False positive',
+  'findings.filter.falsePositive.all': 'All',
+  'findings.filter.falsePositive.show': 'FP only',
+  'findings.filter.falsePositive.hide': 'Hide FP',
   'findings.filter.all': 'All',
+  'findings.filter.reset': 'Reset filters',
+  'findings.sort.ariaAsc': 'Sorted ascending',
+  'findings.sort.ariaDesc': 'Sorted descending',
+  'findings.sort.ariaNone': 'Not sorted',
   'findings.empty.title': 'No issues found',
   'findings.empty.desc': 'Nicely done — explore the additional recommended checklist.',
   'findings.column.title': 'Title',
@@ -318,6 +332,10 @@ export const en: Messages = {
   // Errors — general
   'errors.general.networkError': 'A network error occurred. Please try again in a moment',
   'errors.general.unexpected': 'An unexpected error occurred',
+
+  // W2.C10.1: RunMetadataStrip
+  'audit.run.id.copy.aria': 'Copy run ID',
+  'audit.run.id.copied': 'Copied',
 };
 
 export type En = typeof en;

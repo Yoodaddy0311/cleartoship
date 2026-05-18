@@ -1,11 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertTriangle } from 'lucide-react';
 import { Card, CardBody, CardHeader, CardTitle, Badge, cn } from '@cleartoship/ui';
 import { SeverityChip } from '@/components/common/severity-chip';
 import { ConfidenceChip } from '@/components/common/confidence-chip';
-import { EvidenceList } from '@/components/evidences/evidence-list';
+import { EvidencePanel } from '@/components/evidences/evidence-panel';
 import { FalsePositiveToggle } from '@/components/findings/false-positive-toggle';
 import { ActionHintCell } from '@/components/findings/action-hint-cell';
 import { useFalsePositive } from '@/lib/feedback/use-false-positive';
@@ -228,37 +227,17 @@ export function FindingDetailPanel({
       </Card>
 
       <Card variant="default" padding="md">
-        <CardHeader>
-          <CardTitle>{t('findings.detail.evidences')}</CardTitle>
-        </CardHeader>
         <CardBody>
-          {truncated ? (
-            <div
-              role="status"
-              aria-live="polite"
-              data-testid="evidence-truncated-banner"
-              className={cn(
-                'mb-3 flex items-start gap-2 rounded-md border px-3 py-2 text-sm',
-                'border-[color:var(--color-severity-p2)]',
-                'bg-[rgba(245,158,11,0.08)]',
-                'text-[color:var(--color-fg-primary)]'
-              )}
-            >
-              <AlertTriangle
-                aria-hidden="true"
-                className="mt-0.5 h-4 w-4 shrink-0 text-[color:var(--color-severity-p2)]"
-              />
-              <span>
-                <span className="font-medium text-[color:var(--color-severity-p2)]">
-                  알림:
-                </span>{' '}
-                <span className="text-[color:var(--color-fg-secondary)]">
-                  {t('findings.detail.evidences.truncated')}
-                </span>
-              </span>
-            </div>
-          ) : null}
-          <EvidenceList items={finding.evidences} />
+          {/* L-P1-4: EvidencePanel owns the collapse trigger + persistence,
+              the truncated banner, and the list render. ruleId prefers the
+              semgrep rule_id (stable across audits of the same repo) and
+              falls back to a finding-scoped key so collapse state still
+              persists per-finding for non-semgrep adapters. */}
+          <EvidencePanel
+            ruleId={semgrepRuleId ?? `finding-${finding.id}`}
+            items={finding.evidences}
+            truncated={truncated}
+          />
         </CardBody>
       </Card>
     </article>
