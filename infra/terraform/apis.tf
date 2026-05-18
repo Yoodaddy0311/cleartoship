@@ -31,11 +31,15 @@ locals {
     #   - functions/src/triggers/daily-cleanup.ts (onSchedule -> cloudscheduler)
     #   - firebase deploy --only functions probing for extensions (firebaseextensions)
     #   - onSchedule and other v2 triggers use Pub/Sub under the hood
-    # Without these the deployer SA hits "Permissions denied enabling X" the
-    # moment firebase-tools tries to lazy-enable them during `functions deploy`.
+    #   - functions v2 requires a billed project, so the deploy reads
+    #     billingInfo via cloudbilling.googleapis.com
+    # Without these the deployer SA hits "Permissions denied enabling X" or
+    # an outright 403 from cloudbilling the moment firebase-tools tries to
+    # lazy-enable them during `functions deploy`.
     "cloudscheduler.googleapis.com",
     "firebaseextensions.googleapis.com",
     "pubsub.googleapis.com",
+    "cloudbilling.googleapis.com",
   ]
 }
 
