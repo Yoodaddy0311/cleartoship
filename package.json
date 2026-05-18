@@ -15,6 +15,7 @@
     "build": "pnpm -r build",
     "ci": "pnpm -r type-check && pnpm -r lint && pnpm -r test",
     "lint": "pnpm -r --parallel lint",
+    "lint:copy": "node scripts/lint-forbidden-words.mjs",
     "type-check": "pnpm -r --parallel type-check",
     "test": "vitest run",
     "test:web": "pnpm --filter web test",

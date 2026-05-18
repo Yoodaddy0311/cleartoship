@@ -137,12 +137,38 @@ const VIBE_CODED_PROFILE: AuditProfile = {
   ghostButtonHeuristicForced: true,
 };
 
-export const AUDIT_PROFILES: ReadonlyArray<AuditProfile> = [
-  LANDING_PROFILE,
-  SAAS_PROFILE,
-  ECOMMERCE_PROFILE,
-  VIBE_CODED_PROFILE,
-];
+/**
+ * W3.CLN.1 — Deep-freeze a profile so callers cannot mutate the singleton.
+ *
+ * The `readonly` modifiers on `AuditProfile` are compile-time only; without
+ * a runtime freeze a misbehaving caller could do
+ *   `getProfile('saas')!.weightOverrides.BACKEND_API = 99`
+ * and corrupt every subsequent audit on the same worker. The `Profile`-level
+ * fix in A.4.1 explicitly calls for "deep-freeze processing" so the four
+ * profile instances are deterministic regardless of caller behavior.
+ *
+ * We freeze in three places to cover every reachable nested object:
+ *   1. `displayName`  — `{ ko, en }` localisation pair
+ *   2. `weightOverrides` — sparse category→weight map
+ *   3. the profile object itself (and its readonly arrays)
+ *
+ * Arrays/sets that are typed `ReadonlyArray<...>` are also frozen so the
+ * dashboard can iterate them without an "is this safe to mutate?" check.
+ */
+function deepFreezeProfile(p: AuditProfile): AuditProfile {
+  Object.freeze(p.displayName);
+  Object.freeze(p.weightOverrides);
+  Object.freeze(p.emphasizedCategories);
+  Object.freeze(p.mandatoryEvidence);
+  return Object.freeze(p);
+}
+
+export const AUDIT_PROFILES: ReadonlyArray<AuditProfile> = Object.freeze([
+  deepFreezeProfile(LANDING_PROFILE),
+  deepFreezeProfile(SAAS_PROFILE),
+  deepFreezeProfile(ECOMMERCE_PROFILE),
+  deepFreezeProfile(VIBE_CODED_PROFILE),
+]);
 
 const PROFILES_BY_ID = new Map<AuditProfileId, AuditProfile>(
   AUDIT_PROFILES.map((p) => [p.id, p]),

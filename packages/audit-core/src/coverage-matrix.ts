@@ -21,6 +21,7 @@ import type {
   Finding,
   Severity,
 } from '@cleartoship/shared-types';
+import { truncate } from './utils/truncate.js';
 
 // Spec §C.6: cap how many claim rows render in the report. The full set is
 // kept on the entry array — caller decides whether to truncate when rendering.
@@ -398,4 +399,56 @@ export function summarizeCoverageMatrix(
     unclear: counts.unclear,
     fulfillmentRate: total === 0 ? 0 : counts.fulfilled / total,
   };
+}
+
+// W3.CLN.3 — Primary-path fallback resolver.
+//
+// PRD §A.4.3: when an entry's status leaves `primaryPath` undefined the UI
+// previously rendered "" (an empty cell). This helper returns the BEST
+// available path candidate from a CoverageEvidence list — `null` when no
+// `file` evidence exists — so the caller can either render the path itself
+// or fall back to the i18n string `coverage.fallback.primaryPath` (ko: "주요
+// 추정 경로", en: "Likely primary path").
+//
+// Algorithm:
+//   1. Prefer the FIRST `file` evidence (matches existing renderer convention
+//      where matchClaim emits `{ type: 'file', path: primaryPath }` as the
+//      head of the evidence list).
+//   2. If multiple `file` evidences are present (multi-detector future), the
+//      first wins — deterministic by evidence-list order, not lex-sort, so
+//      worker-controlled priority survives.
+//   3. Truncate to `COVERAGE_PRIMARY_PATH_MAX_BYTES` (60 bytes — fits a
+//      typical repo path "apps/web/components/foo.tsx" plus suffix) via the
+//      W3.CLN.2 utility so the cell never blows the dashboard layout.
+//   4. Empty/null path strings are treated as "no fallback available" — we
+//      do NOT return '' (the original bug).
+
+/**
+ * Soft byte cap for the primary-path cell in the coverage matrix render.
+ * Truncation uses the W3.CLN.2 `truncate` (UTF-8 safe, '…' suffix).
+ */
+export const COVERAGE_PRIMARY_PATH_MAX_BYTES = 60;
+
+/**
+ * Pick the best primary path candidate from an evidence list, or `null` if
+ * none. Pure function — callers (renderer / web UI) decide whether to render
+ * the returned string or fall back to the `coverage.fallback.primaryPath`
+ * i18n label when this returns null.
+ */
+export function resolvePrimaryPath(
+  evidence: ReadonlyArray<CoverageEvidence>,
+): string | null {
+  if (!Array.isArray(evidence) || evidence.length === 0) return null;
+  for (const ev of evidence) {
+    if (ev.type !== 'file') continue;
+    const path = ev.path?.trim();
+    if (!path) continue;
+    // Defensive: cap the rendered path so the matrix cell stays one-line
+    // even when a worker emits a 200-char monorepo path. The 60-byte budget
+    // fits typical paths intact; long ones land with '…' suffix.
+    const safe = truncate(path, COVERAGE_PRIMARY_PATH_MAX_BYTES);
+    // truncate('', n) === '' — preserve the null-when-empty contract.
+    return safe === '' ? null : safe;
+  }
+  return null;
 }

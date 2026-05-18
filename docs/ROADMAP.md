@@ -208,10 +208,72 @@ Sprint 2 완료 후 남은 주요 작업:
 
 ---
 
+## Sprint 4 Wave 진행 (2026-05-19 ~ 2026-06-05)
+
+상위 PRD: `docs/PRD/sprint4-execution-plan-2026-05-18.md` (Sharpen PRD §B/§C/§D).
+Launch Target: **2026-06-05**.
+
+### Wave 1 — Sharpen Cores ✅ DONE (PR #1)
+
+| Work Unit | 항목 | 산출물 |
+|-----------|------|--------|
+| W1.B1.1 | FCSResult zod schema | `packages/shared-types/src/fcs.ts` |
+| W1.B1.2 | computeFCS algorithm | `packages/audit-core/src/fcs/compute-fcs.ts` |
+| W1.B1.3 | calculate-scores 통합 | `packages/audit-core/src/scoring/calculate-scores.ts` |
+| W1.B1.5 | LaunchStatus 7-enum derive | (compute-fcs.ts 내부 로직) |
+| W1.B1.7 | FCS UI gauge + uncertainty | `apps/web/components/founder-confidence-score.tsx` |
+| W1.B1.8 | FCS i18n ko/en 16 키 | `apps/web/lib/i18n/{ko,en}.ts` |
+
+ShipVerdictBanner / TopConcernsList / Phase5 PRD skeleton / War Room ADR는 Wave 1 deliverable에서 자연스럽게 Wave 2/3로 이연.
+
+### Wave 2 — Insight Reorg + P1 7건 ✅ DONE (PR #3 #4 #5 #6 #7)
+
+| Work Unit | 항목 | 산출물 |
+|-----------|------|--------|
+| L-P1-1 | ProfileBadge | `apps/web/components/profile-badge.tsx` |
+| L-P1-2 | feature-graph adapter test | `packages/audit-core/src/feature-graph/adapter.test.ts` (7 cases) |
+| L-P1-3 | Narrative 3-sentence template | `packages/audit-core/src/narrative/render-narrative.ts` + `apps/web/components/narrative.tsx` |
+| L-P1-4 | EvidencePanel collapse persist | `apps/web/lib/ui/use-persistent-collapse.ts` + `apps/web/components/evidences/evidence-panel.tsx` |
+| L-P1-5 | ko/en LangToggle | `apps/web/lib/i18n/locale.ts` + `apps/web/components/common/lang-toggle.tsx` + `apps/web/app/actions/revalidate-lang.ts` |
+| L-P1-6 | Skeleton 3종 | `apps/web/components/skeletons/{ship-verdict,score,narrative}-skeleton.tsx` |
+| L-P1-7 | Mobile 360px regression | `apps/web/e2e/visual/mobile-360.spec.ts` (6 cases) |
+| W2.C5 | Next30MinChecklist + hook | `apps/web/components/next-30min-checklist.tsx` + `apps/web/lib/ui/use-persistent-checklist.ts` |
+| W2.C6 | CategoryGrid 2×6 enhance | `apps/web/components/dashboard/category-grid.tsx` (weights + onClick + placeholder) |
+| W2.C7 | FindingsTable filter+sort + URL sync | `apps/web/components/findings/{findings-table,finding-filters}.tsx` |
+| W2.C8 | CoverageMatrix UI | `apps/web/components/coverage-matrix.tsx` (4 badge variants) |
+| W2.C10 | RunMetadataStrip | `apps/web/components/common/run-metadata-strip.tsx` |
+| W2.C-i18n | 17 신규 키 ko/en parity + 4 컴포넌트 마이그레이션 | `apps/web/lib/i18n/{ko,en}.ts` (291 keys each) |
+| 보너스 | Hero SpecialText brand reveal | `apps/web/components/marketing/special-text.tsx` |
+
+Wave 2 종합: **+118 신규 테스트**, web 98 files / 742 tests PASS, audit-core 19 files / 429 tests PASS.
+
+### Wave 3 — Doc + Hardening 🔄 IN PROGRESS
+
+| Batch | 범위 | 상태 |
+|-------|------|------|
+| Docs (W3.DOC.1/2 + W3.MIG.1) | ROADMAP + Migration 5-step | 🔄 진행 중 (본 ROADMAP edit + `docs/MIGRATIONS/2026-05-19-add-fcs-field.md` 신규) |
+| Cleanup (W3.CLN.1~4) | ghostButton fix + truncate util + primaryPath fallback + tie-break | 🔄 부분 — 2/4 진행 중 (truncate + primaryPath), 2건은 Wave 3-2 |
+| Infra (W3.INF.1~5) | deploy.yml 주석 + Cloud Tasks tune + Firestore index + monitoring dashboard + alert policy | ✅ DONE (working tree) |
+| QA (W3.QA.1/2) | DATA POLICY audit + forbidden-word lint | ✅ DONE — 0 위반 |
+
+### Wave 4 — TBD (planning)
+
+Sharpen PRD §A.2 P1 잔여, §D.4 분량. Wave 4 dispatch 직전에 본 ROADMAP에 work unit 추가.
+
+### Wave 5 — Pre-launch (2026-06-03 ~ 2026-06-05) ⏳ PLANNING
+
+- 최종 DATA POLICY audit re-run
+- Manual smoke (golden path × 3 sample repos)
+- Cloud Run health check + min-instance=1 동작 검증
+- Launch Gate G5 통과
+
+---
+
 ## 변경 이력
 
 | 날짜 | 변경 | 작성자 |
 |------|------|--------|
+| 2026-05-18 | Sprint 4 Wave 3 Batch E: Sprint 4 Wave 진행 섹션 추가 (Wave 1 ✅ / Wave 2 ✅ / Wave 3 🔄 / Wave 4-5 PLANNING) + Migration doc 추가 | leader (Sprint 4 Wave 3) |
 | 2026-05-18 | W2-A PRD Upload 완료: prd-input.tsx 신규 + url-input-form 통합 + API 422 + worker merge + 8 new tests (총 1469 PASS) | code-reviewer cross-check |
 | 2026-05-17 | Sprint 2 완료 반영: T2.1~T2.13 체크, 20-step 파이프라인, 12 카테고리, 3 profiles, diff route, deferred 항목 명시, Sprint 3 진입점 추가 | doc-updater sync |
 | 2026-05-17 | 최초 작성 (LLM/01~06 + Audit_Report + Blueprint 통합 + Round 1~4 결과 반영) | /team leader synthesis |
