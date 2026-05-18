@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { t } from '@/lib/i18n';
+import { SpecialText } from './special-text';
 
 export interface HeroProps {
   primaryHref?: string;
@@ -18,6 +19,11 @@ export function Hero({
       className="mx-auto w-full max-w-container px-6 pt-24 pb-20 sm:pt-32 sm:pb-28"
     >
       <div className="flex flex-col items-center text-center">
+        <div data-testid="hero-brand-reveal" className="mb-4">
+          <SpecialText className="text-base tracking-[0.2em] text-mk-fg-muted sm:text-lg">
+            ClearToShip
+          </SpecialText>
+        </div>
         <span
           data-testid="hero-eyebrow"
           className="mb-6 inline-flex items-center rounded-mk-pill border border-app-border bg-mk-bg-soft px-4 py-1.5 text-sm text-mk-fg-muted"
