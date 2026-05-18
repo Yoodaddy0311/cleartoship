@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import { Card, CardBody, CardHeader, CardTitle, Skeleton } from '@cleartoship/ui';
+import { t } from '@/lib/i18n';
 
 /**
  * First-paint placeholder for the audit progress page. Renders while the
@@ -20,7 +21,7 @@ export function ColdStartSkeleton(): React.JSX.Element {
       <div className="grid gap-6 lg:grid-cols-[1fr_2fr]">
         <Card variant="default" padding="md">
           <CardHeader>
-            <CardTitle>분석 단계</CardTitle>
+            <CardTitle>{t('progress.panel.timeline')}</CardTitle>
           </CardHeader>
           <CardBody>
             <ul className="flex flex-col gap-2">
@@ -35,7 +36,7 @@ export function ColdStartSkeleton(): React.JSX.Element {
         </Card>
         <Card variant="default" padding="md" className="min-h-[420px]">
           <CardHeader>
-            <CardTitle>실시간 분석 결과</CardTitle>
+            <CardTitle>{t('progress.panel.liveResults')}</CardTitle>
           </CardHeader>
           <CardBody>
             <div className="flex flex-col gap-3">

@@ -191,29 +191,32 @@ describe('FindingDetailPanel', () => {
     render(<FindingDetailPanel finding={semgrepFinding} />);
     const block = screen.getByTestId('friendly-explanation');
     expect(block).toBeInTheDocument();
-    expect(block).toHaveTextContent('무엇이 문제인가요?');
-    expect(block).toHaveTextContent('왜 위험한가요?');
+    // Component now uses t() — the mock returns the key as-is.
+    expect(block).toHaveTextContent('findings.detail.friendly.whatLabel');
+    expect(block).toHaveTextContent('findings.detail.friendly.whyLabel');
     // Detail (analogy + fixGuide) is hidden until the toggle is clicked.
     expect(screen.queryByTestId('friendly-analogy')).toBeNull();
     expect(screen.queryByTestId('friendly-fix-guide')).toBeNull();
-    // The default toggle label is "자세히 보기".
+    // The default toggle label key is "findings.detail.friendly.expand".
     expect(
-      screen.getByRole('button', { name: '자세히 보기' }),
+      screen.getByRole('button', { name: 'findings.detail.friendly.expand' }),
     ).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('reveals analogy + fixGuide after clicking "자세히 보기"', async () => {
+  it('reveals analogy + fixGuide after clicking the expand toggle', async () => {
     const { fireEvent } = await import('@testing-library/react');
     const semgrepFinding = {
       ...(finding as object),
       title: 'Semgrep: javascript.lang.security.audit.eval',
     } as never;
     render(<FindingDetailPanel finding={semgrepFinding} />);
-    fireEvent.click(screen.getByRole('button', { name: '자세히 보기' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'findings.detail.friendly.expand' }),
+    );
     expect(screen.getByTestId('friendly-analogy')).toBeInTheDocument();
     expect(screen.getByTestId('friendly-fix-guide')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: '간단히 보기' }),
+      screen.getByRole('button', { name: 'findings.detail.friendly.collapse' }),
     ).toHaveAttribute('aria-expanded', 'true');
   });
 

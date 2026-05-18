@@ -128,23 +128,23 @@ export function FindingDetailPanel({
               className="flex flex-col gap-3 leading-[1.6] ko-text text-[color:var(--color-fg-primary)]"
             >
               <p>
-                <span className="font-semibold">무엇이 문제인가요? </span>
+                <span className="font-semibold">{t('findings.detail.friendly.whatLabel')} </span>
                 {friendly.what}
               </p>
               <p>
-                <span className="font-semibold">왜 위험한가요? </span>
+                <span className="font-semibold">{t('findings.detail.friendly.whyLabel')} </span>
                 {friendly.why}
               </p>
               {showDetail ? (
                 <>
                   {friendly.analogy ? (
                     <p data-testid="friendly-analogy">
-                      <span className="font-semibold">비유: </span>
+                      <span className="font-semibold">{t('findings.detail.friendly.analogyLabel')} </span>
                       {friendly.analogy}
                     </p>
                   ) : null}
                   <p data-testid="friendly-fix-guide">
-                    <span className="font-semibold">어떻게 고치나요? </span>
+                    <span className="font-semibold">{t('findings.detail.friendly.fixGuideLabel')} </span>
                     {friendly.fixGuide}
                   </p>
                 </>
@@ -155,7 +155,7 @@ export function FindingDetailPanel({
                 onClick={() => setShowDetail((s) => !s)}
                 className="self-start text-sm underline-offset-2 hover:underline focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
               >
-                {showDetail ? '간단히 보기' : '자세히 보기'}
+                {showDetail ? t('findings.detail.friendly.collapse') : t('findings.detail.friendly.expand')}
               </button>
             </div>
           ) : (

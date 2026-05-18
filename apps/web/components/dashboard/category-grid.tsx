@@ -210,11 +210,11 @@ function CategoryNATile({ label }: { label: string }) {
     >
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm text-[color:var(--app-fg-muted)]">{label}</span>
-        <span className="text-xs text-[color:var(--color-fg-muted)]">판단 불가</span>
+        <span className="text-xs text-[color:var(--color-fg-muted)]">{t('category.na.label')}</span>
       </div>
       <div className="flex items-baseline gap-2">
         <span
-          aria-label={`${label} 점수 판단 불가`}
+          aria-label={`${label} ${t('category.na.label')}`}
           className="font-mono tabular-nums text-[color:var(--color-fg-muted)]"
           style={{ fontSize: '1.5rem', fontWeight: 600 }}
         >
@@ -223,7 +223,7 @@ function CategoryNATile({ label }: { label: string }) {
         <span className="text-xs text-[color:var(--app-fg-muted)]">/ 100</span>
       </div>
       <p className="text-xs text-[color:var(--color-fg-muted)]">
-        분석 자료가 부족해 점수를 산정하지 않았습니다.
+        {t('category.na.description')}
       </p>
     </div>
   );

@@ -357,6 +357,37 @@ export const en: Messages = {
   'next30Min.heading': 'Next 30 minutes',
   'next30Min.empty': 'No quick wins right now.',
   'next30Min.eta.minutes': '{n} min',
+
+  // L-P1-6: Suspense fallback skeletons (ShipVerdict / Score / Narrative).
+  'skeleton.loading.aria': 'Loading',
+
+  // W2.C-i18n: audit items found during Wave 2 Batch C audit pass.
+
+  // findings.detail.friendly — Semgrep-friendly explanation labels.
+  'findings.detail.friendly.whatLabel': "What's the problem?",
+  'findings.detail.friendly.whyLabel': 'Why is it risky?',
+  'findings.detail.friendly.analogyLabel': 'Analogy:',
+  'findings.detail.friendly.fixGuideLabel': 'How do I fix it?',
+  'findings.detail.friendly.collapse': 'Show less',
+  'findings.detail.friendly.expand': 'Show more',
+
+  // progress.panel — live audit progress page card titles.
+  'progress.panel.timeline': 'Analysis steps',
+  'progress.panel.liveResults': 'Live results',
+
+  // progress.status — inline Progress bar label strings.
+  'progress.status.running': 'Running',
+  'progress.status.completed': 'Completed',
+  'progress.status.failed': 'Failed',
+  'progress.status.cancelled': 'Cancelled',
+
+  // progress.fetchError / progress.findingsPending
+  'progress.fetchError': 'Could not load progress status.',
+  'progress.findingsPending': 'Findings will appear here as they arrive.',
+
+  // category.na — CategoryNATile in the dashboard category grid.
+  'category.na.label': 'N/A',
+  'category.na.description': 'Insufficient data to produce a score for this category.',
 };
 
 export type En = typeof en;
