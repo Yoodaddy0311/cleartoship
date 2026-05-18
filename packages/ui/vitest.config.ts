@@ -1,8 +1,18 @@
 import { defineConfig } from 'vitest/config';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   esbuild: {
     jsx: 'automatic',
+  },
+  resolve: {
+    alias: {
+      '@cleartoship/audit-core': path.resolve(here, '../audit-core/src/index.ts'),
+      '@cleartoship/shared-types': path.resolve(here, '../shared-types/src/index.ts'),
+    },
   },
   test: {
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],

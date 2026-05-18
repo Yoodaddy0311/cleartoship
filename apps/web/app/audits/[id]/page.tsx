@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardBody, CardHeader, CardTitle, Progress, Button } from '@cleartoship/ui';
 import {
@@ -8,6 +8,8 @@ import {
   type AuditStep,
 } from '@/components/audit-progress/progress-timeline';
 import { useAuditRunPolling } from '@/components/audit-progress/use-audit-run-polling';
+import { ColdStartMeta } from '@/components/audit-progress/cold-start-meta';
+import { ColdStartSkeleton } from '@/components/audit-progress/cold-start-skeleton';
 import { DevPipelineBanner } from '@/components/common/dev-pipeline-banner';
 import { PartialResultBanner } from '@/components/common/resource-state-panel';
 import { t } from '@/lib/i18n';
@@ -16,6 +18,7 @@ export default function AuditProgressPage() {
   const { id: auditId } = useParams<{ id: string }>();
   const router = useRouter();
   const { data, loading, error } = useAuditRunPolling(auditId);
+  const mountedAtRef = useRef<number>(Date.now());
 
   useEffect(() => {
     if (data?.status === 'COMPLETED') {
@@ -32,14 +35,19 @@ export default function AuditProgressPage() {
   const progress = data?.progress ?? 0;
   const status = data?.status ?? 'PENDING';
   const showFetchError = error !== null && data === null;
+  const isFirstPaint = loading && data === null && !showFetchError;
+
+  function handleManualRefresh(): void {
+    router.refresh();
+  }
 
   return (
     <section className="mx-auto flex w-full max-w-[1280px] flex-col gap-8 px-4 py-12 sm:px-6">
       <header className="flex flex-col gap-2">
-        <h1 className="text-display-md font-semibold text-[color:var(--color-fg-primary)]">
+        <h1 className="ko-text text-2xl font-semibold leading-tight text-[color:var(--color-fg-primary)] sm:text-display-md">
           {t('progress.title')}
         </h1>
-        <p className="text-md text-[color:var(--color-fg-secondary)]">
+        <p className="ko-text text-md text-[color:var(--color-fg-secondary)]">
           {t('progress.subtitle')}
         </p>
         <div className="mt-4">
@@ -58,6 +66,13 @@ export default function AuditProgressPage() {
             showValue
           />
         </div>
+        <ColdStartMeta
+          currentStep={currentStep}
+          status={status}
+          startedAtIso={data?.startedAt}
+          mountedAtMs={mountedAtRef.current}
+          onManualRefresh={handleManualRefresh}
+        />
         <DevPipelineBanner mode={data?.enqueueMode ?? null} className="mt-4" />
         <PartialResultBanner
           toolNames={data?.partialResultTools ?? []}
@@ -65,10 +80,15 @@ export default function AuditProgressPage() {
         />
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_2fr]">
+      {isFirstPaint ? <ColdStartSkeleton /> : null}
+
+      <div
+        className="grid gap-6 lg:grid-cols-[1fr_2fr]"
+        hidden={isFirstPaint}
+      >
         <Card variant="default" padding="md" aria-live="polite">
           <CardHeader>
-            <CardTitle>15단계 분석</CardTitle>
+            <CardTitle>18단계 분석</CardTitle>
           </CardHeader>
           <CardBody>
             <ProgressTimeline currentStep={currentStep} status={status} />

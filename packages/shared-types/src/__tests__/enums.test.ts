@@ -19,7 +19,7 @@ function expectAllUpperSnake(values: readonly string[]): void {
 }
 
 describe('AuditCategory enum', () => {
-  it('contains the 11 documented categories', () => {
+  it('contains the 12 documented categories', () => {
     const expected = [
       'PRODUCT_INTENT',
       'REQUIREMENT_COVERAGE',
@@ -32,6 +32,7 @@ describe('AuditCategory enum', () => {
       'SECURITY_PRIVACY',
       'LAUNCH_READINESS',
       'MAINTAINABILITY_DOCUMENTATION',
+      'BUSINESS_READINESS',
     ];
     expect(AuditCategory.options).toEqual(expected);
   });

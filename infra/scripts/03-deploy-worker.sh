@@ -15,6 +15,17 @@ IMAGE_TAG="${IMAGE_TAG:-v0.1.0}"
 SERVICE_NAME="${SERVICE_NAME:-audit-worker}"
 DRY_RUN="${DRY_RUN:-0}"
 
+# Cold-start mitigation: prod keeps 1 warm instance (#96 / T1.6-FU).
+# staging/dev stay at 0 to avoid ~$10/mo idle cost per env.
+# Override with MIN_INSTANCES=<n> if needed.
+if [[ -z "${MIN_INSTANCES:-}" ]]; then
+  if [[ "$PROJECT_ID" == *"prod"* ]]; then
+    MIN_INSTANCES=1
+  else
+    MIN_INSTANCES=0
+  fi
+fi
+
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || { echo "ERROR: '$1' is not installed." >&2; exit 1; }
 }
@@ -32,7 +43,7 @@ run() {
   "$@"
 }
 
-echo "==> Deploying Cloud Run service: $SERVICE_NAME"
+echo "==> Deploying Cloud Run service: $SERVICE_NAME (min-instances=$MIN_INSTANCES)"
 run gcloud run deploy "$SERVICE_NAME" \
   --image="$IMAGE_URI" \
   --region="$REGION" \
@@ -44,7 +55,7 @@ run gcloud run deploy "$SERVICE_NAME" \
   --concurrency=1 \
   --timeout=600 \
   --max-instances=10 \
-  --min-instances=0 \
+  --min-instances="$MIN_INSTANCES" \
   --set-env-vars="PROJECT_ID=$PROJECT_ID,REGION=$REGION,NODE_ENV=production" \
   --quiet
 

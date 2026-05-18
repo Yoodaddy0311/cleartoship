@@ -1,12 +1,13 @@
 import type { AuditCategory as SharedAuditCategory } from '@cleartoship/shared-types';
 
 /**
- * 10 audit categories per PRD §3 — re-exported from shared-types so the web
- * app and workers share a single source of truth. The shared enum uses
- * UPPER_SNAKE casing (matches Firestore-stored values + worker emissions).
+ * 11 audit categories surfaced in the UI — re-exported from shared-types so
+ * the web app and workers share a single source of truth. The shared enum
+ * uses UPPER_SNAKE casing (matches Firestore-stored values + worker
+ * emissions).
  *
- * Note: shared-types includes MAINTAINABILITY_DOCUMENTATION (11 values) but
- * the UI surfaces only the 10 categories below.
+ * Note: shared-types includes MAINTAINABILITY_DOCUMENTATION (12 values total)
+ * but the UI omits it — that category is internal-only.
  */
 export type AuditCategory = Exclude<SharedAuditCategory, 'MAINTAINABILITY_DOCUMENTATION'>;
 
@@ -21,6 +22,7 @@ export const ALL_CATEGORIES: AuditCategory[] = [
   'DATA_MODEL',
   'SECURITY_PRIVACY',
   'LAUNCH_READINESS',
+  'BUSINESS_READINESS',
 ];
 
 /**
@@ -38,6 +40,7 @@ const CATEGORY_LABELS_KO: Record<AuditCategory, string> = {
   DATA_MODEL: '데이터 모델',
   SECURITY_PRIVACY: '보안/개인정보',
   LAUNCH_READINESS: '출시 준비도',
+  BUSINESS_READINESS: '비즈니스 준비도',
 };
 
 export function categoryLabel(c: AuditCategory): string {

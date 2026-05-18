@@ -1,5 +1,9 @@
 import type { Step } from './index.js';
-import { calculateScores, type AvailableTools } from '@cleartoship/audit-core';
+import {
+  calculateScores,
+  getProfile,
+  type AvailableTools,
+} from '@cleartoship/audit-core';
 import { getToolsHealthSync } from '../../diagnostics/tools-health.js';
 
 /**
@@ -45,6 +49,11 @@ export const step12CalculateScores: Step = {
       deployUrlReachable: !!ctx.deployUrl,
     };
     const availableTools = probeAvailableTools();
+    // T2.4: resolve the audit profile selected at run start (if any). Unknown
+    // / missing ids return null — `applyProfileWeights` is a no-op under
+    // null, so spec defaults still apply. `getProfile` swallows typos/legacy
+    // docs so a bad profileId can never crash the worker.
+    const profile = getProfile(ctx.profileId);
     // BUG-1: forward which steps actually ran so the scorer can N/A any
     // category whose measuredBy step skipped (e.g. UX_UI when there was no
     // deployUrl, so ANALYZE_DEPLOY_URL early-returned without findings).
@@ -56,13 +65,15 @@ export const step12CalculateScores: Step = {
       coverage,
       availableTools,
       executedSteps: state.executedSteps,
+      profile,
     });
     state.severityCounts = result.severityCounts;
     state.readinessScore = result.readinessScore;
     state.launchStatus = result.launchStatus;
-    // Save category scores into state via a private field (we read them back in step 13).
-    (state as unknown as { __categoryScores: typeof result.categoryScores }).__categoryScores =
-      result.categoryScores;
+    // I2: typed channel — step13 reads state.categoryScores back without an
+    // `as unknown as` cast. Promoted from a smuggled __categoryScores field
+    // so producer/consumer share a checked contract.
+    state.categoryScores = result.categoryScores;
     ctx.log('info', 'Scores calculated', {
       readinessScore: result.readinessScore,
       launchStatus: result.launchStatus,
@@ -70,6 +81,7 @@ export const step12CalculateScores: Step = {
       availableTools,
       toolsAvailableRatio: result.toolsAvailableRatio,
       confidenceMultiplier: result.confidenceMultiplier,
+      profileId: profile?.id ?? null,
     });
   },
 };

@@ -15,6 +15,7 @@ function makeCtx(): WorkerCtx {
     repoUrl: 'https://github.com/example/repo',
     deployUrl: null,
     prdText: null,
+    profileId: null,
     clonePath: '/tmp/cleartoship-run-1',
     log: vi.fn(),
   };

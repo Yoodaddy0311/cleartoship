@@ -11,6 +11,7 @@ locals {
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
     "sts.googleapis.com",
+    "monitoring.googleapis.com",
   ]
 }
 

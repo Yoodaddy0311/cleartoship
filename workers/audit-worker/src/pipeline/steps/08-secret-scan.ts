@@ -8,6 +8,7 @@ import type { Step } from './index.js';
 import type { NormalizedFinding } from '../../adapters/index.js';
 import { writeToolResult } from '../../firestore/writers.js';
 import { scanText, looksBinary, type SecretHit } from '../secret-patterns.js';
+import { recordStepOutcome } from '../lib/record-step-outcome.js';
 
 const MAX_FILE_BYTES = 1024 * 1024; // 1 MB per-file cap
 const MAX_FILES_SCANNED = 5_000;
@@ -176,7 +177,7 @@ export const step08SecretScan: Step = {
       artifactPath: null,
     });
     // BUG-1: mark RUN_SECRET_SCAN executed only after a successful walk.
-    state.executedSteps.push('RUN_SECRET_SCAN');
+    recordStepOutcome(state, 'RUN_SECRET_SCAN', 'CHECKPOINT');
     ctx.log('info', 'Secret scan complete', {
       secrets: findings.length,
       scanned,

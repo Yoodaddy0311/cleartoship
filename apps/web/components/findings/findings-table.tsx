@@ -4,9 +4,11 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Card, CardBody, Button } from '@cleartoship/ui';
 import { SeverityChip } from '@/components/common/severity-chip';
+import { ConfidenceChip } from '@/components/common/confidence-chip';
 import { categoryLabel } from '@/lib/format/category';
 import { SEVERITY_ORDER } from '@/lib/format/severity';
 import { FindingFilters, type FindingFiltersValue } from './finding-filters';
+import { ActionHintCell } from './action-hint-cell';
 import type { FindingViewModel } from '@/lib/types/finding-view';
 import { t } from '@/lib/i18n';
 
@@ -75,6 +77,9 @@ export function FindingsTable({
                   <th className="px-4 py-3 font-medium">{t('findings.column.category')}</th>
                   <th className="px-4 py-3 font-medium">{t('findings.column.severity')}</th>
                   <th className="px-4 py-3 font-medium">{t('findings.column.confidence')}</th>
+                  <th className="px-4 py-3 font-medium">
+                    {t('findings.column.actionHint')}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -100,8 +105,11 @@ export function FindingsTable({
                     <td className="px-4 py-3">
                       <SeverityChip severity={f.severity} showLabel={false} />
                     </td>
-                    <td className="px-4 py-3 text-xs text-[color:var(--color-fg-muted)]">
-                      {f.confidence === 'high' ? '높음' : f.confidence === 'medium' ? '보통' : '낮음'}
+                    <td className="px-4 py-3">
+                      <ConfidenceChip confidence={f.confidence} showLabel={false} />
+                    </td>
+                    <td className="px-4 py-3 max-w-[260px]">
+                      <ActionHintCell hint={f.actionHint} />
                     </td>
                   </tr>
                 ))}

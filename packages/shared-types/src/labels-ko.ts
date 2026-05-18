@@ -93,6 +93,10 @@ export const AUDIT_CATEGORY_LABELS_KO: Record<AuditCategory, LabelWithDescriptio
     label: '유지보수',
     description: '코드 가독성과 문서화',
   },
+  BUSINESS_READINESS: {
+    label: '비즈니스 준비도',
+    description: '가격/약관/온보딩/지원/분석 도구 등 출시 운영 요소',
+  },
 };
 
 export const IMPLEMENTATION_STATUS_LABELS_KO: Record<ImplementationStatus, LabelWithDescription> = {

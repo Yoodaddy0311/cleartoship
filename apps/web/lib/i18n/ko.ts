@@ -38,6 +38,18 @@ export const ko = {
   'home.form.prd.file.tooLarge': 'PRD 파일 내용이 50,000자를 초과합니다.',
   'home.form.prd.file.readError': '파일을 읽을 수 없습니다. 다른 파일을 선택해주세요.',
   'home.form.prd.file.selected': '선택된 파일',
+  // W2-A: PrdInput component (textarea + file upload + counter). Distinct
+  // from the legacy `home.form.prd.*` keys (kept for other call sites).
+  'audit.prd.label': '제품 요구사항 문서 (선택)',
+  'audit.prd.placeholder': 'PRD를 붙여넣거나 .md/.txt 파일을 업로드하세요',
+  'audit.prd.fileButton': '파일에서 가져오기',
+  'audit.prd.tooLarge': '50KB 이하로 입력해주세요',
+  'home.form.profile.label': '감사 프로필 (선택)',
+  'home.form.profile.hint': '도메인을 선택하면 해당 카테고리에 가중치를 더해 채점합니다',
+  'home.form.profile.option.none': '기본 (가중치 조정 없음)',
+  'home.form.profile.option.landing': '랜딩 페이지 (UX·프론트엔드·런칭 준비도 강조)',
+  'home.form.profile.option.saas': 'SaaS / API (백엔드·보안·데이터 모델 강조)',
+  'home.form.profile.option.ecommerce': '이커머스 (보안·결제·UX 흐름 강조)',
   'home.form.submit': '감사 시작',
   'home.form.submitting': '감사 요청 중...',
   'home.form.auth.initializing': '인증 준비 중...',
@@ -102,19 +114,56 @@ export const ko = {
   'dashboard.severity.p2': '품질 개선',
   'dashboard.severity.p3': '장기 개선',
   'dashboard.categories.title': '영역별 점수',
+  'dashboard.categories.viewAll': '전체 보기',
   'dashboard.top5.title': '가장 먼저 볼 항목 TOP 5',
   'dashboard.summary.title': '한 줄 요약',
   'dashboard.tab.dashboard': '대시보드',
+  'dashboard.tab.categories': '영역별 보기',
   'dashboard.tab.featureGraph': '기능 관계도',
   'dashboard.tab.findings': '이슈 목록',
   'dashboard.tab.report': '감사 리포트',
   'dashboard.tab.improvementPrd': '개선 PRD',
+
+  // Categories page (Layer 2 of 3-layer progressive disclosure)
+  'categories.title': '영역별 보기',
+  'categories.subtitle': '카테고리를 펼치면 우선순위 이슈가 표시됩니다.',
+  'categories.loading': '영역별 결과를 불러오는 중입니다.',
+  'categories.breadcrumb.aria': '경로',
+  'categories.count.prefix': '이슈 ',
+  'categories.count.suffix': '건',
+  'categories.na.aria': '점수 판단 불가',
+  'categories.empty.row': '발견된 이슈가 없습니다.',
+  'categories.empty.panel': '이 영역에서는 발견된 이슈가 없습니다.',
+  'categories.viewAll.prefix': '전체 보기 (총 ',
+  'categories.viewAll.suffix': '건)',
 
   // Launch status
   'launch.ready': '출시 가능',
   'launch.readyWithImprovements': '출시 가능하나 권장 보완',
   'launch.needsWork': '출시 전 보완 필요',
   'launch.stop': '출시 중단 권장',
+
+  // Wave 1 W1.4 — Founder Confidence Score (FCS)
+  // Single 0~100 metric + uncertainty band + ranked concerns + 1-sentence
+  // rationale. Status uses the shared-types LaunchStatus 7-enum
+  // (READY/CONDITIONAL/NEEDS_WORK/AT_RISK/NOT_READY/INDETERMINATE/BLOCKED).
+  'fcs.label.score': '창업자 확신 점수',
+  'fcs.label.uncertainty': '불확실성 ±{value}',
+  'fcs.label.topConcerns': '핵심 우려 사항',
+  'fcs.label.rationale': '판단 근거',
+  'fcs.label.status': '출시 상태',
+  'fcs.label.indeterminateNote': '분석 자료가 부족해 신뢰 구간만 표시합니다.',
+  'fcs.aria.gauge': '창업자 확신 점수 {score}점, 신뢰 구간 {lower}~{upper}',
+  'fcs.aria.uncertaintyBar': '점수 신뢰 구간 {lower}부터 {upper}까지',
+  'fcs.empty.concerns': '주요 우려 사항이 없습니다.',
+  // LaunchStatus 7-enum 라벨 — FCS 상태 칩에서 사용
+  'fcs.status.READY': '출시 가능',
+  'fcs.status.CONDITIONAL': '조건부 출시',
+  'fcs.status.NEEDS_WORK': '보완 후 출시',
+  'fcs.status.AT_RISK': '위험 — 점검 필요',
+  'fcs.status.NOT_READY': '출시 부적합',
+  'fcs.status.INDETERMINATE': '판단 불가',
+  'fcs.status.BLOCKED': '감사 중단',
 
   // Findings
   'findings.title': '이슈 목록',
@@ -127,6 +176,18 @@ export const ko = {
   'findings.column.category': '카테고리',
   'findings.column.severity': '위험도',
   'findings.column.confidence': '신뢰도',
+  'findings.column.actionHint': '다음 행동',
+  // L-P0-6: action hint label + ETA ladder (5/30/60/240). Used both in the
+  // findings table row and in the detail-panel "다음 행동" callout card.
+  'findings.actionHint.title': '다음 행동',
+  'findings.actionHint.etaPrefix': '예상 소요',
+  'findings.actionHint.empty': '액션 가이드 준비 중',
+  'findings.actionHint.eta.5': '5분',
+  'findings.actionHint.eta.30': '30분',
+  'findings.actionHint.eta.60': '1시간',
+  'findings.actionHint.eta.240': '반나절+',
+  'findings.actionHint.referenceLabel': '참고 자료',
+  'findings.actionHint.referenceAria': '관련 참고 자료 새 창에서 열기',
   'findings.detail.nonDeveloper': '비개발자 설명',
   'findings.detail.technical': '전문가 근거',
   'findings.detail.impact': '영향',
@@ -136,6 +197,11 @@ export const ko = {
   'findings.detail.includeInPrd': '개선 PRD에 포함',
   'findings.detail.evidences.truncated':
     'Evidence가 일부만 표시되고 있습니다 (서버 한도에 도달했습니다)',
+  'findings.detail.falsePositive.toggle': '오탐 표시',
+  'findings.detail.falsePositive.marked': '오탐으로 표시됨',
+  'findings.detail.falsePositive.unmarked': '오탐 표시',
+  'findings.detail.falsePositive.error':
+    '저장 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
 
   // Feature Graph
   'graph.title': '기능 관계도',
@@ -158,7 +224,7 @@ export const ko = {
   'status.recommended': '추천 기능',
   'status.unknown': '확인 필요',
 
-  // Categories (10) — UPPER_SNAKE matches shared-types AuditCategory enum.
+  // Categories (11) — UPPER_SNAKE matches shared-types AuditCategory enum.
   'category.PRODUCT_INTENT': '제품 의도',
   'category.REQUIREMENT_COVERAGE': '요구사항 커버리지',
   'category.FEATURE_GRAPH': '기능 관계도',
@@ -169,6 +235,7 @@ export const ko = {
   'category.DATA_MODEL': '데이터 모델',
   'category.SECURITY_PRIVACY': '보안/개인정보',
   'category.LAUNCH_READINESS': '출시 준비도',
+  'category.BUSINESS_READINESS': '비즈니스 준비도',
 
   // Report
   'report.title': '감사 리포트',
@@ -197,6 +264,17 @@ export const ko = {
   'common.required': '필수',
   'common.optional': '선택',
 
+  // Samples gallery — T2.9 #121
+  'samples.title': '샘플 Repo 갤러리',
+  'samples.subtitle':
+    '실제 오픈소스 저장소로 감사를 한 번 돌려보세요. 어떤 결과가 나오는지 1분 안에 확인할 수 있습니다.',
+  'samples.tag.benchmark': '벤치마크 좋음',
+  'samples.tag.typicalIssues': '전형적 문제',
+  'samples.tag.minimal': '최소 구성',
+  'samples.expected.label': '예상 결과',
+  'samples.cta': '이 저장소로 감사 시작',
+  'samples.card.thumbnailAlt': '{name} 저장소 미리보기',
+
   // Footer
   'footer.copyright': '© 2026 ClearToShip. All rights reserved.',
   'footer.note': '근거 기반 출시 감사 플랫폼',
@@ -213,6 +291,18 @@ export const ko = {
     '이건 분석 환경 설정 문제이며 결과 신뢰도에 큰 영향이 없습니다',
   'errors.audit.toolUnavailable.deployUrlHint':
     '배포 URL을 입력하시면 사이트 성능/접근성도 측정해드릴게요',
+  // T2.12 #112: N/A 카테고리 라벨 (BLOCKED vs FAILED 구분)
+  'errors.audit.toolUnavailable.categoryHeading': '점수가 N/A로 표시되는 카테고리',
+  'errors.audit.toolUnavailable.whyNa': '왜 N/A인가요?',
+  'errors.audit.toolUnavailable.naReason.skipped': '실행되지 않음',
+  'errors.audit.toolUnavailable.naReason.blocked': '가드레일 작동으로 중단',
+  'errors.audit.toolUnavailable.naReason.failed': '도구 오류',
+  'errors.audit.toolUnavailable.blockedNote':
+    '가드레일에 의해 분석이 중단되어 일부 카테고리는 측정되지 않았습니다. 중단 사유: {abortReason}',
+  'errors.audit.category.SECURITY_PRIVACY': '보안 검사',
+  'errors.audit.category.FRONTEND_CODE': '코드 품질 검사',
+  'errors.audit.category.LAUNCH_READINESS': '성능 검사',
+  'errors.audit.category.UX_UI': '접근성 검사',
 
   // Empty / pending guidance for resource panels
   'audit.empty.unsupportedFramework':
@@ -242,13 +332,16 @@ export const AUDIT_STEP_LABELS: Record<string, string> = {
   FETCH_REPO_METADATA: 'GitHub 메타데이터 확인',
   CLONE_REPO: '저장소 복제',
   ANALYZE_PROJECT_STRUCTURE: '프로젝트 구조 분석',
+  ANALYZE_PRD: 'PRD 문서 분석',
   DETECT_FEATURES: '기능 탐지',
   RUN_STATIC_ANALYSIS: '정적 분석 실행',
   DISCOVER_RISKY_FUNCTIONS: '위험 함수 탐지',
   RUN_DEPENDENCY_SCAN: '의존성 취약점 스캔',
   RUN_SECRET_SCAN: 'Secret 노출 검사',
+  ANALYZE_DATA_MODEL: '데이터 모델 분석',
   ANALYZE_DEPLOY_URL: '배포 URL 분석',
   CHECK_DESIGN_CONSISTENCY: '디자인 일관성 점검',
+  ANALYZE_BUSINESS_READINESS: '비즈니스 준비도 점검',
   GENERATE_FEATURE_GRAPH: '기능 관계도 생성',
   MAP_CHECKLIST: '체크리스트 매핑',
   CALCULATE_SCORES: '점수 계산',

@@ -23,6 +23,9 @@ export const viewport: Viewport = {
   themeColor: '#FFFFFF',
   width: 'device-width',
   initialScale: 1,
+  // T2.11 #122: notch/edge-to-edge 디스플레이에서 콘텐츠가 안전영역을 직접
+  // 제어할 수 있도록 cover. globals.css의 .safe-area-* 유틸과 짝을 이룬다.
+  viewportFit: 'cover',
   maximumScale: 5,
 };
 

@@ -1,8 +1,10 @@
 import { z } from 'zod';
 
 /**
- * 15-step audit pipeline. Order is significant — the worker iterates linearly
- * and writes progress percent = (currentIndex / total) * 100.
+ * 20-step audit pipeline (originally 15; expanded by DISCOVER_RISKY_FUNCTIONS,
+ * ANALYZE_DATA_MODEL, CHECK_DESIGN_CONSISTENCY, ANALYZE_PRD,
+ * ANALYZE_BUSINESS_READINESS). Order is significant — the worker iterates
+ * linearly and writes progress percent = (currentIndex / total) * 100.
  *
  * Source: `09_data_model_api_spec.md` §4.
  */
@@ -11,6 +13,7 @@ export const AUDIT_STEPS = [
   'FETCH_REPO_METADATA',
   'CLONE_REPO',
   'ANALYZE_PROJECT_STRUCTURE',
+  'ANALYZE_PRD',
   'DETECT_FEATURES',
   'RUN_STATIC_ANALYSIS',
   'DISCOVER_RISKY_FUNCTIONS',
@@ -19,6 +22,7 @@ export const AUDIT_STEPS = [
   'ANALYZE_DATA_MODEL',
   'ANALYZE_DEPLOY_URL',
   'CHECK_DESIGN_CONSISTENCY',
+  'ANALYZE_BUSINESS_READINESS',
   'GENERATE_FEATURE_GRAPH',
   'MAP_CHECKLIST',
   'CALCULATE_SCORES',
@@ -37,6 +41,7 @@ export const AUDIT_STEP_LABELS_KO: Record<AuditStep, string> = {
   FETCH_REPO_METADATA: 'Repo 메타데이터 수집',
   CLONE_REPO: 'Repo 다운로드',
   ANALYZE_PROJECT_STRUCTURE: '프로젝트 구조 분석',
+  ANALYZE_PRD: 'PRD/문서 분석',
   DETECT_FEATURES: '기능 후보 탐지',
   RUN_STATIC_ANALYSIS: '정적 분석 (Semgrep)',
   DISCOVER_RISKY_FUNCTIONS: '위험 함수 탐지',
@@ -45,6 +50,7 @@ export const AUDIT_STEP_LABELS_KO: Record<AuditStep, string> = {
   ANALYZE_DATA_MODEL: '데이터 모델 점검',
   ANALYZE_DEPLOY_URL: '배포 URL 진단',
   CHECK_DESIGN_CONSISTENCY: '디자인 일관성 점검',
+  ANALYZE_BUSINESS_READINESS: '비즈니스 준비도 점검',
   GENERATE_FEATURE_GRAPH: '기능 관계도 구성',
   MAP_CHECKLIST: '체크리스트 매핑',
   CALCULATE_SCORES: '점수 계산',

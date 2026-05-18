@@ -1,12 +1,5 @@
 import { Badge } from '@cleartoship/ui';
-import type { Severity } from '@/lib/format/severity';
-
-const LABEL: Record<Severity, string> = {
-  P0: '출시 차단',
-  P1: '핵심 개선',
-  P2: '품질 개선',
-  P3: '장기 개선',
-};
+import { severityLabel, type Severity } from '@/lib/format/severity';
 
 export function SeverityChip({
   severity,
@@ -15,10 +8,11 @@ export function SeverityChip({
   severity: Severity;
   showLabel?: boolean;
 }) {
+  const label = severityLabel(severity);
   return (
-    <Badge variant={severity} aria-label={`위험도 ${severity}`}>
+    <Badge variant={severity} aria-label={`위험도 ${severity} ${label}`}>
       <span className="font-mono">{severity}</span>
-      {showLabel ? <span className="ml-1">{LABEL[severity]}</span> : null}
+      {showLabel ? <span className="ml-1">{label}</span> : null}
     </Badge>
   );
 }

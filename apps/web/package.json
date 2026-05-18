@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint . --max-warnings=0",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
@@ -15,6 +15,7 @@
     "@cleartoship/audit-core": "workspace:*",
     "@cleartoship/shared-types": "workspace:*",
     "@cleartoship/ui": "workspace:*",
+    "@google-cloud/monitoring": "^4.0.0",
     "@google-cloud/tasks": "^5.4.0",
     "@radix-ui/react-dialog": "^1.1.0",
     "@radix-ui/react-tabs": "^1.1.0",

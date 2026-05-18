@@ -12,10 +12,10 @@ import { jsonError, jsonOk, logServerError } from '@/app/api/_lib/responses';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest, ctx: { params: { id: string } }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const caller = await resolveCaller(req);
   if (!caller) return jsonError('UNAUTHORIZED', '인증 정보가 필요합니다.', 401);
-  const findingId = ctx.params.id;
+  const { id: findingId } = await ctx.params;
   const runId = new URL(req.url).searchParams.get('runId');
   if (!findingId) return jsonError('INVALID_INPUT', 'findingId가 필요합니다.', 400);
   if (!runId) return jsonError('INVALID_INPUT', 'runId 쿼리 파라미터가 필요합니다.', 400);

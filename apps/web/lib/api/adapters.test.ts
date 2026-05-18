@@ -105,6 +105,7 @@ describe('adaptCategoryScores', () => {
     expect(out.DATA_MODEL).toBe(0);
     expect(out.SECURITY_PRIVACY).toBe(0);
     expect(out.LAUNCH_READINESS).toBe(0);
+    expect(out.BUSINESS_READINESS).toBe(0);
   });
 
   it('rounds scores to integers per category', () => {
@@ -117,7 +118,7 @@ describe('adaptCategoryScores', () => {
     expect(out.UX_UI).toBe(55);
   });
 
-  it('drops MAINTAINABILITY_DOCUMENTATION (11th shared category) from UI record', () => {
+  it('drops MAINTAINABILITY_DOCUMENTATION (internal-only shared category) from UI record', () => {
     const list: AuditReport['categoryScores'] = [
       {
         category: 'MAINTAINABILITY_DOCUMENTATION',

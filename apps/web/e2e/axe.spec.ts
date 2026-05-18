@@ -37,4 +37,19 @@ test.describe('a11y — axe-core', () => {
         .join('\n')}`
     ).toEqual([]);
   });
+
+  // T2.9 #121 — sample repo gallery a11y gate
+  test('samples gallery (/samples) has no critical a11y violations', async ({
+    page,
+  }) => {
+    await page.goto('/samples');
+    const results = await new AxeBuilder({ page }).analyze();
+    const critical = results.violations.filter((v) => v.impact === 'critical');
+    expect(
+      critical,
+      `critical violations:\n${critical
+        .map((v) => `${v.id}: ${v.description}`)
+        .join('\n')}`
+    ).toEqual([]);
+  });
 });

@@ -1,17 +1,38 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { z } from 'zod';
-import { ArrowRight, FileText, Upload } from 'lucide-react';
-import { Button, Input, Textarea, Card, CardBody, cn } from '@cleartoship/ui';
+import { ArrowRight } from 'lucide-react';
+import { Button, Input, Card, CardBody, cn } from '@cleartoship/ui';
 import { t } from '@/lib/i18n';
 import { createAuditRun, type AuditRunCreateInput } from '@/lib/api/audit-runs';
 import { ApiHttpError } from '@/lib/api/client';
 import { useEnsureAnonymousAuth } from '@/lib/firebase/auth-init';
+import { PrdInput } from './prd-input';
 
 const GITHUB_URL = /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/?$/;
-const PRD_MAX_CHARS = 50_000;
+// W2-A AC2: 50 KB byte cap (UTF-8). Char-based caps would let 16_667 한글
+// pass at ~50 KB while letting 50 000 한글 (~150 KB) blow past the server
+// limit. PrdInput shows the visual warning; this is the submit-time gate.
+const PRD_MAX_BYTES = 50_000;
+const prdEncoder =
+  typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+function prdByteLength(value: string): number {
+  if (prdEncoder) return prdEncoder.encode(value).length;
+  return Buffer.byteLength(value, 'utf8');
+}
+
+// T2.4: client-side allowlist of selectable audit-profile ids. Mirrors the
+// `AUDIT_PROFILES` registry in `@cleartoship/audit-core` but kept local so the
+// `<select>` dropdown can render without pulling the audit-core bundle into
+// the marketing page. Unknown ids submitted via tampered DOM are filtered out
+// before hitting the API.
+const PROFILE_IDS = ['landing', 'saas', 'ecommerce'] as const;
+type ProfileOptionId = (typeof PROFILE_IDS)[number];
+function isProfileId(v: string): v is ProfileOptionId {
+  return (PROFILE_IDS as ReadonlyArray<string>).includes(v);
+}
 
 const schema = z.object({
   repoUrl: z
@@ -23,51 +44,34 @@ const schema = z.object({
     .url(t('home.form.error.deployUrl'))
     .optional()
     .or(z.literal('')),
-  prdText: z.string().max(PRD_MAX_CHARS).optional().or(z.literal('')),
+  prdText: z
+    .string()
+    .refine((v) => prdByteLength(v) <= PRD_MAX_BYTES, {
+      message: t('audit.prd.tooLarge'),
+    })
+    .optional()
+    .or(z.literal('')),
 });
 
 type FieldErrors = Partial<Record<keyof AuditRunCreateInput, string>>;
-type PrdMode = 'text' | 'file';
 
 export function UrlInputForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // T2.9 #121: `/samples` cards send users here with `?repo=<github-url>`;
+  // only accept the value if it matches the GitHub URL regex so a tampered
+  // querystring cannot pre-poison validation or render unsafe text.
+  const repoParam = searchParams?.get('repo') ?? '';
+  const initialRepoUrl = GITHUB_URL.test(repoParam) ? repoParam : '';
   // Firestore rules require request.auth != null on AuditRun create — mint an
   // anonymous user on mount so the form submission has a uid to attach.
   const auth = useEnsureAnonymousAuth();
   const [pending, startTransition] = useTransition();
   const [errors, setErrors] = useState<FieldErrors>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [prdMode, setPrdMode] = useState<PrdMode>('text');
-  const [filePrdText, setFilePrdText] = useState<string>('');
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [fileError, setFileError] = useState<string | null>(null);
-
-  async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setFileError(null);
-    const file = e.target.files?.[0];
-    if (!file) {
-      setFilePrdText('');
-      setFileName(null);
-      return;
-    }
-    try {
-      const text = await file.text();
-      if (text.length > PRD_MAX_CHARS) {
-        setFileError(t('home.form.prd.file.tooLarge'));
-        setFilePrdText('');
-        setFileName(null);
-        e.target.value = '';
-        return;
-      }
-      setFilePrdText(text);
-      setFileName(file.name);
-    } catch {
-      setFileError(t('home.form.prd.file.readError'));
-      setFilePrdText('');
-      setFileName(null);
-      e.target.value = '';
-    }
-  }
+  // W2-A: PrdInput owns its own file-read + counter UI; the form only holds
+  // the canonical text value and forwards it to the create payload.
+  const [prdText, setPrdText] = useState<string>('');
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -84,15 +88,18 @@ export function UrlInputForm() {
     }
 
     const fd = new FormData(e.currentTarget);
-    const prdText =
-      prdMode === 'file'
-        ? filePrdText
-        : String(fd.get('prdText') ?? '').trim();
+    // W2-A: PrdInput is a controlled component; read from state, not FormData.
+    // .trim() || null normalises blank/whitespace to null so the server never
+    // sees empty PRD strings (false-positive guard in step04c).
+    const trimmedPrd = prdText.trim();
+
+    const rawProfile = String(fd.get('profileId') ?? '').trim();
+    const profileId = isProfileId(rawProfile) ? rawProfile : '';
 
     const data = {
       repoUrl: String(fd.get('repoUrl') ?? '').trim(),
       deployUrl: String(fd.get('deployUrl') ?? '').trim(),
-      prdText,
+      prdText: trimmedPrd,
     };
 
     const parsed = schema.safeParse(data);
@@ -112,6 +119,7 @@ export function UrlInputForm() {
           repoUrl: parsed.data.repoUrl,
           ...(parsed.data.deployUrl ? { deployUrl: parsed.data.deployUrl } : {}),
           ...(parsed.data.prdText ? { prdText: parsed.data.prdText } : {}),
+          ...(profileId ? { profileId } : {}),
         };
         const response = await createAuditRun(payload);
         router.push(`/audits/${encodeURIComponent(response.auditRunId)}`);
@@ -141,6 +149,7 @@ export function UrlInputForm() {
             placeholder={t('home.form.repoUrl.placeholder')}
             hint={t('home.form.repoUrl.hint')}
             error={errors.repoUrl}
+            defaultValue={initialRepoUrl}
           />
           <Input
             id="deployUrl"
@@ -155,85 +164,38 @@ export function UrlInputForm() {
             error={errors.deployUrl}
           />
 
-          <div className="flex flex-col gap-2">
-            <span className="text-sm text-[color:var(--color-fg-secondary)]">
-              {t('home.form.prd.label')}
-            </span>
-            <p className="text-xs text-[color:var(--color-fg-muted)]">
-              {t('home.form.prd.hint')}
-            </p>
-            <div
-              role="radiogroup"
-              aria-label={t('home.form.prd.label')}
-              className="mt-1 inline-flex w-full overflow-hidden rounded-[10px] border border-[color:var(--color-border-default)]"
+          <div className="flex flex-col gap-1.5">
+            <label
+              htmlFor="profileId"
+              className="text-sm text-[color:var(--color-fg-secondary)]"
             >
-              <PrdModeOption
-                value="text"
-                current={prdMode}
-                onSelect={setPrdMode}
-                label={t('home.form.prd.mode.text')}
-                icon={<FileText className="h-4 w-4" aria-hidden="true" />}
-              />
-              <PrdModeOption
-                value="file"
-                current={prdMode}
-                onSelect={setPrdMode}
-                label={t('home.form.prd.mode.file')}
-                icon={<Upload className="h-4 w-4" aria-hidden="true" />}
-              />
-            </div>
-
-            {prdMode === 'text' ? (
-              <Textarea
-                id="prdText"
-                name="prdText"
-                rows={5}
-                placeholder={t('home.form.prd.placeholder')}
-                error={errors.prdText}
-              />
-            ) : (
-              <div className="flex flex-col gap-1.5">
-                <label
-                  htmlFor="prdFile"
-                  className="text-xs text-[color:var(--color-fg-muted)]"
-                >
-                  {t('home.form.prd.file.hint')}
-                </label>
-                <input
-                  id="prdFile"
-                  name="prdFile"
-                  type="file"
-                  accept=".md,.txt,text/markdown,text/plain"
-                  onChange={onFileChange}
-                  className={cn(
-                    'block w-full text-sm text-[color:var(--color-fg-secondary)]',
-                    'file:mr-3 file:rounded-[8px] file:border-0 file:px-3 file:py-1.5',
-                    'file:bg-[color:var(--color-bg-elevated)] file:text-[color:var(--color-fg-primary)]',
-                    'file:cursor-pointer cursor-pointer',
-                    'rounded-[10px] border border-[color:var(--color-border-default)]',
-                    'bg-[color:var(--color-bg-elevated)] px-3 py-2'
-                  )}
-                />
-                {fileName ? (
-                  <p
-                    className="text-xs text-[color:var(--color-fg-secondary)]"
-                    aria-live="polite"
-                  >
-                    {t('home.form.prd.file.selected')}: {fileName} (
-                    {filePrdText.length.toLocaleString()}자)
-                  </p>
-                ) : null}
-                {fileError ? (
-                  <p
-                    role="alert"
-                    className="text-xs text-[color:var(--color-severity-p0)]"
-                  >
-                    {fileError}
-                  </p>
-                ) : null}
-              </div>
-            )}
+              {t('home.form.profile.label')}
+            </label>
+            <p className="text-xs text-[color:var(--color-fg-muted)]">
+              {t('home.form.profile.hint')}
+            </p>
+            <select
+              id="profileId"
+              name="profileId"
+              defaultValue=""
+              className={cn(
+                'block w-full rounded-[10px] border border-[color:var(--color-border-default)]',
+                'bg-[color:var(--color-bg-elevated)] px-3 py-2 text-sm',
+                'text-[color:var(--color-fg-primary)]',
+              )}
+            >
+              <option value="">{t('home.form.profile.option.none')}</option>
+              <option value="landing">{t('home.form.profile.option.landing')}</option>
+              <option value="saas">{t('home.form.profile.option.saas')}</option>
+              <option value="ecommerce">{t('home.form.profile.option.ecommerce')}</option>
+            </select>
           </div>
+
+          <PrdInput
+            value={prdText}
+            onChange={setPrdText}
+            disabled={pending || auth.initializing}
+          />
 
           {auth.error ? (
             <p
@@ -272,38 +234,3 @@ export function UrlInputForm() {
   );
 }
 
-interface PrdModeOptionProps {
-  value: PrdMode;
-  current: PrdMode;
-  onSelect: (v: PrdMode) => void;
-  label: string;
-  icon: React.ReactNode;
-}
-
-function PrdModeOption({
-  value,
-  current,
-  onSelect,
-  label,
-  icon,
-}: PrdModeOptionProps) {
-  const active = current === value;
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={active}
-      onClick={() => onSelect(value)}
-      className={cn(
-        'flex flex-1 items-center justify-center gap-2 px-3 py-2 text-sm',
-        'transition-[background,color] duration-[var(--duration-base)] ease-[var(--ease-standard)]',
-        active
-          ? 'bg-[color-mix(in_oklch,var(--mk-accent-2)_18%,transparent)] text-[color:var(--app-fg)] font-medium'
-          : 'bg-transparent text-[color:var(--app-fg-muted)] hover:bg-[color:var(--app-chip-bg)]'
-      )}
-    >
-      {icon}
-      {label}
-    </button>
-  );
-}

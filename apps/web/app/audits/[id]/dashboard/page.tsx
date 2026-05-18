@@ -7,6 +7,7 @@ import { ScoreOverview } from '@/components/dashboard/score-overview';
 import { SeverityCounts } from '@/components/dashboard/severity-counts';
 import { CategoryGrid } from '@/components/dashboard/category-grid';
 import { SeverityChip } from '@/components/common/severity-chip';
+import { LaunchStatusChip } from '@/components/common/launch-status-chip';
 import {
   ResourceStatePanel,
   PartialResultBanner,
@@ -27,25 +28,38 @@ import type {
   ListFindingsResponse,
 } from '@/lib/api/audit-runs';
 
-interface DashboardData {
-  report: AuditReport;
-  findings: ListFindingsResponse;
-  // S6-03: kept on the dashboard payload (not just the polling DTO) so the
-  // "partial results" warn banner renders on first paint, without waiting for
-  // a separate request after the data is `ready`.
-  run: AuditRun;
-}
+// T1.1d: when the worker short-circuits a run via `markRunBlocked` (e.g.
+// REPO_TOO_LARGE), no AuditReport doc is produced — `getReport` would 404.
+// We detect BLOCKED on the run document FIRST and render a verdict-only view
+// instead of attempting (and failing) to load the report.
+type DashboardData =
+  | {
+      kind: 'ready';
+      report: AuditReport;
+      findings: ListFindingsResponse;
+      // S6-03: kept on the dashboard payload (not just the polling DTO) so the
+      // "partial results" warn banner renders on first paint, without waiting
+      // for a separate request after the data is `ready`.
+      run: AuditRun;
+    }
+  | {
+      kind: 'blocked';
+      run: AuditRun;
+    };
 
 export default function DashboardPage() {
   const { id: auditId } = useParams<{ id: string }>();
   const state = useAuditResource<DashboardData>(
     async () => {
-      const [report, findings, run] = await Promise.all([
+      const run = await getAuditRun(auditId);
+      if (run.launchStatus === 'BLOCKED') {
+        return { kind: 'blocked', run };
+      }
+      const [report, findings] = await Promise.all([
         getReport(auditId),
         listFindings(auditId, { limit: 5 }),
-        getAuditRun(auditId),
       ]);
-      return { report, findings, run };
+      return { kind: 'ready', report, findings, run };
     },
     [auditId]
   );
@@ -62,7 +76,11 @@ export default function DashboardPage() {
       <h1 className="sr-only">{t('dashboard.title')}</h1>
 
       {state.status === 'ready' ? (
-        <DashboardBody auditId={auditId} data={state.data} />
+        state.data.kind === 'blocked' ? (
+          <DashboardBlockedBody run={state.data.run} />
+        ) : (
+          <DashboardBody auditId={auditId} data={state.data} />
+        )
       ) : (
         <ResourceStatePanel
           state={state}
@@ -74,12 +92,47 @@ export default function DashboardPage() {
   );
 }
 
+// T1.1d: BLOCKED 가드레일 short-circuit verdict view. No report doc exists for
+// this run — show the verdict chip + abortReason so the user understands why
+// the audit didn't produce findings, rather than ResourceStatePanel's generic
+// error state (which hides the actionable reason).
+function DashboardBlockedBody({ run }: { run: AuditRun }) {
+  const abortReason = run.abortReason ?? 'UNKNOWN';
+  return (
+    <section
+      data-testid="dashboard-blocked"
+      aria-labelledby="dashboard-blocked-title"
+      className="flex flex-col gap-4 rounded-[12px] border border-[color:var(--color-border-subtle)] bg-[rgba(255,255,255,0.02)] p-6"
+    >
+      <div className="flex items-center gap-3">
+        <LaunchStatusChip status="blocked" />
+        <h2
+          id="dashboard-blocked-title"
+          className="text-md font-medium text-[color:var(--color-fg-primary)]"
+        >
+          가드레일에 의해 분석이 중단되었습니다
+        </h2>
+      </div>
+      <p className="text-sm text-[color:var(--color-fg-muted)]">
+        중단 사유:{' '}
+        <code className="rounded bg-[rgba(255,255,255,0.06)] px-1.5 py-0.5 font-mono text-xs">
+          {abortReason}
+        </code>
+      </p>
+      <PartialResultBanner
+        toolNames={run.partialResultTools ?? []}
+        blockedContext={{ abortReason }}
+      />
+    </section>
+  );
+}
+
 function DashboardBody({
   auditId,
   data,
 }: {
   auditId: string;
-  data: DashboardData;
+  data: Extract<DashboardData, { kind: 'ready' }>;
 }) {
   const { report, findings, run } = data;
   const top5 = findings.findings.map((f) => adaptFinding(f));
@@ -88,6 +141,17 @@ function DashboardBody({
   return (
     <>
       <PartialResultBanner toolNames={run.partialResultTools ?? []} />
+      {run.previousRunId ? (
+        <div className="flex justify-end">
+          <Link
+            href={`/audits/${auditId}/diff`}
+            data-testid="dashboard-rerun-diff-link"
+            className="text-sm text-[color:var(--color-fg-primary)] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+          >
+            재감사 비교 보기 →
+          </Link>
+        </div>
+      ) : null}
       <ScoreOverview
         score={report.readinessScore}
         launchStatus={adaptLaunchStatus(report.launchStatus)}
@@ -105,12 +169,21 @@ function DashboardBody({
       </section>
 
       <section aria-labelledby="categories-title" className="flex flex-col gap-3">
-        <h2
-          id="categories-title"
-          className="text-sm font-medium uppercase tracking-wide text-[color:var(--color-fg-muted)]"
-        >
-          {t('dashboard.categories.title')}
-        </h2>
+        <div className="flex items-baseline justify-between gap-3">
+          <h2
+            id="categories-title"
+            className="text-sm font-medium uppercase tracking-wide text-[color:var(--color-fg-muted)]"
+          >
+            {t('dashboard.categories.title')}
+          </h2>
+          <Link
+            href={`/audits/${auditId}/categories`}
+            className="text-xs underline-offset-2 hover:underline focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]"
+            style={{ color: 'var(--app-fg-muted)' }}
+          >
+            {t('dashboard.categories.viewAll')}
+          </Link>
+        </div>
         <CategoryGrid scores={categoryScores} />
       </section>
 
@@ -160,7 +233,13 @@ export function DashboardTabs({
   active,
 }: {
   auditId: string;
-  active: 'dashboard' | 'feature-graph' | 'findings' | 'report' | 'improvement-prd';
+  active:
+    | 'dashboard'
+    | 'categories'
+    | 'feature-graph'
+    | 'findings'
+    | 'report'
+    | 'improvement-prd';
 }) {
   const tabs: Array<{
     key: typeof active;
@@ -171,6 +250,11 @@ export function DashboardTabs({
       key: 'dashboard',
       href: `/audits/${auditId}/dashboard`,
       label: t('dashboard.tab.dashboard'),
+    },
+    {
+      key: 'categories',
+      href: `/audits/${auditId}/categories`,
+      label: t('dashboard.tab.categories'),
     },
     {
       key: 'feature-graph',
@@ -197,7 +281,10 @@ export function DashboardTabs({
   return (
     <nav
       aria-label="감사 결과 탭"
-      className="flex items-center gap-1 overflow-x-auto rounded-[12px] border border-[color:var(--color-border-subtle)] bg-[rgba(255,255,255,0.02)] p-1"
+      // T2.11 #122: 모바일에서 탭을 sticky top으로 고정해 페이지 스크롤 중에도
+      // 탭 전환이 가능하게 한다. 가로 스크롤 + scroll-snap은 칩이 6개라 좁은
+      // 화면(375px)에서는 한 줄에 다 안 들어감.
+      className="sticky top-0 z-30 -mx-4 flex items-center gap-1 mobile-scroll-x rounded-[12px] border border-[color:var(--color-border-subtle)] bg-[var(--app-bg)]/95 px-4 p-1 backdrop-blur sm:static sm:mx-0 sm:overflow-x-auto sm:bg-[rgba(255,255,255,0.02)]"
     >
       {tabs.map((tab) => {
         const isActive = tab.key === active;
@@ -206,10 +293,12 @@ export function DashboardTabs({
             key={tab.key}
             href={tab.href}
             aria-current={isActive ? 'page' : undefined}
+            data-testid={`dashboard-tab-${tab.key}`}
             className={[
-              'whitespace-nowrap rounded-[10px] px-3 py-2 text-sm transition-colors',
+              // T2.11: 모바일 터치 타겟 ≥ 44px, 데스크탑은 기존 padding 유지
+              'inline-flex min-h-[44px] items-center whitespace-nowrap rounded-[10px] px-4 py-2 text-sm transition-colors sm:min-h-0 sm:px-3',
               isActive
-                ? 'bg-[color-mix(in_oklch,var(--mk-accent-2)_18%,transparent)] text-[color:var(--app-fg)]'
+                ? 'bg-[color-mix(in_oklch,var(--mk-accent-2)_18%,transparent)] text-[color:var(--app-fg)] font-medium'
                 : 'text-[color:var(--app-fg-muted)] hover:bg-[color:var(--app-chip-bg)] hover:text-[color:var(--app-fg)]',
               'focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]',
             ].join(' ')}

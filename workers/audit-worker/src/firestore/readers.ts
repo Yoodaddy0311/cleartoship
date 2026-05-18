@@ -16,6 +16,7 @@ export interface AuditRunRecord {
   repoUrl: string;
   deployUrl: string | null;
   prdText: string | null;
+  profileId: string | null;
 }
 
 export async function getAuditRunOrThrow(runId: string): Promise<AuditRunRecord> {
@@ -38,5 +39,6 @@ export async function getAuditRunOrThrow(runId: string): Promise<AuditRunRecord>
     repoUrl,
     deployUrl: typeof data.deployUrl === 'string' ? data.deployUrl : null,
     prdText: typeof data.prdText === 'string' ? data.prdText : null,
+    profileId: typeof data.profileId === 'string' ? data.profileId : null,
   };
 }

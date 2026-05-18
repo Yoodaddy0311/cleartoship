@@ -6,6 +6,13 @@
 import type { Step } from './index.js';
 import type { NormalizedFinding } from '../../adapters/index.js';
 import { writeToolResult } from '../../firestore/writers.js';
+import {
+  resolveLighthouseProfile,
+  toLighthouseSettings,
+  type LighthouseProfile,
+} from './lighthouse-profile.js';
+import { recordStepOutcome } from '../lib/record-step-outcome.js';
+import { recordLighthouseLatency } from '../../observability/metrics.js';
 
 const NAV_TIMEOUT_MS = 30_000;
 const LH_TIMEOUT_MS = 60_000;
@@ -35,6 +42,7 @@ interface LighthouseResult {
   seo: number | null;
   lcpMs: number | null;
   clsScore: number | null;
+  profileId: string;
 }
 
 function axeSeverity(impact: string | undefined): 'P0' | 'P1' | 'P2' | 'P3' {
@@ -101,14 +109,14 @@ function lighthouseToFinding(deployUrl: string, lh: LighthouseResult): Normalize
     category: 'LAUNCH_READINESS',
     severity,
     confidence: 'MEDIUM',
-    summary: `Performance ${perfPct}, Accessibility ${accPct}, SEO ${lh.seo ?? '?'}.`,
+    summary: `Profile: ${lh.profileId} | Performance ${perfPct}, Accessibility ${accPct}, SEO ${lh.seo ?? '?'}.`,
     nonDeveloperExplanation:
       '페이지 로딩 속도 및 접근성 점수입니다. 70 미만이면 사용자 이탈이 늘어날 수 있습니다.',
-    technicalExplanation: `LCP=${lh.lcpMs ?? '?'}ms, CLS=${lh.clsScore ?? '?'}.`,
+    technicalExplanation: `Profile=${lh.profileId}, LCP=${lh.lcpMs ?? '?'}ms, CLS=${lh.clsScore ?? '?'}.`,
     impact: '느린 페이지는 SEO 및 전환율에 부정적 영향을 줍니다.',
     recommendation: '핵심 LCP 자원, 메인 JS 번들, 이미지 최적화부터 점검하세요.',
     acceptanceCriteria: ['Lighthouse Performance 점수가 70 이상이 된다.'],
-    tags: ['lighthouse', 'performance'],
+    tags: ['lighthouse', 'performance', `profile:${lh.profileId}`],
     evidences: [
       {
         type: 'LIGHTHOUSE',
@@ -122,6 +130,7 @@ function lighthouseToFinding(deployUrl: string, lh: LighthouseResult): Normalize
         snippet: null,
         maskedValue: null,
         metadata: {
+          profileId: lh.profileId,
           performance: lh.performance,
           accessibility: lh.accessibility,
           bestPractices: lh.bestPractices,
@@ -201,7 +210,10 @@ async function runPlaywright(deployUrl: string): Promise<PlaywrightOutcome> {
   }
 }
 
-async function runLighthouse(deployUrl: string): Promise<LighthouseResult | { notInstalled: true }> {
+async function runLighthouse(
+  deployUrl: string,
+  profile: LighthouseProfile,
+): Promise<LighthouseResult | { notInstalled: true }> {
   let lhMod: { default?: unknown } & Record<string, unknown>;
   let cl: typeof import('chrome-launcher');
   try {
@@ -226,6 +238,7 @@ async function runLighthouse(deployUrl: string): Promise<LighthouseResult | { no
         output: 'json',
         logLevel: 'silent',
         onlyCategories: ['performance', 'accessibility', 'best-practices', 'seo'],
+        ...toLighthouseSettings(profile),
       }),
       new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('lighthouse timeout')), LH_TIMEOUT_MS),
@@ -246,6 +259,7 @@ async function runLighthouse(deployUrl: string): Promise<LighthouseResult | { no
       seo: pct('seo'),
       lcpMs: lhr.audits?.['largest-contentful-paint']?.numericValue ?? null,
       clsScore: lhr.audits?.['cumulative-layout-shift']?.numericValue ?? null,
+      profileId: profile.id,
     };
   } finally {
     try {
@@ -320,28 +334,40 @@ export const step09AnalyzeDeployUrl: Step = {
       });
     }
 
-    const lhResult = await runLighthouse(deployUrl).catch(
+    const { profile, fallback: profileFallback } = resolveLighthouseProfile(
+      process.env.LIGHTHOUSE_PROFILE,
+    );
+    if (profileFallback) {
+      ctx.log('warn', 'Unknown LIGHTHOUSE_PROFILE; falling back to default', {
+        requested: process.env.LIGHTHOUSE_PROFILE,
+        applied: profile.id,
+      });
+    }
+
+    const lhStartMs = Date.now();
+    const lhResult = await runLighthouse(deployUrl, profile).catch(
       (e: Error) => ({ notInstalled: false as const, error: e.message }),
     );
+    recordLighthouseLatency((Date.now() - lhStartMs) / 1000, profile.id);
 
     if ('notInstalled' in lhResult && lhResult.notInstalled) {
-      ctx.log('warn', 'Lighthouse not installed; skipping');
+      ctx.log('warn', 'Lighthouse not installed; skipping', { profile: profile.id });
       await writeToolResult({
         auditRunId: ctx.runId,
         toolName: 'lighthouse',
         toolVersion: 'n/a',
         status: 'SKIPPED',
-        rawSummary: { reason: 'lighthouse or chrome-launcher not installed' },
+        rawSummary: { reason: 'lighthouse or chrome-launcher not installed', profile: profile.id },
         artifactPath: null,
       });
     } else if ('error' in lhResult) {
-      ctx.log('warn', 'Lighthouse failed', { error: lhResult.error });
+      ctx.log('warn', 'Lighthouse failed', { error: lhResult.error, profile: profile.id });
       await writeToolResult({
         auditRunId: ctx.runId,
         toolName: 'lighthouse',
         toolVersion: 'unknown',
         status: 'FAILED',
-        rawSummary: { error: lhResult.error },
+        rawSummary: { error: lhResult.error, profile: profile.id },
         artifactPath: null,
       });
     } else {
@@ -354,6 +380,7 @@ export const step09AnalyzeDeployUrl: Step = {
         toolVersion: 'unknown',
         status: 'SUCCESS',
         rawSummary: {
+          profile: profile.id,
           performance: lh.performance,
           accessibility: lh.accessibility,
           bestPractices: lh.bestPractices,
@@ -366,7 +393,7 @@ export const step09AnalyzeDeployUrl: Step = {
     // BUG-1: mark as executed only when deployUrl was actually probed.
     // Skipped early-return above leaves UX_UI / LAUNCH_READINESS measuredBy
     // unsatisfied → scorer treats those categories as N/A.
-    state.executedSteps.push('ANALYZE_DEPLOY_URL');
+    recordStepOutcome(state, 'ANALYZE_DEPLOY_URL', 'CHECKPOINT');
     ctx.log('info', 'Deploy URL analysis complete');
   },
 };

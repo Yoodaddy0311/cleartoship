@@ -8,12 +8,12 @@ import { jsonError, jsonOk, logServerError } from '@/app/api/_lib/responses';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest, ctx: { params: { id: string } }) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const caller = await resolveCaller(req);
   if (!caller) {
     return jsonError('UNAUTHORIZED', '인증 정보가 필요합니다.', 401);
   }
-  const runId = ctx.params.id;
+  const { id: runId } = await ctx.params;
   if (!runId) return jsonError('INVALID_INPUT', 'runId가 필요합니다.', 400);
 
   try {

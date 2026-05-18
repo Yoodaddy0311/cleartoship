@@ -66,6 +66,22 @@ service cloud.firestore {
         allow read: if isSignedIn() && runOwner(runId);
         allow write: if false;
       }
+
+      // T2.6 (02-E) False-positive feedback. The owner of the audit run may
+      // create / update / delete a feedback doc for any finding under it.
+      // The id mirrors the finding id, so each finding has at most one
+      // feedback doc per run. The doc must be authored by the same signed-in
+      // user (markedBy = uid) so the future weight-decay job can dedupe.
+      match /feedback/{findingId} {
+        allow read: if isSignedIn() && runOwner(runId);
+        allow create: if isSignedIn()
+                      && runOwner(runId)
+                      && request.resource.data.markedBy == request.auth.uid;
+        allow update: if isSignedIn()
+                      && runOwner(runId)
+                      && request.resource.data.markedBy == request.auth.uid;
+        allow delete: if isSignedIn() && runOwner(runId);
+      }
     }
 
     // --- Progress Events (live UI subscriptions) ---

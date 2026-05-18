@@ -129,6 +129,9 @@ PROJECT_ID=cleartoship-prod bash infra/scripts/03-deploy-worker.sh
 - `--no-allow-unauthenticated` (OIDC 필수)
 - `cloud-run-invoker@...`에 `roles/run.invoker` 부여
 - 배포 후 추출한 URL을 Secret Manager `cloud-run-worker-url`에 새 버전으로 저장
+- **`--min-instances` 자동 분기 (#96 T1.6-FU)**: `PROJECT_ID`에 `prod`가 포함되면 `1` (cold start 차단, 월 약 $13 추가 예상), 그 외(staging/dev)는 `0` (idle 비용 0). 수동 오버라이드는 `MIN_INSTANCES=<n>` 환경변수.
+  - 예: `MIN_INSTANCES=2 PROJECT_ID=cleartoship-prod bash infra/scripts/03-deploy-worker.sh`
+  - GitHub Actions `deploy.yml`도 동일 로직 적용 (`GCP_PROJECT_ID` secret 기반)
 
 ### 4. Functions + Firestore/Storage 규칙 배포 (`04-deploy-functions.sh`)
 

@@ -93,6 +93,15 @@ jobs:
       - name: Deploy Cloud Run worker
         id: run-deploy
         run: |
+          # Cold-start mitigation (#96 / T1.6-FU): prod keeps 1 warm instance,
+          # staging/dev stay at 0. Detected from GCP_PROJECT_ID substring.
+          if [[ "${{ secrets.GCP_PROJECT_ID }}" == *"prod"* ]]; then
+            MIN_INSTANCES=1
+          else
+            MIN_INSTANCES=0
+          fi
+          echo "min-instances=$MIN_INSTANCES (project=${{ secrets.GCP_PROJECT_ID }})"
+
           gcloud run deploy "${{ env.SERVICE_NAME }}" \
             --image="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cleartoship-images/audit-worker:${{ steps.meta.outputs.tag }}" \
             --region="${{ env.REGION }}" \
@@ -100,6 +109,7 @@ jobs:
             --service-account="audit-worker-runtime@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
             --no-allow-unauthenticated \
             --cpu=4 --memory=4Gi --concurrency=1 --timeout=600 --max-instances=10 \
+            --min-instances="$MIN_INSTANCES" \
             --set-env-vars="PROJECT_ID=${{ secrets.GCP_PROJECT_ID }},REGION=${{ env.REGION }},NODE_ENV=production" \
             --quiet
 

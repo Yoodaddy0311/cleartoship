@@ -96,4 +96,41 @@ describe('buildFindingIdsByNode', () => {
       'api-admin': ['f-001'],
     });
   });
+
+  it('preserves the evidence order on the source node (determinism)', () => {
+    // adapter.ts:38-39 contract: "finding ids appear in the order their
+    // evidence ids appear on the source node". Asserting with disjoint
+    // findingIds so the order check is unambiguous (no dedup interference).
+    const nodes: AdapterNode[] = [
+      { id: 'n1', evidenceIds: ['e3', 'e1', 'e2'] },
+    ];
+    const evidences: AdapterEvidence[] = [
+      // Insertion order on the evidence list is intentionally different
+      // from the node's evidenceIds order — adapter must follow the node.
+      { id: 'e1', findingId: 'f-alpha' },
+      { id: 'e2', findingId: 'f-beta' },
+      { id: 'e3', findingId: 'f-gamma' },
+    ];
+    expect(buildFindingIdsByNode(nodes, evidences).n1).toEqual([
+      'f-gamma',
+      'f-alpha',
+      'f-beta',
+    ]);
+  });
+
+  it('does not mutate the input arrays', () => {
+    // Adapter is documented as pure (adapter.ts:15). Freeze inputs and run —
+    // if the implementation tries to push/sort on the source arrays, the
+    // engine will throw in strict mode.
+    const nodes: ReadonlyArray<AdapterNode> = Object.freeze([
+      Object.freeze({ id: 'n1', evidenceIds: Object.freeze(['e1']) }),
+    ]) as ReadonlyArray<AdapterNode>;
+    const evidences: ReadonlyArray<AdapterEvidence> = Object.freeze([
+      Object.freeze({ id: 'e1', findingId: 'f1' }),
+    ]) as ReadonlyArray<AdapterEvidence>;
+    expect(() => buildFindingIdsByNode(nodes, evidences)).not.toThrow();
+    // And the snapshot of input is unchanged after the call.
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]!.evidenceIds).toEqual(['e1']);
+  });
 });

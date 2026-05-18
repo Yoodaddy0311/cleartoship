@@ -231,12 +231,52 @@ The Next.js dev server starts on `http://localhost:3000` by default. Watch for
    > submodules — the size-guard will reject them.
 
 4. Optionally enter a deploy URL (can be any reachable HTTPS URL for a live demo).
-5. Click **Start Audit** and observe the progress screen — each step label maps to
-   an `AUDIT_STEP_LABELS` entry in `apps/web/lib/i18n/ko.ts`.
+4b. Optionally select an **Audit Profile** from the dropdown (Landing Page /
+    SaaS 제품 / 이커머스). Selecting a profile biases category weights without
+    changing the pass/fail criteria. Profiles are defined in
+    `packages/audit-core/src/profiles/index.ts` (3 profiles: landing / saas /
+    ecommerce).
+5. Click **Start Audit** and observe the progress screen — each step label maps
+   to an `AUDIT_STEP_LABELS_KO` entry in
+   `packages/shared-types/src/audit-steps.ts`. The pipeline runs **20 steps**
+   in order:
+
+   | # | Step key | Korean label |
+   |---|----------|-------------|
+   | 1 | VALIDATE_INPUT | 입력 검증 |
+   | 2 | FETCH_REPO_METADATA | Repo 메타데이터 수집 |
+   | 3 | CLONE_REPO | Repo 다운로드 |
+   | 4 | ANALYZE_PROJECT_STRUCTURE | 프로젝트 구조 분석 |
+   | 5 | ANALYZE_PRD | PRD/문서 분석 |
+   | 6 | DETECT_FEATURES | 기능 후보 탐지 |
+   | 7 | RUN_STATIC_ANALYSIS | 정적 분석 (Semgrep) |
+   | 8 | DISCOVER_RISKY_FUNCTIONS | 위험 함수 탐지 |
+   | 9 | RUN_DEPENDENCY_SCAN | 의존성 취약점 점검 |
+   | 10 | RUN_SECRET_SCAN | Secret 노출 점검 |
+   | 11 | ANALYZE_DATA_MODEL | 데이터 모델 점검 |
+   | 12 | ANALYZE_DEPLOY_URL | 배포 URL 진단 |
+   | 13 | CHECK_DESIGN_CONSISTENCY | 디자인 일관성 점검 |
+   | 14 | ANALYZE_BUSINESS_READINESS | 비즈니스 준비도 점검 |
+   | 15 | GENERATE_FEATURE_GRAPH | 기능 관계도 구성 |
+   | 16 | MAP_CHECKLIST | 체크리스트 매핑 |
+   | 17 | CALCULATE_SCORES | 점수 계산 |
+   | 18 | GENERATE_REPORT | 리포트 생성 |
+   | 19 | GENERATE_IMPROVEMENT_PRD | 개선 PRD 생성 |
+   | 20 | CLEANUP | 정리 |
+
+   Scores cover **12 audit categories**: PRODUCT_INTENT, REQUIREMENT_COVERAGE,
+   FEATURE_GRAPH, FUNCTIONAL_FLOW, UX_UI, FRONTEND_CODE, BACKEND_API,
+   DATA_MODEL, SECURITY_PRIVACY, LAUNCH_READINESS,
+   MAINTAINABILITY_DOCUMENTATION, and BUSINESS_READINESS (weight=0,
+   default-pass in Phase 1).
+
 6. When the audit completes, the browser redirects to the dashboard at
    `/audits/<id>`.
 7. Walk through the tabs: **Dashboard**, **Feature Graph**, **Findings**,
    **Audit Report**, **Improvement PRD**.
+8. To compare two runs side-by-side, navigate to `/audits/<id>/diff`. The diff
+   view is powered by `compute-run-diff.ts` in `packages/shared-types/src/`
+   and surfaces score deltas per category plus added/resolved findings.
 
 ---
 
@@ -314,6 +354,13 @@ Before deploying to production, complete the following steps:
 - [ ] Run `pnpm -F web build` and confirm zero build errors.
 - [ ] Run `pnpm -F functions build` and confirm zero build errors.
 - [ ] Deploy Firebase rules: `firebase deploy --only firestore:rules,storage:rules`.
+- [ ] Deploy Firestore composite indexes: `firebase deploy --only firestore:indexes`.
+      Skipping this disables the re-audit diff feature: `resolvePreviousRunId`
+      (the `(ownerId, repoUrl, status==COMPLETED, completedAt desc)` query in
+      `apps/web/lib/audit-runs/resolve-previous-run.ts`) catches the missing-
+      index error and returns `undefined`, so the audit still runs but UI never
+      surfaces a baseline. Verify in the Firebase console under Firestore →
+      Indexes that all entries in `firestore.indexes.json` show "Enabled".
 - [ ] Deploy functions: `firebase deploy --only functions`.
 - [ ] Deploy the web app: `firebase deploy --only hosting` or via your CI/CD
       pipeline (e.g., Cloud Build trigger on `main`).

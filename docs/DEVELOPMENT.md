@@ -11,7 +11,8 @@
 3. [환경변수 전체 목록](#3-환경변수-전체-목록)
 4. [Firebase Emulator Suite 셋업](#4-firebase-emulator-suite-셋업)
 5. [디버깅 가이드](#5-디버깅-가이드)
-6. [새 Audit Tool Adapter 추가](#6-새-audit-tool-adapter-추가)
+6. [Lint 설정](#6-lint-설정)
+7. [새 Audit Tool Adapter 추가](#7-새-audit-tool-adapter-추가)
 
 ---
 
@@ -53,6 +54,25 @@ pnpm --filter web build
 ```bash
 pnpm -r type-check
 ```
+
+### 2-A. 통합 개발 스크립트 (T0.2 신설)
+
+루트에 두 개의 통합 스크립트가 추가됐습니다. 로컬 개발 시 이 명령을 사용하면 서비스별 터미널을 수동 관리할 필요가 없습니다.
+
+| 명령 | 파일 | 동작 |
+|------|------|------|
+| `pnpm dev:full` | `scripts/dev-full.mjs` | Firebase 에뮬레이터 + audit-worker (port 8787) + Next.js dev server를 단일 터미널에서 순서대로 부팅 |
+| `pnpm doctor` | `scripts/doctor.mjs` | 5개 외부 도구(OSV, Semgrep, Lighthouse, Axe, Prisma) 및 환경변수 설정 상태를 점검하고 결과를 JSON 형식으로 출력 |
+
+```bash
+# 로컬 풀스택 부팅 (에뮬레이터 + 워커 + 웹)
+pnpm dev:full
+
+# 환경 도구 상태 점검
+pnpm doctor
+```
+
+> `pnpm dev:full`은 에뮬레이터 포트 충돌을 자동 감지하지 않습니다. Firestore 에뮬레이터(:8080)와 audit-worker 포트를 충돌 없이 유지하려면 사전에 `WORKER_PORT=8787`이 설정돼 있어야 합니다 (dev-full.mjs가 이 값을 디폴트로 사용).
 
 ---
 
@@ -214,9 +234,24 @@ emulator: http://localhost:4000/firestore
 
 ---
 
-## 6. 새 Audit Tool Adapter 추가
+## 6. Lint 설정
 
-### 6-1. 계약 인터페이스
+### 6-A. ESLint Flat Config (apps/web)
+
+`apps/web`는 `next lint` 기반 설정에서 **ESLint flat config** (`apps/web/eslint.config.mjs`)로 마이그레이션됐습니다 (T0.4 후속).
+
+```bash
+# apps/web 린트 (0 warnings 기준 — CI gate와 동일)
+pnpm --filter web exec eslint . --max-warnings=0
+```
+
+다른 패키지는 기존 `.eslintrc.*` 방식을 유지합니다. flat config는 `apps/web` 전용입니다.
+
+---
+
+## 7. 새 Audit Tool Adapter 추가
+
+### 7-1. 계약 인터페이스
 
 `packages/audit-core/src/adapter.ts`의 `AuditToolAdapter<TInput, TRaw>` 인터페이스를 구현해야 합니다:
 
@@ -249,7 +284,7 @@ export class MyToolAdapter implements AuditToolAdapter<MyInput, MyRaw> {
 | `AuditCategory` | `packages/shared-types/src/` |
 | `Severity`, `Confidence` | `packages/shared-types/src/` |
 
-### 6-2. 어댑터 파일 위치
+### 7-2. 어댑터 파일 위치
 
 ```
 workers/audit-worker/src/adapters/
@@ -258,12 +293,12 @@ workers/audit-worker/src/adapters/
 └── my-tool.ts        # 신규 어댑터
 ```
 
-### 6-3. 파이프라인 연결
+### 7-3. 파이프라인 연결
 
 어댑터를 실제로 파이프라인에 연결하려면 해당 step 파일에서 임포트하고 호출합니다.
 예: 정적 분석 도구 → `workers/audit-worker/src/pipeline/steps/06-static-analysis.ts`
 
-### 6-4. Mock (Sprint 0) 패턴
+### 7-4. Mock (Sprint 0) 패턴
 
 Sprint 0에서는 고정 fixture를 반환하는 mock 어댑터를 사용합니다:
 

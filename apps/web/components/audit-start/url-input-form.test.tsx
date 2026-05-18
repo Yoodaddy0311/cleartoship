@@ -27,8 +27,18 @@ vi.mock('@/lib/api/audit-runs', () => ({
   createAuditRun: vi.fn(),
 }));
 
+// Hoisted so the per-test override can swap the search-params returned to
+// the component without re-applying the whole vi.mock.
+const searchParamsMock = vi.hoisted(() => ({
+  current: new URLSearchParams(''),
+}));
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: pushMock }),
+  // T2.9 #121: form reads `?repo=` to prefill from /samples cards. Default
+  // returns empty params so existing tests stay unaffected; the prefill test
+  // mutates `searchParamsMock.current` before rendering.
+  useSearchParams: () => searchParamsMock.current,
 }));
 
 describe('UrlInputForm', () => {
@@ -43,6 +53,8 @@ describe('UrlInputForm', () => {
       initializing: false,
       error: null,
     } as never);
+    // Reset the search-params override so each test starts with no prefill.
+    searchParamsMock.current = new URLSearchParams('');
   });
 
   it('exports a UrlInputForm React component', async () => {
@@ -133,6 +145,67 @@ describe('UrlInputForm', () => {
 
     await waitFor(() => {
       expect(pushMock).toHaveBeenCalledWith('/audits/run-42');
+    });
+  });
+
+  // T2.9 #121 — `/samples` cards link here with `?repo=<github-url>`.
+  it('prefills repoUrl from a valid `?repo=` querystring', async () => {
+    searchParamsMock.current = new URLSearchParams(
+      'repo=https://github.com/octocat/Hello-World'
+    );
+
+    const { UrlInputForm } = await import('./url-input-form');
+    render(<UrlInputForm />);
+
+    const repoInput = screen.getByLabelText(/GitHub 저장소 URL/);
+    expect(repoInput).toHaveValue('https://github.com/octocat/Hello-World');
+  });
+
+  it('ignores `?repo=` values that do not match the GitHub URL regex', async () => {
+    searchParamsMock.current = new URLSearchParams(
+      'repo=javascript:alert(1)'
+    );
+
+    const { UrlInputForm } = await import('./url-input-form');
+    render(<UrlInputForm />);
+
+    const repoInput = screen.getByLabelText(/GitHub 저장소 URL/);
+    // Hostile values must not pre-poison the input — empty default expected.
+    expect(repoInput).toHaveValue('');
+  });
+
+  // W2-A: typing into PrdInput must propagate the trimmed value into the
+  // createAuditRun payload. Regression guard for the controlled-state wiring
+  // between <PrdInput value/onChange> and the submit handler.
+  it('forwards PrdInput text into the createAuditRun submit payload', async () => {
+    const user = userEvent.setup();
+    const { createAuditRun } = await import('@/lib/api/audit-runs');
+    vi.mocked(createAuditRun).mockResolvedValue({
+      auditRunId: 'run-w2a',
+    } as never);
+
+    const { UrlInputForm } = await import('./url-input-form');
+    render(<UrlInputForm />);
+
+    await user.type(
+      screen.getByLabelText(/GitHub 저장소 URL/),
+      'https://github.com/user/repo'
+    );
+    // PrdInput exposes a single role="textbox" (its textarea). Trailing
+    // whitespace must be trimmed by the submit handler.
+    const prdTextarea = screen.getByRole('textbox', {
+      name: /제품 요구사항 문서/,
+    });
+    await user.type(prdTextarea, 'feature spec line 1   ');
+    await user.click(screen.getByRole('button', { name: '감사 시작' }));
+
+    await waitFor(() => {
+      expect(createAuditRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          repoUrl: 'https://github.com/user/repo',
+          prdText: 'feature spec line 1',
+        })
+      );
     });
   });
 });

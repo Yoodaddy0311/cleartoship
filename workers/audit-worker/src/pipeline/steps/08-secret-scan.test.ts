@@ -33,6 +33,7 @@ function makeCtx(overrides: Partial<WorkerCtx> = {}): WorkerCtx {
     repoUrl: 'https://github.com/example/repo',
     deployUrl: null,
     prdText: null,
+    profileId: null,
     clonePath: null,
     log: vi.fn(),
     ...overrides,

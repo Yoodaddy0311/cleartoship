@@ -37,7 +37,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Type check
+      - name: Build composite project deps (shared-types, audit-core)
+        run: pnpm --filter "@cleartoship/shared-types" build && pnpm --filter "@cleartoship/audit-core" build
+
+      - name: Type check (all workspaces)
         run: pnpm -r type-check
 
   lint:
@@ -62,7 +65,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
+      - name: Lint (all workspaces — 0 warnings allowed)
         run: pnpm -r lint
 
   test:
@@ -84,8 +87,54 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
+      - name: Restore Turbo cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Test (workspace)
-        run: pnpm test
+      - name: Test (all workspaces)
+        run: pnpm -r test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@a3252b78c470c02df07e9d59298aecedc3ccdd6d # v3.0.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Restore Turbo cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all workspaces (shared-types → audit-core → worker/web)
+        run: pnpm -r build
+
+      - name: Verify audit-core dist was emitted
+        run: |
+          if [ ! -f packages/audit-core/dist/index.js ]; then
+            echo "ERROR: packages/audit-core/dist/index.js not found — build step did not produce dist" >&2
+            exit 1
+          fi

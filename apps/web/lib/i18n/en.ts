@@ -46,6 +46,18 @@ export const en: Messages = {
   'home.form.prd.file.tooLarge': 'PRD file exceeds the 50,000 character limit.',
   'home.form.prd.file.readError': 'Could not read the file. Please choose another one.',
   'home.form.prd.file.selected': 'Selected file',
+  // W2-A: PrdInput component (textarea + file upload + counter). Distinct
+  // from the legacy `home.form.prd.*` keys (kept for other call sites).
+  'audit.prd.label': 'Product Requirements (optional)',
+  'audit.prd.placeholder': 'Paste your PRD or upload .md/.txt',
+  'audit.prd.fileButton': 'Load from file',
+  'audit.prd.tooLarge': 'PRD must be 50KB or less',
+  'home.form.profile.label': 'Audit profile (optional)',
+  'home.form.profile.hint': 'Pick a domain to bias scoring toward its priority categories',
+  'home.form.profile.option.none': 'Default (no weight bias)',
+  'home.form.profile.option.landing': 'Landing page (UX, frontend, launch readiness)',
+  'home.form.profile.option.saas': 'SaaS / API (backend, security, data model)',
+  'home.form.profile.option.ecommerce': 'E-commerce (security, checkout, UX flows)',
   'home.form.submit': 'Start Audit',
   'home.form.submitting': 'Requesting audit...',
   'home.form.auth.initializing': 'Preparing authentication...',
@@ -110,19 +122,52 @@ export const en: Messages = {
   'dashboard.severity.p2': 'Quality improvement',
   'dashboard.severity.p3': 'Long-term improvement',
   'dashboard.categories.title': 'Scores by area',
+  'dashboard.categories.viewAll': 'See all',
   'dashboard.top5.title': 'Top 5 items to tackle first',
   'dashboard.summary.title': 'One-line summary',
   'dashboard.tab.dashboard': 'Dashboard',
+  'dashboard.tab.categories': 'Categories',
   'dashboard.tab.featureGraph': 'Feature graph',
   'dashboard.tab.findings': 'Findings',
   'dashboard.tab.report': 'Audit report',
   'dashboard.tab.improvementPrd': 'Improvement PRD',
+
+  // Categories page (Layer 2 of 3-layer progressive disclosure)
+  'categories.title': 'Categories',
+  'categories.subtitle': 'Expand a category to see its priority issues.',
+  'categories.loading': 'Loading category results.',
+  'categories.breadcrumb.aria': 'Breadcrumb',
+  'categories.count.prefix': 'Found ',
+  'categories.count.suffix': ' issues',
+  'categories.na.aria': 'score unavailable',
+  'categories.empty.row': 'No issues found.',
+  'categories.empty.panel': 'No issues were found in this category.',
+  'categories.viewAll.prefix': 'See all (',
+  'categories.viewAll.suffix': ')',
 
   // Launch status
   'launch.ready': 'Ready to ship',
   'launch.readyWithImprovements': 'Ready to ship with recommended fixes',
   'launch.needsWork': 'Needs work before launch',
   'launch.stop': 'Hold the launch',
+
+  // Wave 1 W1.4 — Founder Confidence Score (FCS)
+  'fcs.label.score': 'Founder Confidence Score',
+  'fcs.label.uncertainty': 'Uncertainty ±{value}',
+  'fcs.label.topConcerns': 'Top Concerns',
+  'fcs.label.rationale': 'Rationale',
+  'fcs.label.status': 'Launch Status',
+  'fcs.label.indeterminateNote': 'Coverage too thin to confirm — showing confidence band only.',
+  'fcs.aria.gauge': 'Founder confidence score {score} out of 100, range {lower} to {upper}',
+  'fcs.aria.uncertaintyBar': 'Score confidence band from {lower} to {upper}',
+  'fcs.empty.concerns': 'No major concerns identified.',
+  'fcs.status.READY': 'Ready',
+  'fcs.status.CONDITIONAL': 'Ready with caveats',
+  'fcs.status.NEEDS_WORK': 'Needs work',
+  'fcs.status.AT_RISK': 'At risk',
+  'fcs.status.NOT_READY': 'Not ready',
+  'fcs.status.INDETERMINATE': 'Indeterminate',
+  'fcs.status.BLOCKED': 'Audit blocked',
 
   // Findings
   'findings.title': 'Findings',
@@ -135,6 +180,16 @@ export const en: Messages = {
   'findings.column.category': 'Category',
   'findings.column.severity': 'Severity',
   'findings.column.confidence': 'Confidence',
+  'findings.column.actionHint': 'Next action',
+  'findings.actionHint.title': 'Next action',
+  'findings.actionHint.etaPrefix': 'ETA',
+  'findings.actionHint.empty': 'Action guide pending',
+  'findings.actionHint.eta.5': '5 min',
+  'findings.actionHint.eta.30': '30 min',
+  'findings.actionHint.eta.60': '1 hr',
+  'findings.actionHint.eta.240': 'Half-day+',
+  'findings.actionHint.referenceLabel': 'Reference',
+  'findings.actionHint.referenceAria': 'Open reference material in a new tab',
   'findings.detail.nonDeveloper': 'Plain-language explanation',
   'findings.detail.technical': 'Technical rationale',
   'findings.detail.impact': 'Impact',
@@ -144,6 +199,11 @@ export const en: Messages = {
   'findings.detail.includeInPrd': 'Include in improvement PRD',
   'findings.detail.evidences.truncated':
     'Some evidence is omitted (server limit reached)',
+  'findings.detail.falsePositive.toggle': 'Mark as false positive',
+  'findings.detail.falsePositive.marked': 'Marked as false positive',
+  'findings.detail.falsePositive.unmarked': 'Mark as false positive',
+  'findings.detail.falsePositive.error':
+    'Failed to save. Please try again in a moment.',
 
   // Feature Graph
   'graph.title': 'Feature Graph',
@@ -166,7 +226,7 @@ export const en: Messages = {
   'status.recommended': 'Recommended',
   'status.unknown': 'Needs review',
 
-  // Categories (10) — UPPER_SNAKE matches shared-types AuditCategory enum.
+  // Categories (11) — UPPER_SNAKE matches shared-types AuditCategory enum.
   'category.PRODUCT_INTENT': 'Product intent',
   'category.REQUIREMENT_COVERAGE': 'Requirement coverage',
   'category.FEATURE_GRAPH': 'Feature graph',
@@ -177,6 +237,7 @@ export const en: Messages = {
   'category.DATA_MODEL': 'Data model',
   'category.SECURITY_PRIVACY': 'Security & privacy',
   'category.LAUNCH_READINESS': 'Launch readiness',
+  'category.BUSINESS_READINESS': 'Business readiness',
 
   // Report
   'report.title': 'Audit Report',
@@ -205,6 +266,17 @@ export const en: Messages = {
   'common.required': 'Required',
   'common.optional': 'Optional',
 
+  // Samples gallery — T2.9 #121
+  'samples.title': 'Sample Repo Gallery',
+  'samples.subtitle':
+    'Try the audit on real open-source repos. See what the output looks like in under a minute.',
+  'samples.tag.benchmark': 'Strong benchmark',
+  'samples.tag.typicalIssues': 'Typical issues',
+  'samples.tag.minimal': 'Minimal repo',
+  'samples.expected.label': 'Expected result',
+  'samples.cta': 'Audit this repo',
+  'samples.card.thumbnailAlt': '{name} repository preview',
+
   // Footer
   'footer.copyright': '© 2026 ClearToShip. All rights reserved.',
   'footer.note': 'Evidence-based launch audit platform',
@@ -221,6 +293,18 @@ export const en: Messages = {
     'This is an analysis environment issue and does not significantly affect result confidence',
   'errors.audit.toolUnavailable.deployUrlHint':
     'Add a deploy URL and we will also measure your site performance and accessibility',
+  // T2.12 #112: N/A category labels (BLOCKED vs FAILED distinction)
+  'errors.audit.toolUnavailable.categoryHeading': 'Categories shown as N/A',
+  'errors.audit.toolUnavailable.whyNa': 'Why is this N/A?',
+  'errors.audit.toolUnavailable.naReason.skipped': 'not executed',
+  'errors.audit.toolUnavailable.naReason.blocked': 'aborted by guardrail',
+  'errors.audit.toolUnavailable.naReason.failed': 'tool error',
+  'errors.audit.toolUnavailable.blockedNote':
+    'The audit was aborted by a guardrail, so several categories were not measured. Reason: {abortReason}',
+  'errors.audit.category.SECURITY_PRIVACY': 'Security check',
+  'errors.audit.category.FRONTEND_CODE': 'Code quality check',
+  'errors.audit.category.LAUNCH_READINESS': 'Performance check',
+  'errors.audit.category.UX_UI': 'Accessibility check',
 
   // Empty / pending guidance for resource panels
   'audit.empty.unsupportedFramework':
