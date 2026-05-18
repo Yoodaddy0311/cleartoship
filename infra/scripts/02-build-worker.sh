@@ -44,11 +44,14 @@ echo "==> Configuring Docker for Artifact Registry ($REGION)"
 run gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
 
 echo "==> Building $IMAGE_URI"
+# Dockerfile uses monorepo-rooted COPY paths (packages/, workers/),
+# so the build context must be the repo root, not $WORKER_DIR.
 run docker build \
   --platform linux/amd64 \
   -t "$IMAGE_URI" \
   -t "$LATEST_URI" \
-  "$WORKER_DIR"
+  -f "$WORKER_DIR/Dockerfile" \
+  "$REPO_ROOT"
 
 echo "==> Pushing image"
 run docker push "$IMAGE_URI"
