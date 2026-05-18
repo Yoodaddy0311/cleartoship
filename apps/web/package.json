@@ -9,7 +9,8 @@
     "lint": "eslint . --max-warnings=0",
     "type-check": "tsc --noEmit",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e:mobile360": "playwright test --project=mobile-360"
   },
   "dependencies": {
     "@cleartoship/audit-core": "workspace:*",

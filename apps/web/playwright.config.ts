@@ -54,6 +54,21 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      // The 360x640 visual guard is intentionally **opt-in** — exclude it from
+      // the default desktop lane so `pnpm exec playwright test` does not
+      // execute it under Desktop Chrome (where the viewport would not match).
+      testIgnore: /visual\/mobile-360\.spec\.ts$/,
+    },
+    // Sprint 4 Wave 2 Batch D (L-P1-7): opt-in 360x640 regression guard. Not
+    // part of the default chromium project — invoke via
+    // `pnpm test:e2e:mobile360` or `playwright test --project=mobile-360`.
+    {
+      name: 'mobile-360',
+      testMatch: /visual\/mobile-360\.spec\.ts$/,
+      use: {
+        ...devices['Pixel 5'],
+        viewport: { width: 360, height: 640 },
+      },
     },
     ...(RUN_FULL_MATRIX
       ? [
