@@ -29,6 +29,40 @@ vi.mock('@/components/evidences/evidence-list', () => ({
   EvidenceList: ({ items }: { items: unknown[] }) => <ul data-testid="evidence-count">count:{items.length}</ul>,
 }));
 
+// L-P1-4: finding-detail-panel now delegates the evidence card (collapse +
+// truncated banner + list) to <EvidencePanel>. Mock it so this test
+// continues to focus on the panel's own composition. The mock surfaces the
+// props we care about (item count, truncated flag, ruleId) as test ids so
+// the existing assertions can stay close to their original shape.
+vi.mock('@/components/evidences/evidence-panel', () => ({
+  EvidencePanel: ({
+    ruleId,
+    items,
+    truncated,
+  }: {
+    ruleId: string;
+    items: unknown[];
+    truncated?: boolean;
+  }) => (
+    <div
+      data-testid="evidence-panel-mock"
+      data-rule-id={ruleId}
+      data-truncated={truncated ? 'true' : 'false'}
+    >
+      <ul data-testid="evidence-count">count:{items.length}</ul>
+      {truncated ? (
+        <div
+          data-testid="evidence-truncated-banner"
+          role="status"
+          aria-live="polite"
+        >
+          findings.detail.evidences.truncated
+        </div>
+      ) : null}
+    </div>
+  ),
+}));
+
 vi.mock('@/lib/format/category', () => ({
   categoryLabel: (c: string) => `cat:${c}`,
 }));

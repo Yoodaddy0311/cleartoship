@@ -16,6 +16,13 @@ vi.mock('./globals.css', () => ({}));
 // In Next.js 15 `headers()` is async, so the stub returns a Promise.
 vi.mock('next/headers', () => ({
   headers: async () => ({ get: (_k: string) => 'test-nonce-AAAAAAAAAAAAAAAA==' }),
+  // L-P1-5: RootLayout now also calls `cookies()` via `getLocale()` to pick
+  // the `<html lang>` attribute. Stub returns an empty store so the default
+  // locale (ko) is used, matching the prior assertion on `lang="ko"`.
+  cookies: async () => ({
+    get: (_name: string) => undefined,
+    set: (_name: string, _value: string) => {},
+  }),
 }));
 
 import RootLayout from './layout';
