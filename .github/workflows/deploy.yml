@@ -189,7 +189,7 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
         run: |
           firebase deploy \
-            --only "functions,firestore:rules,firestore:indexes,storage:rules" \
+            --only "functions,firestore:rules,firestore:indexes,storage" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
             --non-interactive
 
