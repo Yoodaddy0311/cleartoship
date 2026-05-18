@@ -179,7 +179,10 @@ jobs:
             --data-file=- --project="${{ secrets.GCP_PROJECT_ID }}"
 
       - name: Install firebase-tools
-        run: npm install -g firebase-tools@13
+        # v13 has a CJS/ESM dep rot bug (universal-analytics → uuid) that
+        # breaks on Node 20 runtime. v14 dropped the universal-analytics
+        # dependency, v15 is the current major.
+        run: npm install -g firebase-tools@15
 
       - name: Deploy Functions + Firestore rules/indexes + Storage rules
         env:
