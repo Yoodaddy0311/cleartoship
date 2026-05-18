@@ -171,6 +171,9 @@ export const en: Messages = {
   'fcs.status.INDETERMINATE': 'Indeterminate',
   'fcs.status.BLOCKED': 'Audit blocked',
 
+  // L-P1-3 Narrative — 3-sentence summary block heading.
+  'narrative.heading': 'Status summary',
+
   // Findings
   'findings.title': 'Findings',
   'findings.filter.severity': 'Severity',
@@ -239,6 +242,11 @@ export const en: Messages = {
   'status.risky': 'Risky implementation',
   'status.recommended': 'Recommended',
   'status.unknown': 'Needs review',
+
+  // W2.C6.1: CategoryGrid 2×6 layout — 12th cell + weight=0 tooltip.
+  'category.grid.weight.zero.tooltip': 'Not weighted in current profile',
+  'category.grid.placeholder.label': 'Reserved slot',
+  'category.grid.placeholder.hint': 'Activated in Wave 3',
 
   // Categories (11) — UPPER_SNAKE matches shared-types AuditCategory enum.
   'category.PRODUCT_INTENT': 'Product intent',
@@ -336,6 +344,19 @@ export const en: Messages = {
   // W2.C10.1: RunMetadataStrip
   'audit.run.id.copy.aria': 'Copy run ID',
   'audit.run.id.copied': 'Copied',
+
+  // W2.C8.1: CoverageMatrix UI — see ko.ts for the n/a semantics note.
+  'coverage.status.covered': 'Covered',
+  'coverage.status.partial': 'Partial',
+  'coverage.status.missing': 'Missing',
+  'coverage.status.na': 'Inconclusive',
+  'coverage.scrollHint': 'Scroll for more',
+  'coverage.empty': 'No coverage data.',
+
+  // W2.C5.1: Next30MinChecklist
+  'next30Min.heading': 'Next 30 minutes',
+  'next30Min.empty': 'No quick wins right now.',
+  'next30Min.eta.minutes': '{n} min',
 };
 
 export type En = typeof en;

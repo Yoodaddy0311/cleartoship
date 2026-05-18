@@ -169,6 +169,11 @@ export const ko = {
   'fcs.status.INDETERMINATE': '판단 불가',
   'fcs.status.BLOCKED': '감사 중단',
 
+  // L-P1-3 Narrative — 3-sentence "현황 요약" block. Body text is composed
+  // dynamically by audit-core renderNarrative (no i18n template), so only the
+  // visible/sr-only heading lives in the i18n map.
+  'narrative.heading': '현황 요약',
+
   // Findings
   'findings.title': '이슈 목록',
   'findings.filter.severity': '위험도',
@@ -239,6 +244,13 @@ export const ko = {
   'status.risky': '위험 구현',
   'status.recommended': '추천 기능',
   'status.unknown': '확인 필요',
+
+  // W2.C6.1: CategoryGrid 2×6 layout — 12th cell + weight=0 tooltip.
+  // weight=0 means the active audit profile excludes this category from the
+  // weighted average (still rendered but visually dimmed + non-clickable).
+  'category.grid.weight.zero.tooltip': '현재 프로필에서 가중치 0',
+  'category.grid.placeholder.label': '추가 카테고리',
+  'category.grid.placeholder.hint': 'Wave 3에서 활성화 예정',
 
   // Categories (11) — UPPER_SNAKE matches shared-types AuditCategory enum.
   'category.PRODUCT_INTENT': '제품 의도',
@@ -338,6 +350,26 @@ export const ko = {
   // (status header, share button, etc.) can extend the group later.
   'audit.run.id.copy.aria': 'Run ID 클립보드 복사',
   'audit.run.id.copied': '복사됨',
+
+  // W2.C8.1: CoverageMatrix UI badge labels + scroll hint + empty state. The
+  // 4 status keys feed a single badge component (covered/partial/missing/na).
+  // `na` is the defensive LOW-confidence "we couldn't tell" variant — the
+  // audit-core CoverageStatus enum has 3 states (fulfilled/partial/unclear);
+  // the UI promotes low-confidence `unclear` rows to `na` so a thin-signal
+  // row reads as "판단 보류" rather than a hard "미구현" verdict.
+  'coverage.status.covered': '충족',
+  'coverage.status.partial': '미흡',
+  'coverage.status.missing': '미구현',
+  'coverage.status.na': '판단 보류',
+  'coverage.scrollHint': '스크롤하여 더 보기',
+  'coverage.empty': '커버리지 데이터가 없습니다.',
+
+  // W2.C5.1: Next30MinChecklist — up-to-3 quick wins the founder can clear in
+  // 30 minutes or less. `eta.minutes` is dynamic (tf substitutes {n}); the
+  // fixed ladder labels (5/30/60/240) live under findings.actionHint.eta.*.
+  'next30Min.heading': '지금 30분 안에',
+  'next30Min.empty': '30분 안에 처리할 우선 작업이 없습니다.',
+  'next30Min.eta.minutes': '{n}분',
 } as const;
 
 export type Ko = typeof ko;
