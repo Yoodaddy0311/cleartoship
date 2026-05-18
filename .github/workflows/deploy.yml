@@ -25,8 +25,45 @@ permissions:
   id-token: write
 
 jobs:
+  preflight:
+    name: Preflight (deploy secret presence)
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.gate.outputs.ready }}
+    steps:
+      - name: Check deploy secrets
+        id: gate
+        env:
+          GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
+          GCP_DEPLOYER_SA: ${{ secrets.GCP_DEPLOYER_SA }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          missing=()
+          [[ -z "$GCP_WIF_PROVIDER" ]] && missing+=("GCP_WIF_PROVIDER")
+          [[ -z "$GCP_DEPLOYER_SA" ]] && missing+=("GCP_DEPLOYER_SA")
+          [[ -z "$GCP_PROJECT_ID" ]] && missing+=("GCP_PROJECT_ID")
+          if (( ${#missing[@]} > 0 )); then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "### ⏭️ Deploy skipped — required secrets not configured"
+              echo ""
+              echo "Missing secrets:"
+              for s in "${missing[@]}"; do echo "- \`$s\`"; done
+              echo ""
+              echo "Run \`bash infra/scripts/00-all.sh\` to provision GCP + WIF,"
+              echo "then add the secrets in repo Settings → Secrets and variables → Actions."
+              echo "Workflow exits success so it does not block branch protection."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=Deploy skipped::Missing secrets: ${missing[*]}"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "All deploy secrets present — proceeding."
+          fi
+
   deploy:
     name: Deploy worker + functions + hosting
+    needs: preflight
+    if: needs.preflight.outputs.ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
