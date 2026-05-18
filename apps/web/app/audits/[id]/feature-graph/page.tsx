@@ -117,17 +117,19 @@ export default function FeatureGraphPage() {
               <li className="flex gap-2">
                 <span aria-hidden="true">•</span>
                 <span>
-                  <strong className="font-medium text-mk-fg">이전 버전 분석 결과</strong>일
-                  수 있어요. 그래프 생성 룰이 개선된 이후 다시 돌리지 않아 노드가
-                  비어 있을 가능성이 큽니다.
+                  <strong className="font-medium text-mk-fg">
+                    {t('graph.empty.cause.stale.label')}
+                  </strong>
+                  {t('graph.empty.cause.stale.body')}
                 </span>
               </li>
               <li className="flex gap-2">
                 <span aria-hidden="true">•</span>
                 <span>
-                  <strong className="font-medium text-mk-fg">빌드 산출물만 있는 레포</strong>일
-                  수 있어요. 컴파일된 dist/.next 같은 결과물만 들어 있으면 페이지·API·컴포넌트를
-                  식별하기 어렵습니다.
+                  <strong className="font-medium text-mk-fg">
+                    {t('graph.empty.cause.buildArtifacts.label')}
+                  </strong>
+                  {t('graph.empty.cause.buildArtifacts.body')}
                 </span>
               </li>
             </ul>

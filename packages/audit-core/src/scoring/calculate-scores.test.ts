@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { calculateScores } from './calculate-scores.js';
+import {
+  calculateScores,
+  compareCategoryScoresWithTieBreak,
+} from './calculate-scores.js';
 import { CATEGORY_META, getCategoryMeta } from './checklist-mapping.js';
 import { getProfile } from '../profiles/index.js';
-import type { AuditCategory, Finding, Severity } from '@cleartoship/shared-types';
+import type {
+  AuditCategory,
+  CategoryScore,
+  Finding,
+  Severity,
+} from '@cleartoship/shared-types';
 
 type FindingInput = Pick<Finding, 'category' | 'severity'>;
 
@@ -766,5 +774,147 @@ const saas = getProfile('saas')!;
     });
     const fe = result.categoryScores.find((c) => c.category === 'FRONTEND_CODE');
     expect(fe?.score).toBeNull();
+  });
+});
+
+// W3.CLN.4: tie-break ordering policy. See
+// docs/ADR/2026-05-18-business-readiness-tie-break.md for the rationale.
+// The contract is: score desc → category weight desc → BUSINESS_READINESS
+// forced last on tie → CATEGORY_META declaration order as fallback.
+describe('calculateScores — tie-break ordering (W3.CLN.4)', () => {
+  function mk(
+    category: AuditCategory,
+    score: number | null,
+    label = category,
+  ): CategoryScore {
+    return { category, score, label, summary: null };
+  }
+
+  it('exports compareCategoryScoresWithTieBreak as a pure helper', () => {
+    expect(typeof compareCategoryScoresWithTieBreak).toBe('function');
+  });
+
+  it('orders higher score first', () => {
+    const a = mk('UX_UI', 90);
+    const b = mk('SECURITY_PRIVACY', 80);
+    expect(compareCategoryScoresWithTieBreak(a, b)).toBeLessThan(0);
+    expect(compareCategoryScoresWithTieBreak(b, a)).toBeGreaterThan(0);
+  });
+
+  it('null score sinks below any numeric score', () => {
+    const numeric = mk('SECURITY_PRIVACY', 30);
+    const naCat = mk('FEATURE_GRAPH', null);
+    expect(compareCategoryScoresWithTieBreak(numeric, naCat)).toBeLessThan(0);
+    expect(compareCategoryScoresWithTieBreak(naCat, numeric)).toBeGreaterThan(0);
+  });
+
+  it('on equal score, heavier category weight comes first', () => {
+    // SECURITY_PRIVACY weight=15, LAUNCH_READINESS weight=10.
+    const sec = mk('SECURITY_PRIVACY', 80);
+    const launch = mk('LAUNCH_READINESS', 80);
+    expect(compareCategoryScoresWithTieBreak(sec, launch)).toBeLessThan(0);
+  });
+
+  it('BUSINESS_READINESS is forced last when tied with same-weight category', () => {
+    // Both weight=0 → without the sentinel, declaration order would win.
+    // The policy explicitly demotes BUSINESS_READINESS so technical
+    // categories surface first in any meta-vs-tech tie.
+    const biz = mk('BUSINESS_READINESS', 100);
+    const intent = mk('PRODUCT_INTENT', 100);
+    expect(compareCategoryScoresWithTieBreak(intent, biz)).toBeLessThan(0);
+    expect(compareCategoryScoresWithTieBreak(biz, intent)).toBeGreaterThan(0);
+  });
+
+  it('declaration order is the final tie-breaker', () => {
+    // SECURITY_PRIVACY and BACKEND_API both carry weight=15. BACKEND_API
+    // appears earlier in CATEGORY_META → wins on the final fallback.
+    const sec = mk('SECURITY_PRIVACY', 70);
+    const api = mk('BACKEND_API', 70);
+    expect(compareCategoryScoresWithTieBreak(api, sec)).toBeLessThan(0);
+  });
+
+  it('calculateScores output is sorted by the tie-break policy (12-category snapshot)', () => {
+    // Intentionally craft findings so multiple categories land on the same
+    // score (100 baseline for unaffected, 92 for one-P1 hits). The resulting
+    // categoryScores array must obey the documented policy.
+    const findings: Pick<Finding, 'category' | 'severity'>[] = [
+      f('SECURITY_PRIVACY', 'P1'), // 92, weight 15
+      f('BACKEND_API', 'P1'),       // 92, weight 15
+      f('UX_UI', 'P1'),             // 92, weight 15
+      f('LAUNCH_READINESS', 'P1'),  // 92, weight 10
+    ];
+    const result = calculateScores({
+      findings,
+      executedSteps: [
+        'CLONE_REPO',
+        'ANALYZE_DEPLOY_URL',
+        'RUN_STATIC_ANALYSIS',
+        'RUN_DEPENDENCY_SCAN',
+        'RUN_SECRET_SCAN',
+        'DISCOVER_RISKY_FUNCTIONS',
+        'ANALYZE_BUSINESS_READINESS',
+      ],
+    });
+
+    // Sanity: every category surfaces (12 total, including BUSINESS_READINESS).
+    expect(result.categoryScores.length).toBe(CATEGORY_META.length);
+    expect(
+      result.categoryScores.some((c) => c.category === 'BUSINESS_READINESS'),
+    ).toBe(true);
+
+    // The result must be a non-strictly-decreasing sequence by the policy:
+    //   adjacent pairs satisfy compareCategoryScoresWithTieBreak(prev, next) <= 0.
+    for (let i = 1; i < result.categoryScores.length; i += 1) {
+      const prev = result.categoryScores[i - 1]!;
+      const next = result.categoryScores[i]!;
+      expect(compareCategoryScoresWithTieBreak(prev, next)).toBeLessThanOrEqual(0);
+    }
+
+    // BUSINESS_READINESS at score=100 is tied with the other 100-score
+    // categories — the policy must place it AFTER the last non-business
+    // category that shares its score.
+    const bizIdx = result.categoryScores.findIndex(
+      (c) => c.category === 'BUSINESS_READINESS',
+    );
+    expect(bizIdx).toBeGreaterThanOrEqual(0);
+    const biz = result.categoryScores[bizIdx]!;
+    for (let i = 0; i < bizIdx; i += 1) {
+      const earlier = result.categoryScores[i]!;
+      // Either earlier scores higher, OR ties with BUSINESS_READINESS and is
+      // a non-business category (never the other way around).
+      if ((earlier.score ?? -1) === (biz.score ?? -1)) {
+        expect(earlier.category).not.toBe('BUSINESS_READINESS');
+      } else {
+        expect((earlier.score ?? -1)).toBeGreaterThan(biz.score ?? -1);
+      }
+    }
+  });
+
+  it('among the 92-tier, BACKEND_API precedes SECURITY_PRIVACY (declaration order)', () => {
+    // Both weight=15, both score 92 → declaration order in CATEGORY_META is
+    // BACKEND_API (idx 6) before SECURITY_PRIVACY (idx 8).
+    const findings: Pick<Finding, 'category' | 'severity'>[] = [
+      f('SECURITY_PRIVACY', 'P1'),
+      f('BACKEND_API', 'P1'),
+    ];
+    const result = calculateScores({
+      findings,
+      executedSteps: [
+        'CLONE_REPO',
+        'ANALYZE_DEPLOY_URL',
+        'RUN_STATIC_ANALYSIS',
+        'RUN_DEPENDENCY_SCAN',
+        'RUN_SECRET_SCAN',
+        'DISCOVER_RISKY_FUNCTIONS',
+        'ANALYZE_BUSINESS_READINESS',
+      ],
+    });
+    const apiIdx = result.categoryScores.findIndex((c) => c.category === 'BACKEND_API');
+    const secIdx = result.categoryScores.findIndex(
+      (c) => c.category === 'SECURITY_PRIVACY',
+    );
+    expect(apiIdx).toBeGreaterThanOrEqual(0);
+    expect(secIdx).toBeGreaterThanOrEqual(0);
+    expect(apiIdx).toBeLessThan(secIdx);
   });
 });

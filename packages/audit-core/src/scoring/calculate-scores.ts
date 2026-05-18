@@ -64,6 +64,69 @@ const SEVERITY_DEDUCTION: Record<Severity, number> = {
 const P0_CATEGORY_CAP = 60;
 
 /**
+ * W3.CLN.4 — deterministic ordering of categoryScores.
+ *
+ * Sort policy (see `docs/ADR/2026-05-18-business-readiness-tie-break.md`):
+ *   1. score desc — higher-scored categories surface first so the dashboard
+ *      reads as "what is healthy" → "what needs attention" (null = N/A sorts
+ *      to the bottom of the score band, treated as -1 for ordering only).
+ *   2. category weight desc — among tied scores, heavier-weight categories
+ *      (SECURITY_PRIVACY 15, BACKEND_API 15, UX_UI 15) dominate over
+ *      lighter ones so technical risk is never buried by polish.
+ *   3. BUSINESS_READINESS is forced last on any remaining tie — it is a meta
+ *      category (Pricing/Legal/Onboarding) and must yield to technical
+ *      categories when scores match.
+ *   4. CATEGORY_META declaration order as the final stable tie-breaker.
+ *
+ * The function is exported so UI consumers (CategoryGrid §C.6) and report
+ * renderers can share a single source of truth for ordering — preventing
+ * the dashboard and the markdown report from drifting.
+ */
+const BUSINESS_READINESS_TIE_BREAK_SENTINEL = 1; // higher = comes later
+const NON_BUSINESS_READINESS_SENTINEL = 0;
+
+// Resolves the CATEGORY_META index lazily (avoid TDZ across module imports;
+// checklist-mapping declares CATEGORY_META above this file's import).
+function getCategoryMetaIndex(category: AuditCategory): number {
+  const idx = CATEGORY_META.findIndex((m) => m.category === category);
+  return idx === -1 ? Number.MAX_SAFE_INTEGER : idx;
+}
+
+function getCategoryWeight(category: AuditCategory): number {
+  const meta = CATEGORY_META.find((m) => m.category === category);
+  return meta?.weight ?? 0;
+}
+
+export function compareCategoryScoresWithTieBreak(
+  a: CategoryScore,
+  b: CategoryScore,
+): number {
+  // 1) score desc (null treated as -1 so N/A sinks below any numeric score)
+  const sa = a.score ?? -1;
+  const sb = b.score ?? -1;
+  if (sa !== sb) return sb - sa;
+
+  // 2) category weight desc (heavier technical categories win the tie)
+  const wa = getCategoryWeight(a.category);
+  const wb = getCategoryWeight(b.category);
+  if (wa !== wb) return wb - wa;
+
+  // 3) BUSINESS_READINESS forced last on remaining ties.
+  const ba =
+    a.category === 'BUSINESS_READINESS'
+      ? BUSINESS_READINESS_TIE_BREAK_SENTINEL
+      : NON_BUSINESS_READINESS_SENTINEL;
+  const bb =
+    b.category === 'BUSINESS_READINESS'
+      ? BUSINESS_READINESS_TIE_BREAK_SENTINEL
+      : NON_BUSINESS_READINESS_SENTINEL;
+  if (ba !== bb) return ba - bb;
+
+  // 4) CATEGORY_META declaration order as the deterministic fallback.
+  return getCategoryMetaIndex(a.category) - getCategoryMetaIndex(b.category);
+}
+
+/**
  * Categories that depend on intent/requirement coverage signals. When no
  * feature nodes were detected these cannot be meaningfully scored. The spec
  * refers to INTENT_ALIGNMENT / PRODUCT_INTENT / DESIGN_CONSISTENCY; this
@@ -240,6 +303,12 @@ export function calculateScores(input: ScoringInput): ScoringResult {
     severityCounts.P0,
     confidenceMultiplier,
   );
+
+  // W3.CLN.4: apply deterministic ordering (score desc → weight desc →
+  // BUSINESS_READINESS last → declaration order). Sort happens AFTER the
+  // weighted average is computed so the math is unaffected; downstream UI
+  // (CategoryGrid §C.6) and renderers consume this ordered list directly.
+  categoryScores.sort(compareCategoryScoresWithTieBreak);
 
   // W1.3: FCS reuses the same baseScore + launchStatus so the dashboard's
   // gauge can never drift from the verdict. Confidence/id/tags on a finding

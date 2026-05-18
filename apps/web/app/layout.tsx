@@ -5,24 +5,26 @@ import { t, getLocale } from '@/lib/i18n';
 import { Header } from '@/components/common/header';
 import { Footer } from '@/components/common/footer';
 
-// NOTE (L-P1-5 follow-up): `export const metadata` evaluates at build time so
-// `t()` here always resolves to the default (ko) locale. LangToggle does NOT
-// update <title> / OG tags at runtime. To make <head> locale-reactive,
-// migrate to `export async function generateMetadata()` and call
-// `getLocale()` per request. Deferred to Wave 3 to keep Batch A scope small.
-export const metadata: Metadata = {
-  title: t('app.title'),
-  description: t('app.description'),
-  applicationName: 'ClearToShip',
-  authors: [{ name: 'ClearToShip' }],
-  keywords: ['Vibe Coding', 'AI Auditor', 'GitHub Audit', 'Product Readiness'],
-  openGraph: {
-    title: t('app.title'),
-    description: t('app.description'),
-    type: 'website',
-    locale: 'ko_KR',
-  },
-};
+// Wave 3 L-P1-5 follow-up: <head> metadata (title/description/OG) must reflect
+// the cookie-driven locale so LangToggle updates <title> + OG tags between
+// navigations. `generateMetadata()` runs per-request and awaits `getLocale()`,
+// keeping the head in sync with the body's `t(key, locale)` output.
+export async function generateMetadata(): Promise<Metadata> {
+  const locale = await getLocale();
+  return {
+    title: t('app.title', locale),
+    description: t('app.description', locale),
+    applicationName: 'ClearToShip',
+    authors: [{ name: 'ClearToShip' }],
+    keywords: ['Vibe Coding', 'AI Auditor', 'GitHub Audit', 'Product Readiness'],
+    openGraph: {
+      title: t('app.title', locale),
+      description: t('app.description', locale),
+      type: 'website',
+      locale: locale === 'en' ? 'en_US' : 'ko_KR',
+    },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: '#FFFFFF',

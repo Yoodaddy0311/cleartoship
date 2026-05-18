@@ -230,6 +230,15 @@ export const ko = {
   'graph.filter.byStatus': '상태별 필터',
   'graph.legend.title': '범례',
   'graph.empty': '아직 분석된 기능 노드가 없습니다.',
+  // W3.QA.2 mixed-JSX migration: split each `<strong>noun</strong>일 수 있어요`
+  // bullet from feature-graph empty-state into a noun label + post-position body
+  // so en/ko can each pick a natural word order.
+  'graph.empty.cause.stale.label': '이전 버전 분석 결과',
+  'graph.empty.cause.stale.body':
+    '일 수 있어요. 그래프 생성 룰이 개선된 이후 다시 돌리지 않아 노드가 비어 있을 가능성이 큽니다.',
+  'graph.empty.cause.buildArtifacts.label': '빌드 산출물만 있는 레포',
+  'graph.empty.cause.buildArtifacts.body':
+    '일 수 있어요. 컴파일된 dist/.next 같은 결과물만 들어 있으면 페이지·API·컴포넌트를 식별하기 어렵습니다.',
   'graph.node.summary': '요약',
   'graph.node.evidence': '관련 파일',
   'graph.node.improvement': '개선 방향',
@@ -319,6 +328,17 @@ export const ko = {
     '이건 분석 환경 설정 문제이며 결과 신뢰도에 큰 영향이 없습니다',
   'errors.audit.toolUnavailable.deployUrlHint':
     '배포 URL을 입력하시면 사이트 성능/접근성도 측정해드릴게요',
+  // W3.QA.2 mixed-JSX migration: split the inline `<strong>`/`<Link>` line in
+  // PartialResultBanner. prefix wraps the `<strong>`; body is the standalone
+  // sentence; ctaLabel is the link text; suffix is the trailing post-position
+  // after the link. Both locales render naturally without relying on adjacent
+  // JSX for grammar.
+  'errors.audit.toolUnavailable.deployUrlPrefix': '배포 URL을 입력하시면',
+  'errors.audit.toolUnavailable.deployUrlBody':
+    '사이트 성능/접근성도 측정해드릴게요.',
+  'errors.audit.toolUnavailable.deployUrlCtaLabel': '‘새 감사’ 폼',
+  'errors.audit.toolUnavailable.deployUrlSuffix':
+    '에서 배포 URL 칸을 채워주세요.',
   // T2.12 #112: N/A 카테고리 라벨 (BLOCKED vs FAILED 구분)
   'errors.audit.toolUnavailable.categoryHeading': '점수가 N/A로 표시되는 카테고리',
   'errors.audit.toolUnavailable.whyNa': '왜 N/A인가요?',
@@ -340,6 +360,15 @@ export const ko = {
   'audit.empty.pipelineNotReached':
     '아직 이 단계에 도달하지 않았어요. 분석이 진행되면 결과가 자동으로 채워집니다.',
   'audit.empty.nextActions': '다음에 할 수 있는 일',
+  // W3.QA.2 mixed-JSX migration: split the no-deploy-url + pipeline-not-reached
+  // `<li>` items so the embedded `<Link>` no longer requires inline 한글 후치사.
+  'audit.empty.noDeployUrl.cta.prefix': '성능/접근성도 보고 싶다면 ',
+  'audit.empty.noDeployUrl.cta.linkLabel': '새 감사를 시작',
+  'audit.empty.noDeployUrl.cta.suffix':
+    '하면서 배포 URL을 함께 입력해 주세요.',
+  'audit.empty.pipelineNotReached.cta.linkLabel': '진행 화면',
+  'audit.empty.pipelineNotReached.cta.suffix':
+    '에서 현재 단계를 확인할 수 있어요.',
 
   // Errors — general
   'errors.general.networkError': '네트워크 오류가 발생했습니다. 잠시 후 다시 시도하세요',
