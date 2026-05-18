@@ -71,7 +71,7 @@ fi
 
 echo "==> Deploying Functions + Firestore rules/indexes + Storage rules"
 run firebase deploy \
-  --only "functions,firestore:rules,firestore:indexes,storage:rules" \
+  --only "functions,firestore:rules,firestore:indexes,storage" \
   --project="$PROJECT_ID" \
   --non-interactive
 
