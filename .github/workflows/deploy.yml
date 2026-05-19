@@ -199,6 +199,15 @@ jobs:
             --non-interactive \
             --force
 
+      - name: Strip workspace deps from apps/web/package.json (Hosting prereq)
+        # Firebase webframeworks runs `npm install` against the apps/web tree
+        # to build the Next.js SSR Cloud Function and chokes on pnpm's
+        # workspace protocol. The workspace packages are already inlined into
+        # `.next/server/*` by Next.js' `transpilePackages` during the prior
+        # `Build all workspaces` step, so dropping them from dependencies
+        # before deploy is safe. Must run AFTER `pnpm build`.
+        run: node scripts/strip-web-workspace-deps.mjs
+
       - name: Deploy Hosting
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
