@@ -188,10 +188,16 @@ jobs:
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
         run: |
+          # --force auto-creates the Artifact Registry cleanup policy for
+          # function container images. Without it the deploy succeeds in
+          # creating/updating the functions themselves but exits 1 with
+          # "could not set up cleanup policy" — failing the CI step even
+          # though deployment was effectively successful.
           firebase deploy \
             --only "functions,firestore:rules,firestore:indexes,storage" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --non-interactive
+            --non-interactive \
+            --force
 
       - name: Deploy Hosting
         env:

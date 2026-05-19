@@ -92,6 +92,12 @@ locals {
     "roles/datastore.indexAdmin",
     "roles/secretmanager.admin",
     "roles/resourcemanager.projectIamAdmin",
+    # firebase deploy --only functions writes a Cloud Scheduler job for
+    # every onSchedule() function (e.g., dailyCleanup). The default
+    # firebase-managed job name is `firebase-schedule-<fn>-<region>` and
+    # the deploy fails with 403 cloudscheduler.jobs.update unless the
+    # deployer SA can manage scheduler jobs.
+    "roles/cloudscheduler.admin",
   ]
 }
 
