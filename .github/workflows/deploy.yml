@@ -202,6 +202,12 @@ jobs:
       - name: Deploy Hosting
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
+          # firebase.json sets hosting.source=apps/web with frameworksBackend,
+          # which routes through Firebase's framework-aware deployer (Next.js
+          # SSR adapter). That codepath is still gated behind the
+          # webframeworks experiment in firebase-tools v15; without the flag
+          # the deploy errors with "Cannot deploy a web framework from source".
+          FIREBASE_CLI_EXPERIMENTS: webframeworks
         run: |
           firebase deploy \
             --only hosting \
