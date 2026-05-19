@@ -17,6 +17,13 @@ import { recordLighthouseLatency } from '../../observability/metrics.js';
 const NAV_TIMEOUT_MS = 30_000;
 const LH_TIMEOUT_MS = 60_000;
 
+// Outer guard for the whole runLighthouse call, including chrome-launcher
+// startup. chrome-launcher.launch() on some images (notably node:*-alpine
+// without a Chromium binary installed) can block indefinitely instead of
+// throwing, freezing the pipeline at step 12. This budget gives Lighthouse
+// itself the full LH_TIMEOUT_MS plus a generous slack for browser boot.
+const LH_OUTER_TIMEOUT_MS = LH_TIMEOUT_MS + 30_000;
+
 interface PageStats {
   url: string;
   buttonCount: number;
@@ -223,7 +230,34 @@ async function runLighthouse(
     return { notInstalled: true };
   }
 
+  // Detect a usable Chrome/Chromium binary BEFORE calling cl.launch().
+  // chrome-launcher.launch() can block indefinitely on images that lack a
+  // Chrome installation (observed on node:20.13-alpine), freezing the
+  // pipeline at step 12. We only short-circuit when the probe ran AND found
+  // nothing — if the imported module doesn't expose `Launcher.getInstallations`
+  // (e.g. inside a test mock) we fall through and let the launcher handle it.
+  let chromePath: string | undefined = process.env.CHROME_PATH || undefined;
+  let probedInstallations: string[] | null = null;
+  if (!chromePath) {
+    try {
+      const getInstallations = (cl as unknown as {
+        Launcher?: { getInstallations?: () => string[] };
+      }).Launcher?.getInstallations;
+      if (typeof getInstallations === 'function') {
+        probedInstallations = getInstallations();
+        chromePath = probedInstallations[0];
+      }
+    } catch {
+      // Probe itself threw — fall through and let cl.launch decide.
+      probedInstallations = null;
+    }
+  }
+  if (!chromePath && probedInstallations !== null) {
+    return { notInstalled: true };
+  }
+
   const launcher = await cl.launch({
+    ...(chromePath ? { chromePath } : {}),
     chromeFlags: ['--headless=new', '--no-sandbox', '--disable-gpu'],
   });
 
@@ -345,9 +379,26 @@ export const step09AnalyzeDeployUrl: Step = {
     }
 
     const lhStartMs = Date.now();
-    const lhResult = await runLighthouse(deployUrl, profile).catch(
-      (e: Error) => ({ notInstalled: false as const, error: e.message }),
-    );
+    // Outer timeout protects against chrome-launcher hangs that the inner
+    // Promise.race (around the lighthouse run itself) doesn't cover. If
+    // chrome can't start within LH_OUTER_TIMEOUT_MS, treat the run as failed
+    // so the pipeline writes a FAILED tool result and continues to scoring.
+    type LhCallResult =
+      | LighthouseResult
+      | { notInstalled: true }
+      | { notInstalled: false; error: string };
+    const lhResult: LhCallResult = await Promise.race<LhCallResult>([
+      runLighthouse(deployUrl, profile).catch((e: Error) => ({
+        notInstalled: false as const,
+        error: e.message,
+      })),
+      new Promise<{ notInstalled: false; error: string }>((resolve) =>
+        setTimeout(
+          () => resolve({ notInstalled: false, error: 'lighthouse outer timeout' }),
+          LH_OUTER_TIMEOUT_MS,
+        ),
+      ),
+    ]);
     recordLighthouseLatency((Date.now() - lhStartMs) / 1000, profile.id);
 
     if ('notInstalled' in lhResult && lhResult.notInstalled) {
