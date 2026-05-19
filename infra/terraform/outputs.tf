@@ -11,6 +11,11 @@ output "worker_sa_email" {
   value       = google_service_account.audit_worker_runtime.email
 }
 
+output "web_ssr_sa_email" {
+  description = "Runtime service account for web-ssr Cloud Run service."
+  value       = google_service_account.web_ssr_runtime.email
+}
+
 output "invoker_sa_email" {
   description = "Service account used by Functions/Cloud Tasks to OIDC-invoke the worker."
   value       = google_service_account.cloud_run_invoker.email

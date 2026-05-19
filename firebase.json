@@ -6,17 +6,6 @@
   "storage": {
     "rules": "storage.rules"
   },
-  "hosting": {
-    "source": "apps/web",
-    "frameworksBackend": {
-      "region": "asia-northeast3"
-    },
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ]
-  },
   "functions": [
     {
       "source": "functions",
@@ -36,7 +25,6 @@
     "firestore": { "port": 8080 },
     "functions": { "port": 5001 },
     "storage": { "port": 9199 },
-    "hosting": { "port": 5000 },
     "ui": { "enabled": true, "port": 4000 },
     "singleProjectMode": true
   }

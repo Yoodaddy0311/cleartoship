@@ -33,6 +33,46 @@ resource "google_project_iam_member" "worker_monitoring" {
   member  = "serviceAccount:${google_service_account.audit_worker_runtime.email}"
 }
 
+# web-ssr-runtime: Firestore + Cloud Tasks enqueuer + Token Creator on
+# cloud-run-invoker (so the SSR server can mint OIDC tokens when creating
+# Cloud Tasks targeted at the authenticated audit-worker). Storage read on
+# uploads bucket is required for signed-URL flows in the web app.
+resource "google_project_iam_member" "web_ssr_firestore" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.web_ssr_runtime.email}"
+}
+
+resource "google_project_iam_member" "web_ssr_tasks_enqueuer" {
+  project = var.project_id
+  role    = "roles/cloudtasks.enqueuer"
+  member  = "serviceAccount:${google_service_account.web_ssr_runtime.email}"
+}
+
+resource "google_service_account_iam_member" "web_ssr_can_impersonate_invoker" {
+  service_account_id = google_service_account.cloud_run_invoker.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.web_ssr_runtime.email}"
+}
+
+resource "google_storage_bucket_iam_member" "web_ssr_uploads" {
+  bucket = local.uploads_bucket
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.web_ssr_runtime.email}"
+}
+
+resource "google_project_iam_member" "web_ssr_logging" {
+  project = var.project_id
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.web_ssr_runtime.email}"
+}
+
+resource "google_project_iam_member" "web_ssr_monitoring" {
+  project = var.project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.web_ssr_runtime.email}"
+}
+
 # cloud-run-invoker: allowed to invoke the audit-worker service.
 # We grant project-level roles/run.invoker scoped via Cloud Run service-level binding once the service exists.
 # For initial bootstrap (before the service is deployed), keep project-level invoker on Cloud Run.

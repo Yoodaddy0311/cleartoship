@@ -45,6 +45,12 @@ resource "google_secret_manager_secret_iam_member" "functions_read_github_token"
   member    = "serviceAccount:${google_service_account.functions_runtime.email}"
 }
 
+resource "google_secret_manager_secret_iam_member" "web_ssr_read_worker_url" {
+  secret_id = google_secret_manager_secret.cloud_run_worker_url.id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.web_ssr_runtime.email}"
+}
+
 resource "google_secret_manager_secret_iam_member" "worker_read_anthropic" {
   secret_id = google_secret_manager_secret.anthropic_api_key.id
   role      = "roles/secretmanager.secretAccessor"

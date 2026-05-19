@@ -16,6 +16,15 @@ resource "google_service_account" "audit_worker_runtime" {
   depends_on = [google_project_service.required_apis]
 }
 
+resource "google_service_account" "web_ssr_runtime" {
+  project      = var.project_id
+  account_id   = "web-ssr-runtime"
+  display_name = "Web SSR Cloud Run Runtime"
+  description  = "Runtime identity for the web-ssr Cloud Run service (Next.js SSR). Enqueues Cloud Tasks for the audit-worker, reads Firestore + the worker URL secret."
+
+  depends_on = [google_project_service.required_apis]
+}
+
 resource "google_service_account" "functions_runtime" {
   project      = var.project_id
   account_id   = "functions-runtime"
