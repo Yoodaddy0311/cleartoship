@@ -101,6 +101,20 @@ export const ko = {
   'mk.cta.subtitle': '신용카드 없이 1분이면 충분합니다.',
   'mk.cta.button': '지금 시작하기',
 
+  // Audit List (/audits)
+  'audits.list.title': '내 감사',
+  'audits.list.subtitle': '제출한 감사 결과를 최신순으로 확인할 수 있습니다.',
+  'audits.list.empty.title': '아직 감사 기록이 없습니다',
+  'audits.list.empty.cta': '첫 감사 시작하기',
+  'audits.list.column.repo': '저장소',
+  'audits.list.column.status': '상태',
+  'audits.list.column.created': '생성일',
+  'audits.list.action.open': '열기',
+  'audits.list.error': '감사 목록을 불러오지 못했습니다.',
+  'audits.list.retry': '다시 시도',
+  'audits.list.loading': '불러오는 중…',
+  'audits.list.newAudit': '새 감사',
+
   // Audit Progress
   'progress.title': '감사 진행 중',
   'progress.subtitle': '코드와 화면을 분석하고 있습니다. 잠시만 기다려주세요.',
