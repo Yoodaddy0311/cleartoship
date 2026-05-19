@@ -61,7 +61,7 @@ jobs:
           fi
 
   deploy:
-    name: Deploy worker + functions + hosting
+    name: Deploy worker + functions + web-ssr
     needs: preflight
     if: needs.preflight.outputs.ready == 'true'
     runs-on: ubuntu-latest
@@ -199,34 +199,96 @@ jobs:
             --non-interactive \
             --force
 
-      - name: Strip workspace deps from apps/web/package.json (Hosting prereq)
-        # Firebase webframeworks runs `npm install` against the apps/web tree
-        # to build the Next.js SSR Cloud Function and chokes on pnpm's
-        # workspace protocol. The workspace packages are already inlined into
-        # `.next/server/*` by Next.js' `transpilePackages` during the prior
-        # `Build all workspaces` step, so dropping them from dependencies
-        # before deploy is safe. Must run AFTER `pnpm build`.
-        run: node scripts/strip-web-workspace-deps.mjs
-
-      - name: Deploy Hosting
+      - name: Resolve NEXT_PUBLIC_FIREBASE_* via firebase apps:sdkconfig
+        id: web-config
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
-          # firebase.json sets hosting.source=apps/web with frameworksBackend,
-          # which routes through Firebase's framework-aware deployer (Next.js
-          # SSR adapter). That codepath is still gated behind the
-          # webframeworks experiment in firebase-tools v15; without the flag
-          # the deploy errors with "Cannot deploy a web framework from source".
-          FIREBASE_CLI_EXPERIMENTS: webframeworks
         run: |
-          firebase deploy \
-            --only hosting \
+          # The Firebase Web SDK config is required at Next.js build time
+          # (NEXT_PUBLIC_* values are baked into the client bundle). We pull
+          # it from the Firebase project rather than storing duplicates as
+          # GH Secrets, so the values track the project state.
+          #
+          # `firebase apps:list WEB` returns the registered web apps; we
+          # take the first one. If no Web app exists, this step fails with
+          # a clear error and the next session should run:
+          #   firebase apps:create WEB cleartoship-web --project=cleartoship-prod
+          APP_ID=$(firebase apps:list WEB --project="${{ secrets.GCP_PROJECT_ID }}" --json \
+            | jq -r '.result[0].appId // empty')
+          if [[ -z "$APP_ID" ]]; then
+            echo "::error title=No Firebase Web app registered::Run 'firebase apps:create WEB cleartoship-web --project=${{ secrets.GCP_PROJECT_ID }}' once, then re-run this workflow."
+            exit 1
+          fi
+          CFG=$(firebase apps:sdkconfig WEB "$APP_ID" --project="${{ secrets.GCP_PROJECT_ID }}" --json)
+          # The CLI wraps the SDK config in `.result.sdkConfig`.
+          echo "api_key=$(echo "$CFG" | jq -r '.result.sdkConfig.apiKey')" >> "$GITHUB_OUTPUT"
+          echo "auth_domain=$(echo "$CFG" | jq -r '.result.sdkConfig.authDomain')" >> "$GITHUB_OUTPUT"
+          echo "project_id=$(echo "$CFG" | jq -r '.result.sdkConfig.projectId')" >> "$GITHUB_OUTPUT"
+          echo "storage_bucket=$(echo "$CFG" | jq -r '.result.sdkConfig.storageBucket')" >> "$GITHUB_OUTPUT"
+          echo "messaging_sender_id=$(echo "$CFG" | jq -r '.result.sdkConfig.messagingSenderId')" >> "$GITHUB_OUTPUT"
+          echo "app_id=$(echo "$CFG" | jq -r '.result.sdkConfig.appId')" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push web-ssr image
+        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cleartoship-images/web-ssr:${{ steps.meta.outputs.tag }}
+            ${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cleartoship-images/web-ssr:latest
+          build-args: |
+            NEXT_PUBLIC_FIREBASE_API_KEY=${{ steps.web-config.outputs.api_key }}
+            NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ steps.web-config.outputs.auth_domain }}
+            NEXT_PUBLIC_FIREBASE_PROJECT_ID=${{ steps.web-config.outputs.project_id }}
+            NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ steps.web-config.outputs.storage_bucket }}
+            NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ steps.web-config.outputs.messaging_sender_id }}
+            NEXT_PUBLIC_FIREBASE_APP_ID=${{ steps.web-config.outputs.app_id }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy Cloud Run web-ssr
+        id: web-deploy
+        run: |
+          # Same min-instances policy as the worker — warm one instance in
+          # prod, scale-to-zero elsewhere. Public site so --allow-unauthenticated.
+          # CLOUD_TASKS_* values map to the terraform-managed queue; the
+          # invoker SA is the cloud-run-invoker the web SSR impersonates to
+          # mint OIDC tokens against the audit-worker.
+          if [[ "${{ secrets.GCP_PROJECT_ID }}" == *"prod"* ]]; then
+            MIN_INSTANCES=1
+          else
+            MIN_INSTANCES=0
+          fi
+
+          WORKER_URL=$(gcloud secrets versions access latest \
+            --secret=cloud-run-worker-url \
+            --project="${{ secrets.GCP_PROJECT_ID }}")
+
+          gcloud run deploy "web-ssr" \
+            --image="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cleartoship-images/web-ssr:${{ steps.meta.outputs.tag }}" \
+            --region="${{ env.REGION }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --non-interactive
+            --service-account="web-ssr-runtime@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
+            --allow-unauthenticated \
+            --cpu=1 --memory=512Mi --concurrency=80 --timeout=60 --max-instances=10 \
+            --min-instances="$MIN_INSTANCES" \
+            --port=8080 \
+            --set-env-vars="PROJECT_ID=${{ secrets.GCP_PROJECT_ID }},REGION=${{ env.REGION }},NODE_ENV=production,NEXT_PUBLIC_USE_EMULATORS=0,AUDIT_WORKER_URL=$WORKER_URL,CLOUD_TASKS_PROJECT=${{ secrets.GCP_PROJECT_ID }},CLOUD_TASKS_LOCATION=${{ env.REGION }},CLOUD_TASKS_QUEUE=audit-jobs,AUDIT_WORKER_INVOKER_SA=cloud-run-invoker@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
+            --quiet
+
+          URL=$(gcloud run services describe "web-ssr" \
+            --region="${{ env.REGION }}" \
+            --project="${{ secrets.GCP_PROJECT_ID }}" \
+            --format='value(status.url)')
+          echo "web_url=$URL" >> "$GITHUB_OUTPUT"
 
       - name: Summary
         run: |
           echo "### Deployment Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Image tag**: \`${{ steps.meta.outputs.tag }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Cloud Run URL**: ${{ steps.run-deploy.outputs.worker_url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Worker URL**: ${{ steps.run-deploy.outputs.worker_url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Web SSR URL**: ${{ steps.web-deploy.outputs.web_url }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Region**: ${{ env.REGION }}" >> "$GITHUB_STEP_SUMMARY"
