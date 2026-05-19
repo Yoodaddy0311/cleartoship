@@ -92,7 +92,11 @@ COPY --from=build /app/apps/web/next.config.mjs /app/apps/web/next.config.mjs
 RUN chown -R web:web /app
 
 USER web
+WORKDIR /app/apps/web
 EXPOSE 8080
 
-# `next start` reads .next/ and serves on $PORT.
-CMD ["pnpm", "-F", "web", "exec", "next", "start", "-p", "8080", "-H", "0.0.0.0"]
+# Invoke `next` directly through node — avoids corepack/pnpm at runtime, which
+# in prior revisions tried to verify pnpm's signing key against npmjs.com and
+# failed with `Cannot find matching keyid`, killing the container before it
+# could bind to $PORT. Mirrors workers/audit-worker/Dockerfile's `node …` CMD.
+CMD ["node", "node_modules/next/dist/bin/next", "start", "-p", "8080", "-H", "0.0.0.0"]
