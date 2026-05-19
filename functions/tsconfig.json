@@ -8,7 +8,17 @@
     "lib": ["ES2022"],
     "declaration": false,
     "declarationMap": false,
-    "noEmit": false
+    "noEmit": false,
+    "baseUrl": ".",
+    // Resolve workspace imports via on-disk source paths so functions/
+    // package.json carries NO `@cleartoship/*` deps at all. Cloud Build
+    // runs `npm install` without --production and chokes on `workspace:*`
+    // anywhere in the file (devDeps included), so the workspace deps
+    // can only live in tsconfig + vitest config, never in package.json.
+    "paths": {
+      "@cleartoship/shared-types": ["../packages/shared-types/src/index.ts"],
+      "@cleartoship/audit-core": ["../packages/audit-core/src/index.ts"]
+    }
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "lib", "src/**/*.test.ts", "src/__tests__/**"],
