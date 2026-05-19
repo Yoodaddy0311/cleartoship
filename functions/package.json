@@ -21,7 +21,6 @@
     "firebase-functions": "^5.0.1"
   },
   "devDependencies": {
-    "@cleartoship/shared-types": "workspace:*",
     "@types/node": "^20.12.7",
     "esbuild": "^0.21.5",
     "typescript": "^5.4.5",

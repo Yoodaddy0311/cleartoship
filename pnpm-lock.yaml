@@ -160,9 +160,6 @@ importers:
         specifier: ^5.0.1
         version: 5.1.1(firebase-admin@12.7.0)
     devDependencies:
-      '@cleartoship/shared-types':
-        specifier: workspace:*
-        version: link:../packages/shared-types
       '@types/node':
         specifier: ^20.12.7
         version: 20.19.41
