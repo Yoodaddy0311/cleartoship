@@ -11,7 +11,9 @@
 // pipeline plumbing required):
 //   1. severityCounts: P0 (Critical) === 0  → "Critical 취약점 0건"
 //   2. severityCounts: P1 (High) === 0      → "High 취약점 0건"
-//   3. categoryScores: every category with score >= 80 (and not null/N/A)
+//   3. categoryScores: every category with score >= 80 (and not null/N/A).
+//      Label resolution: `errors.audit.category.<KEY>` from the existing i18n
+//      namespace, falling back to the raw key if a category lacks a label.
 //
 // Out of scope (Phase 2 candidates documented in
 // .claude/memory/project_visual_audit_vision.md):
@@ -26,13 +28,16 @@
 import { Card, CardBody } from '@cleartoship/ui';
 import type { Severity } from '@/lib/format/severity';
 import type { adaptCategoryScoresNullable } from '@/lib/api/adapters';
-import { t, tf } from '@/lib/i18n';
+import { t, tf, type I18nKey } from '@/lib/i18n';
 
-type CategoryScoreView = ReturnType<typeof adaptCategoryScoresNullable>[number];
+// `adaptCategoryScoresNullable` returns Record<AuditCategory, number | null>
+// (one entry per UI-visible category, score=null when unscored).
+type CategoryScoresMap = ReturnType<typeof adaptCategoryScoresNullable>;
+type CategoryKey = keyof CategoryScoresMap;
 
 interface StrengthsPanelProps {
   severityCounts: Record<Severity, number>;
-  categoryScores: readonly CategoryScoreView[];
+  categoryScores: CategoryScoresMap;
 }
 
 interface StrengthItem {
@@ -45,6 +50,21 @@ interface StrengthItem {
 }
 
 const HIGH_SCORE_THRESHOLD = 80;
+
+/**
+ * Resolve a category key to its human-readable label via the same i18n
+ * namespace `PartialResultBanner.categoryLabel` uses, so the strength card
+ * reads "보안 검사 우수 (90점)" consistent with the rest of the dashboard.
+ * Falls back to the raw key for categories whose i18n entry is missing
+ * (defensive — UI-visible categories should all have labels).
+ */
+function categoryLabel(category: CategoryKey): string {
+  const key = `errors.audit.category.${category}` as I18nKey;
+  const label = t(key);
+  // i18n returns the key itself when missing; treat that as "no label" and
+  // surface the raw category as a last-resort identifier.
+  return label === key ? String(category) : label;
+}
 
 function buildStrengths({
   severityCounts,
@@ -67,14 +87,18 @@ function buildStrengths({
     });
   }
 
-  for (const cat of categoryScores) {
-    if (cat.score === null) continue;
-    if (cat.score < HIGH_SCORE_THRESHOLD) continue;
+  const categoryEntries = Object.entries(categoryScores) as [
+    CategoryKey,
+    number | null,
+  ][];
+  for (const [category, score] of categoryEntries) {
+    if (score === null) continue;
+    if (score < HIGH_SCORE_THRESHOLD) continue;
     items.push({
-      id: `category-${cat.category}`,
+      id: `category-${category}`,
       headline: tf('dashboard.strengths.category.high', {
-        label: cat.label,
-        score: cat.score,
+        label: categoryLabel(category),
+        score,
       }),
     });
   }

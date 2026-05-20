@@ -6,31 +6,34 @@ const SEVERITY_ALL_ZERO = { P0: 0, P1: 0, P2: 0, P3: 0 };
 const SEVERITY_P0_NONZERO = { P0: 2, P1: 0, P2: 5, P3: 8 };
 const SEVERITY_P1_NONZERO = { P0: 0, P1: 1, P2: 5, P3: 8 };
 
-const CAT_HIGH = {
-  category: 'SECURITY_PRIVACY' as const,
-  score: 90,
-  label: '보안',
-  summary: null,
-};
-const CAT_MID = {
-  category: 'FRONTEND_CODE' as const,
-  score: 65,
-  label: '프론트엔드',
-  summary: null,
-};
-const CAT_NULL = {
-  category: 'UX_UI' as const,
-  score: null,
-  label: 'UX',
-  summary: null,
-};
+// Match the `Record<AuditCategory, number|null>` shape returned by
+// `adaptCategoryScoresNullable`. Tests only set the keys they care about
+// — unset keys default to null at the test boundary.
+function categoryScores(
+  overrides: Record<string, number | null>
+): Parameters<typeof StrengthsPanel>[0]['categoryScores'] {
+  return {
+    PRODUCT_INTENT: null,
+    REQUIREMENT_COVERAGE: null,
+    FEATURE_GRAPH: null,
+    FUNCTIONAL_FLOW: null,
+    UX_UI: null,
+    FRONTEND_CODE: null,
+    BACKEND_API: null,
+    DATA_MODEL: null,
+    SECURITY_PRIVACY: null,
+    LAUNCH_READINESS: null,
+    BUSINESS_READINESS: null,
+    ...overrides,
+  };
+}
 
 describe('StrengthsPanel', () => {
   it('renders nothing when severity has open issues AND no high-scoring categories', () => {
     const { container } = render(
       <StrengthsPanel
         severityCounts={SEVERITY_P0_NONZERO}
-        categoryScores={[CAT_MID, CAT_NULL]}
+        categoryScores={categoryScores({ FRONTEND_CODE: 65 })}
       />
     );
     expect(container.firstChild).toBeNull();
@@ -40,7 +43,7 @@ describe('StrengthsPanel', () => {
     render(
       <StrengthsPanel
         severityCounts={{ P0: 0, P1: 3, P2: 5, P3: 8 }}
-        categoryScores={[CAT_MID]}
+        categoryScores={categoryScores({ FRONTEND_CODE: 65 })}
       />
     );
     expect(
@@ -55,7 +58,7 @@ describe('StrengthsPanel', () => {
     render(
       <StrengthsPanel
         severityCounts={SEVERITY_P1_NONZERO}
-        categoryScores={[CAT_MID]}
+        categoryScores={categoryScores({ FRONTEND_CODE: 65 })}
       />
     );
     // P0 has findings here, so the only severity strength is P1=0.
@@ -71,7 +74,10 @@ describe('StrengthsPanel', () => {
     render(
       <StrengthsPanel
         severityCounts={SEVERITY_P0_NONZERO}
-        categoryScores={[CAT_HIGH, CAT_MID, CAT_NULL]}
+        categoryScores={categoryScores({
+          SECURITY_PRIVACY: 90,
+          FRONTEND_CODE: 65,
+        })}
       />
     );
     expect(
@@ -89,7 +95,10 @@ describe('StrengthsPanel', () => {
     render(
       <StrengthsPanel
         severityCounts={SEVERITY_ALL_ZERO}
-        categoryScores={[CAT_HIGH, CAT_MID]}
+        categoryScores={categoryScores({
+          SECURITY_PRIVACY: 90,
+          FRONTEND_CODE: 65,
+        })}
       />
     );
     expect(screen.getByTestId('strengths-panel')).toBeInTheDocument();
