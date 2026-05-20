@@ -273,7 +273,7 @@ describe('PartialResultBanner — warn variant', () => {
       screen.getByText(/시크릿 검사 \(gitleaks\)/)
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/분석 환경 설정 문제이며 결과 신뢰도에 큰 영향이 없습니다/)
+      screen.getByText(/출시 결정에는 영향 없습니다/)
     ).toBeInTheDocument();
   });
 

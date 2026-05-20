@@ -133,6 +133,15 @@ export const ko = {
   'dashboard.severity.p3': '장기 개선',
   'dashboard.categories.title': '영역별 점수',
   'dashboard.categories.viewAll': '전체 보기',
+  // V3 Strengths panel (2026-05-20) — positive-signal cards rendered next to
+  // the defect-oriented severity counts so a non-dev reader sees both
+  // "what's wrong" and "what's working" at the same visual weight.
+  'dashboard.strengths.title': '이건 잘 됐어요',
+  'dashboard.strengths.severity.p0Zero': 'Critical(P0) 취약점 0건',
+  'dashboard.strengths.severity.p0Zero.supplement': '출시 결정의 가장 큰 부담을 덜었어요',
+  'dashboard.strengths.severity.p1Zero': 'High(P1) 취약점 0건',
+  'dashboard.strengths.severity.p1Zero.supplement': '핵심 개선 사항이 모두 막혀있지 않아요',
+  'dashboard.strengths.category.high': '{label} 우수 ({score}점)',
   'dashboard.top5.title': '가장 먼저 볼 항목 TOP 5',
   'dashboard.summary.title': '한 줄 요약',
   'dashboard.tab.dashboard': '대시보드',
@@ -339,7 +348,7 @@ export const ko = {
   'errors.audit.toolUnavailable': '도구 {toolNames} 미설치 — 부분 결과만 측정됩니다',
   'errors.audit.toolUnavailable.summary': '{count}개 검사가 이번 분석에서 빠졌어요',
   'errors.audit.toolUnavailable.disclaimer':
-    '이건 분석 환경 설정 문제이며 결과 신뢰도에 큰 영향이 없습니다',
+    '일부 검사는 이 프로젝트의 기술 스택에 해당 기술이 없어서 (예: Prisma DB 없음, Tailwind+React 미사용) 자동 skip되거나, 워커에 도구가 곧 추가될 예정 (Phase 1: semgrep / osv-scanner)이라 N/A로 표시됩니다. 출시 결정에는 영향 없습니다.',
   'errors.audit.toolUnavailable.deployUrlHint':
     '배포 URL을 입력하시면 사이트 성능/접근성도 측정해드릴게요',
   // W3.QA.2 mixed-JSX migration: split the inline `<strong>`/`<Link>` line in

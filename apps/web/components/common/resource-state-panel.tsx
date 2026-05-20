@@ -113,6 +113,19 @@ const TOOL_FRIENDLY_NAMES: Record<
     analyzes: '실제 배포된 사이트 (배포 URL 미입력 시 자동 스킵)',
     requiresDeployUrl: true,
   },
+  // 2026-05-20: prisma-analyzer + design-consistency are "stack-eligible"
+  // tools. They run when the project uses the matching technology and
+  // skip cleanly when it does not — that skip is the *correct* result,
+  // not a missing capability. The phrasing reflects that so a non-dev
+  // reader doesn't think the audit is broken.
+  'prisma-analyzer': {
+    name: 'DB 스키마 분석',
+    analyzes: 'Prisma DB 스키마가 있을 때만 동작 — 이 프로젝트엔 schema가 없어서 자동 skip',
+  },
+  'design-consistency': {
+    name: '디자인 토큰 일관성',
+    analyzes: 'Tailwind+React 스택일 때만 동작 — 이 프로젝트의 스택과 매치되지 않아 자동 skip',
+  },
 };
 
 function describeTool(name: string): {
@@ -128,7 +141,11 @@ function describeTool(name: string): {
       requiresDeployUrl: entry.requiresDeployUrl === true,
     };
   }
-  return { label: name, analyzes: '분석 환경에서 실행되지 않았어요', requiresDeployUrl: false };
+  // Unknown tool — keep a non-alarming fallback. The actual reason
+  // (stack mismatch / missing tool / no clone) is per-tool; for unknown
+  // tools we default to a neutral phrasing so non-dev readers don't
+  // read it as a hard failure.
+  return { label: name, analyzes: '이 분석에서는 결과가 산출되지 않았어요', requiresDeployUrl: false };
 }
 
 /**

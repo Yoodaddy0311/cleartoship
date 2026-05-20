@@ -139,6 +139,14 @@ export const en: Messages = {
   'dashboard.severity.p3': 'Long-term improvement',
   'dashboard.categories.title': 'Scores by area',
   'dashboard.categories.viewAll': 'See all',
+  // V3 Strengths panel (2026-05-20) — positive-signal cards rendered next to
+  // the defect-oriented severity counts.
+  'dashboard.strengths.title': 'What\'s working',
+  'dashboard.strengths.severity.p0Zero': 'No Critical (P0) findings',
+  'dashboard.strengths.severity.p0Zero.supplement': 'The single biggest launch blocker is clear',
+  'dashboard.strengths.severity.p1Zero': 'No High (P1) findings',
+  'dashboard.strengths.severity.p1Zero.supplement': 'No high-impact issues block the launch',
+  'dashboard.strengths.category.high': '{label} strong ({score})',
   'dashboard.top5.title': 'Top 5 items to tackle first',
   'dashboard.summary.title': 'One-line summary',
   'dashboard.tab.dashboard': 'Dashboard',
@@ -336,7 +344,7 @@ export const en: Messages = {
   'errors.audit.toolUnavailable': 'Tools {toolNames} are not installed — partial results only',
   'errors.audit.toolUnavailable.summary': '{count} checks were skipped on this run',
   'errors.audit.toolUnavailable.disclaimer':
-    'This is an analysis environment issue and does not significantly affect result confidence',
+    'Some checks are skipped automatically because this project doesn\'t use the matching tech (e.g. no Prisma DB, no Tailwind+React), and a couple of tools (Phase 1: semgrep / osv-scanner) are still being added to the worker. None of this should change your launch decision.',
   'errors.audit.toolUnavailable.deployUrlHint':
     'Add a deploy URL and we will also measure your site performance and accessibility',
   // W3.QA.2 mixed-JSX migration: split the inline `<strong>`/`<Link>` line in
