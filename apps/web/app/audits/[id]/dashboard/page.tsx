@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import { Card, CardBody, CardHeader, CardTitle } from '@cleartoship/ui';
 import { ScoreSkeleton } from '@/components/skeletons';
 import { SeverityCounts } from '@/components/dashboard/severity-counts';
+import { StrengthsPanel } from '@/components/dashboard/strengths-panel';
 import { CategoryGrid } from '@/components/dashboard/category-grid';
 import { SeverityChip } from '@/components/common/severity-chip';
 import { LaunchStatusChip } from '@/components/common/launch-status-chip';
@@ -185,6 +186,11 @@ function DashboardBody({
         </h2>
         <SeverityCounts counts={report.severityCounts} />
       </section>
+
+      <StrengthsPanel
+        severityCounts={report.severityCounts}
+        categoryScores={categoryScores}
+      />
 
       <section aria-labelledby="categories-title" className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between gap-3">
