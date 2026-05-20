@@ -75,8 +75,23 @@ COPY --from=build /opt/ms-playwright /opt/ms-playwright
 RUN pnpm install --prod --filter audit-worker... --frozen-lockfile=false
 
 # P0.W2.5 — symlink the versioned Playwright chromium binary to a stable path.
-# Wildcard glob is interpreted by sh -c (Docker RUN form), so this resolves at build time.
-RUN ln -s /opt/ms-playwright/chromium-*/chrome-linux/chrome /usr/local/bin/chromium
+# Playwright 1.49+ split chromium into multiple bundles (full chromium-* AND
+# chromium_headless_shell-*) and any specific bundle's leaf binary name can
+# vary (`chrome`, `chrome-headless-shell`). Glob-then-symlink with a fixed
+# subpath is fragile — discover the actual binary with `find` and assert
+# exactly one candidate, fail fast if 0 or 2+.
+RUN set -eu; \
+    candidate=$(find /opt/ms-playwright \
+                  \( -name chrome -o -name chrome-headless-shell \) \
+                  -type f -executable 2>/dev/null | head -n1); \
+    if [ -z "$candidate" ]; then \
+      echo "ERROR: no chromium binary found under /opt/ms-playwright"; \
+      ls -la /opt/ms-playwright || true; \
+      exit 1; \
+    fi; \
+    ln -sfn "$candidate" /usr/local/bin/chromium; \
+    echo "Symlinked $candidate -> /usr/local/bin/chromium"; \
+    /usr/local/bin/chromium --version || { echo "ERROR: symlink target not runnable"; exit 1; }
 
 # P0.W2.8 — chown playwright dir BEFORE switching to USER worker (R-P0-2).
 RUN chown -R worker:worker /opt/ms-playwright
