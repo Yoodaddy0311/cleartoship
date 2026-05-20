@@ -25,6 +25,26 @@ If you are reading this BEFORE that, follow §1~§4 in order.
 
 ## 1. Re-entry (5 min)
 
+### 1.1 Fresh machine? Restore project memory FIRST
+
+The auto-memory system reads from `~/.claude/projects/<slug>/memory/` (per-machine), not from the repo. If this is a new machine or a fresh checkout, the memory dir is empty until you run:
+
+```bash
+# bash / git-bash / WSL
+bash scripts/sync-claude-memory.sh
+```
+
+```powershell
+# PowerShell (Windows)
+& scripts\sync-claude-memory.ps1
+```
+
+This installs the 5 repo-committed memory entries (`project_phase0_status`, `project_next_actions`, `feedback_pnpm_monorepo_docker`, `reference_phase0_prd`, `reference_lint_tools`) into the local memory dir. Future Claude Code sessions on this machine will auto-load them.
+
+Idempotent: re-running without `--force`/`-Force` skips existing files. With the flag, repo content overwrites local AND any local-only entries (e.g. `user_profile.md`) are preserved in `MEMORY.md` index automatically.
+
+### 1.2 Sync git + check PR #36
+
 ```powershell
 cd "C:\Users\HeechangLee\Desktop\ClearToShip\repo"
 git fetch origin
