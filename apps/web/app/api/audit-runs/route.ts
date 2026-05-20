@@ -1,4 +1,5 @@
 // POST /api/audit-runs — create a new AuditRun.
+// GET  /api/audit-runs — list the caller's recent AuditRuns (newest first).
 
 import { NextResponse, type NextRequest } from 'next/server';
 import { CreateAuditRunRequestSchema, makeError } from '@cleartoship/shared-types';
@@ -10,9 +11,14 @@ import {
   PrdTextTooLargeError,
   PRD_TEXT_USER_MAX_BYTES,
 } from '@/lib/audit-runs/create-audit-run';
+import { listAuditRuns } from '@/lib/audit-runs/list-audit-runs';
 import { touchUserDoc } from '@/lib/audit-runs/touch-user-doc';
 import { validateDeployUrl } from '@/lib/validation/deploy-url';
 import { jsonError, jsonOk, logServerError } from '@/app/api/_lib/responses';
+
+const LIST_LIMIT_MIN = 1;
+const LIST_LIMIT_MAX = 100;
+const LIST_LIMIT_DEFAULT = 50;
 
 /**
  * Extracts the originating client IP from proxy/CDN headers. Cloud Run sets
@@ -53,6 +59,35 @@ function secondsUntilUtcMidnight(now: Date = new Date()): number {
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+export async function GET(req: NextRequest) {
+  const caller = await resolveCaller(req);
+  if (!caller) {
+    return jsonError('UNAUTHORIZED', '인증 정보가 필요합니다.', 401);
+  }
+
+  // `limit` is the only query parameter — clamp to [1, 100] and fall back to
+  // the default on missing / unparseable input. We do not support cursor
+  // pagination yet (see list-audit-runs.ts rationale) so callers requesting
+  // more than 100 are bounded rather than rejected.
+  const rawLimit = req.nextUrl.searchParams.get('limit');
+  let limit = LIST_LIMIT_DEFAULT;
+  if (rawLimit !== null) {
+    const parsed = Number.parseInt(rawLimit, 10);
+    if (!Number.isFinite(parsed)) {
+      return jsonError('INVALID_INPUT', 'limit은 정수여야 합니다.', 400);
+    }
+    limit = Math.min(LIST_LIMIT_MAX, Math.max(LIST_LIMIT_MIN, parsed));
+  }
+
+  try {
+    const runs = await listAuditRuns(caller.uid, { limit });
+    return jsonOk({ runs, count: runs.length, limit });
+  } catch (err) {
+    logServerError('GET /api/audit-runs', err);
+    return jsonError('INTERNAL', 'AuditRun 목록을 조회하지 못했습니다.', 500);
+  }
+}
 
 export async function POST(req: NextRequest) {
   const caller = await resolveCaller(req);

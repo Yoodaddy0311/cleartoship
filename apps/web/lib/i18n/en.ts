@@ -107,6 +107,20 @@ export const en: Messages = {
   'mk.cta.subtitle': 'No credit card. One minute is enough.',
   'mk.cta.button': 'Get started',
 
+  // Audit List (/audits)
+  'audits.list.title': 'My Audits',
+  'audits.list.subtitle': 'Browse your submitted audit runs, newest first.',
+  'audits.list.empty.title': "You haven't run any audits yet",
+  'audits.list.empty.cta': 'Start your first audit',
+  'audits.list.column.repo': 'Repository',
+  'audits.list.column.status': 'Status',
+  'audits.list.column.created': 'Created',
+  'audits.list.action.open': 'Open',
+  'audits.list.error': 'Could not load your audit list.',
+  'audits.list.retry': 'Retry',
+  'audits.list.loading': 'Loading…',
+  'audits.list.newAudit': 'New audit',
+
   // Audit Progress
   'progress.title': 'Audit in progress',
   'progress.subtitle': "We're analyzing your code and UI. Hang tight.",

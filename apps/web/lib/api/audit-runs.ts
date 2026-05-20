@@ -77,6 +77,29 @@ export async function createAuditRun(
   });
 }
 
+export interface ListAuditRunsResponse {
+  runs: AuditRun[];
+  count: number;
+  limit: number;
+}
+
+/**
+ * Lists the caller's AuditRuns, newest first. Powers the /audits index page.
+ */
+export async function listAuditRuns(
+  limit?: number
+): Promise<ListAuditRunsResponse> {
+  const qs = limit !== undefined ? `?limit=${encodeURIComponent(String(limit))}` : '';
+  const raw = await apiFetch<{ runs: unknown[]; count: number; limit: number }>(
+    `/api/audit-runs${qs}`
+  );
+  return {
+    runs: raw.runs.map((row) => AuditRunSchema.parse(row)),
+    count: raw.count,
+    limit: raw.limit,
+  };
+}
+
 /**
  * Full AuditRun — validated against AuditRunSchema. The polling hook narrows
  * the response itself; pages that need full fields should use this directly.
