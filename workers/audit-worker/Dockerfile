@@ -51,15 +51,17 @@ WORKDIR /app
 # so the dep list stays single-sourced and auto-updates with Playwright
 # version bumps instead of drifting against a hand-maintained apt list.
 #
-# P1.W1.1 — python3 + pipx for semgrep, curl for osv-scanner binary fetch.
-# `python3-setuptools` is required: semgrep's runtime imports `pkg_resources`
-# (provided by setuptools). Debian bookworm-slim does NOT ship setuptools
-# with python3 by default — first build attempt failed with
-# `ModuleNotFoundError: No module named 'pkg_resources'` at `semgrep --version`.
-# DL3008 (apt pin) intentionally skipped — Phase 2 cleanup item per PRD §7.2.
+
+# P1.W1.1 — python3 + venv module for semgrep, curl for osv-scanner binary fetch.
+# `python3-venv` provides the `venv` module used by `python3 -m venv` below;
+# Debian bookworm-slim's `python3` package does NOT pull it as a hard dep.
+# pip-in-a-venv auto-installs setuptools/wheel into the venv, so the
+# `pkg_resources` import that semgrep depends on resolves cleanly without
+# any pipx-internal magic. DL3008 (apt pin) skipped — Phase 2 cleanup
+# item per PRD §7.2.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git ca-certificates \
-      python3 python3-pip python3-setuptools pipx \
+      python3 python3-venv \
       curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -115,21 +117,24 @@ RUN set -eu; \
     echo "Symlinked $candidate -> /usr/local/bin/chromium"; \
     /usr/local/bin/chromium --version || { echo "ERROR: symlink target not runnable"; exit 1; }
 
-# P1.W1.2 — semgrep via pipx, installed system-wide so it's available to USER worker.
-# PIPX_BIN_DIR=/usr/local/bin makes the `semgrep` entrypoint available on $PATH
-# without needing pipx's per-user shim. Version pinned (PRD §7.1) so updates are
-# explicit. Build-time self-test (`semgrep --version`) per burnt-in Rule "build-time
-# self-tests beat runtime smoke" (see .claude/memory/feedback_pnpm_monorepo_docker.md).
-ENV PIPX_HOME=/opt/pipx
-ENV PIPX_BIN_DIR=/usr/local/bin
-# pipx isolates each install in its own venv. semgrep imports `pkg_resources`
-# at runtime (provided by setuptools), but pipx's default venv does NOT
-# inherit the system python3-setuptools — and pip-as-a-module is also not
-# present without explicit injection. `pipx inject` adds both into semgrep's
-# venv so the entrypoint can resolve them. Both must be in place BEFORE the
-# build-time `semgrep --version` self-test.
-RUN pipx install --pip-args="--no-cache-dir" semgrep==1.86.0 && \
-    pipx inject semgrep setuptools pip && \
+# P1.W1.2 — semgrep via an explicit venv (NOT pipx).
+#
+# Three pipx attempts (commits a4871e9, c0316f6, 3363013) all failed with
+# `ModuleNotFoundError: No module named 'pkg_resources'` at `semgrep --version`.
+# pipx isolates each tool in its own venv, but its post-install layout
+# does NOT seem to expose `pkg_resources` even after `pipx inject setuptools`
+# on this Debian bookworm-slim base. Rather than chase a 4th pipx-internal
+# fix, switch to a plain venv: pip-in-a-venv auto-installs setuptools/wheel,
+# the binary location is explicit, and the wrapper script is a transparent
+# shell shim with no metadata indirection.
+#
+# Lessons captured in `.claude/memory/feedback_pipx_python_docker.md`.
+# Build-time self-test (`semgrep --version`) per burnt-in Rule "build-time
+# self-tests beat runtime smoke".
+RUN python3 -m venv /opt/semgrep-venv && \
+    /opt/semgrep-venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    /opt/semgrep-venv/bin/pip install --no-cache-dir semgrep==1.86.0 && \
+    ln -sfn /opt/semgrep-venv/bin/semgrep /usr/local/bin/semgrep && \
     semgrep --version
 
 # P1.W1.3 — semgrep registry cache pre-warm.
