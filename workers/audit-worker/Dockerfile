@@ -50,7 +50,14 @@ WORKDIR /app
 # `playwright install-deps chromium` further down owns that responsibility,
 # so the dep list stays single-sourced and auto-updates with Playwright
 # version bumps instead of drifting against a hand-maintained apt list.
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
+#
+# P1.W1.1 — python3 + pipx for semgrep, curl for osv-scanner binary fetch.
+# DL3008 (apt pin) intentionally skipped — Phase 2 cleanup item per PRD §7.2.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      git ca-certificates \
+      python3 python3-pip pipx \
+      curl \
+    && rm -rf /var/lib/apt/lists/*
 
 # P0.W2.3 — Non-root user (UID 10001 per architecture §7.1). Debian-style.
 RUN groupadd -g 10001 worker && \
@@ -104,17 +111,56 @@ RUN set -eu; \
     echo "Symlinked $candidate -> /usr/local/bin/chromium"; \
     /usr/local/bin/chromium --version || { echo "ERROR: symlink target not runnable"; exit 1; }
 
+# P1.W1.2 — semgrep via pipx, installed system-wide so it's available to USER worker.
+# PIPX_BIN_DIR=/usr/local/bin makes the `semgrep` entrypoint available on $PATH
+# without needing pipx's per-user shim. Version pinned (PRD §7.1) so updates are
+# explicit. Build-time self-test (`semgrep --version`) per burnt-in Rule "build-time
+# self-tests beat runtime smoke" (see .claude/memory/feedback_pnpm_monorepo_docker.md).
+ENV PIPX_HOME=/opt/pipx
+ENV PIPX_BIN_DIR=/usr/local/bin
+RUN pipx install --pip-args="--no-cache-dir" semgrep==1.86.0 && \
+    semgrep --version
+
+# P1.W1.3 — semgrep registry cache pre-warm.
+# semgrep stores rule packs in $SEMGREP_USER_DATA_FOLDER. Warm the owasp-top-ten
+# pack at build time so the first audit doesn't pay the cold network fetch
+# (~5-10s saved per cold-start invocation). Cache dir is world-readable so
+# USER worker can hit it. `|| true` — warming is best-effort; if the registry
+# is briefly unreachable at build time, runtime fetch still works.
+ENV SEMGREP_USER_DATA_FOLDER=/opt/semgrep-data
+RUN mkdir -p /opt/semgrep-data && \
+    SEMGREP_USER_DATA_FOLDER=/opt/semgrep-data semgrep --config=p/owasp-top-ten --dryrun --quiet /tmp || true && \
+    chmod -R a+rX /opt/semgrep-data
+
+# P1.W1.4 — osv-scanner v1.9.2 binary from GitHub Releases.
+# Pinned version + SHA256 verify so a compromised mirror or wrong tag is caught
+# at build time. linux/amd64 matches Cloud Run amd64. Self-test after install.
+# If upstream releases a v1.9.3, bump BOTH the URL version AND the digest in lock-step.
+ARG OSV_SCANNER_VERSION=1.9.2
+# SHA256 from official osv-scanner_SHA256SUMS at the v1.9.2 release.
+# Verified 2026-05-20. Bump procedure: re-download SHA256SUMS for the new
+# version and replace BOTH the ARG VERSION and DIGEST in lock-step.
+ARG OSV_SCANNER_SHA256=d6af4b67fa5de658598bd2d445efb99e90d1734b3146962418719c4350ecb74b
+RUN set -eu; \
+    url="https://github.com/google/osv-scanner/releases/download/v${OSV_SCANNER_VERSION}/osv-scanner_linux_amd64"; \
+    echo "Fetching osv-scanner v${OSV_SCANNER_VERSION} from $url"; \
+    curl -fsSL -o /tmp/osv-scanner "$url"; \
+    echo "${OSV_SCANNER_SHA256}  /tmp/osv-scanner" | sha256sum -c -; \
+    install -m 0755 /tmp/osv-scanner /usr/local/bin/osv-scanner; \
+    rm /tmp/osv-scanner; \
+    osv-scanner --version
+
 # P0.W2.8 — chown playwright dir BEFORE switching to USER worker (R-P0-2).
 RUN chown -R worker:worker /opt/ms-playwright
 # P0.W2.9 — chown app dir BEFORE switching to USER worker.
 RUN chown -R worker:worker /app
 
-# P0.W4.2 — build-time smoke gate (git + chromium probe).
+# P0.W4.2 — build-time smoke gate (git + chromium + semgrep + osv-scanner probe).
 COPY workers/audit-worker/scripts/smoke-tools.sh /usr/local/bin/smoke-tools.sh
 RUN chmod +x /usr/local/bin/smoke-tools.sh && /usr/local/bin/smoke-tools.sh
 
 USER worker
 EXPOSE 8080
 
-# Phase 0 — git + chromium installed. Phase 1 will add: semgrep, osv-scanner.
+# Phase 1 — git + chromium + semgrep + osv-scanner installed. Phase 2: prisma + tailwind detectors.
 CMD ["node", "workers/audit-worker/dist/server.js"]

@@ -64,7 +64,7 @@ run gcloud run deploy "$SERVICE_NAME" \
   --cpu=4 \
   --memory=4Gi \
   --concurrency=1 \
-  --timeout=600 \
+  --timeout=900 \
   --max-instances=10 \
   --min-instances="$MIN_INSTANCES" \
   $CPU_THROTTLING_FLAG \

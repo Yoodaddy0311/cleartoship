@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# smoke-tools.sh — Phase 0 tooling probe.
+# smoke-tools.sh — Phase 1 tooling probe.
 #
 # Used in two places:
 #   1. Build time — Dockerfile RUN gates the image build, so a broken
@@ -8,7 +8,7 @@
 #      confirm tooling survived a deploy.
 #
 # Phase 0 surface: git, chromium.
-# Phase 1 will extend this to: semgrep, osv-scanner.
+# Phase 1 surface: + semgrep, osv-scanner.
 #
 # Exit 0 = all required tools found. Exit 1 = at least one missing.
 
@@ -46,13 +46,47 @@ check_chromium() {
   echo "[smoke] OK:   $("$CHROME_PATH" --version)"
 }
 
+check_semgrep() {
+  if ! command -v semgrep >/dev/null 2>&1; then
+    echo "[smoke] FAIL: semgrep not found in PATH"
+    fail=1
+    return
+  fi
+  # semgrep --version prints e.g. "1.86.0" to stdout. Capture single line.
+  version=$(semgrep --version 2>/dev/null | head -n1 || true)
+  if [[ -z "$version" ]]; then
+    echo "[smoke] FAIL: 'semgrep --version' produced no output"
+    fail=1
+    return
+  fi
+  echo "[smoke] OK:   semgrep $version"
+}
+
+check_osv_scanner() {
+  if ! command -v osv-scanner >/dev/null 2>&1; then
+    echo "[smoke] FAIL: osv-scanner not found in PATH"
+    fail=1
+    return
+  fi
+  # osv-scanner --version prints a multi-line block; first line is the version.
+  version=$(osv-scanner --version 2>/dev/null | head -n1 || true)
+  if [[ -z "$version" ]]; then
+    echo "[smoke] FAIL: 'osv-scanner --version' produced no output"
+    fail=1
+    return
+  fi
+  echo "[smoke] OK:   $version"
+}
+
 check_git
 check_chromium
+check_semgrep
+check_osv_scanner
 
 if [[ "$fail" != "0" ]]; then
   echo "[smoke] One or more required tools missing. See errors above."
   exit 1
 fi
 
-echo "[smoke] Phase 0 surface OK (git + chromium)."
+echo "[smoke] Phase 1 surface OK (git + chromium + semgrep + osv-scanner)."
 exit 0
