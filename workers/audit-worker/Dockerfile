@@ -52,10 +52,14 @@ WORKDIR /app
 # version bumps instead of drifting against a hand-maintained apt list.
 #
 # P1.W1.1 — python3 + pipx for semgrep, curl for osv-scanner binary fetch.
+# `python3-setuptools` is required: semgrep's runtime imports `pkg_resources`
+# (provided by setuptools). Debian bookworm-slim does NOT ship setuptools
+# with python3 by default — first build attempt failed with
+# `ModuleNotFoundError: No module named 'pkg_resources'` at `semgrep --version`.
 # DL3008 (apt pin) intentionally skipped — Phase 2 cleanup item per PRD §7.2.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       git ca-certificates \
-      python3 python3-pip pipx \
+      python3 python3-pip python3-setuptools pipx \
       curl \
     && rm -rf /var/lib/apt/lists/*
 
