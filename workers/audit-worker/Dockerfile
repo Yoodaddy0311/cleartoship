@@ -31,8 +31,13 @@ RUN pnpm --filter @cleartoship/shared-types... build && \
     pnpm --filter audit-worker build
 
 # P0.W1.3 — Chromium + system deps installed via Playwright (single command).
-# Must run AFTER pnpm install so npx finds the playwright binary inside node_modules.
-RUN npx playwright install --with-deps chromium
+# Must run AFTER pnpm install. pnpm monorepo: the playwright binary lives at
+# workers/audit-worker/node_modules/.bin/playwright, NOT /app/node_modules.
+# `pnpm --filter audit-worker exec` resolves to the workspace's node_modules/.bin.
+# Chromium ends up at $PLAYWRIGHT_BROWSERS_PATH (defaults to /root/.cache/ms-playwright
+# under root; we override to /opt/ms-playwright so the runtime stage can COPY it).
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+RUN pnpm --filter audit-worker exec playwright install --with-deps chromium
 
 # ---------- Stage 2: runtime ----------
 # Same digest as build stage above — pinned 2026-05-20. Both stages MUST move together
