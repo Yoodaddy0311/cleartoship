@@ -200,6 +200,58 @@ If user reverses any of these in a future session, the PRD has the alternative d
 
 ---
 
+## 6.5 Static lint verification (added 2026-05-20, post-CI-green)
+
+Ran shellcheck + hadolint + actionlint locally as an independent check beyond the cross-reviewer agents. **No merge-blocking findings.** All detected items are either intentional, false positives, or Phase 2 polish candidates.
+
+### Tools (installed via winget, persistent)
+
+```powershell
+winget install --id=koalaman.shellcheck --silent
+winget install --id=hadolint.hadolint   --silent
+winget install --id=rhysd.actionlint    --silent
+```
+
+Binary paths (in `~/AppData/Local/Microsoft/WinGet/Packages/<id>/`):
+- `koalaman.shellcheck_..._8wekyb3d8bbwe/shellcheck.exe`
+- `hadolint.hadolint_..._8wekyb3d8bbwe/hadolint.exe`
+- `rhysd.actionlint_..._8wekyb3d8bbwe/actionlint.exe`
+
+After installation, PATH update requires a new shell. Until then, invoke by absolute path.
+
+### Reproduction commands
+
+```bash
+# From repo root, with linters on PATH:
+shellcheck workers/audit-worker/scripts/smoke-tools.sh                # clean
+git show HEAD:infra/scripts/03-deploy-worker.sh | shellcheck -        # 1 INFO (SC2086 intentional)
+hadolint workers/audit-worker/Dockerfile                              # 3 warnings + 1 info (see below)
+git show HEAD:.github/workflows/deploy.yml | actionlint -            # clean
+```
+
+CRLF caveat: `infra/scripts/03-deploy-worker.sh` and `.github/workflows/deploy.yml` carry CRLF in the Windows working tree because of `core.autocrlf=true`. Git stores both as LF (verify with `git ls-files --eol`); CI/Linux see LF. Pipe via `git show HEAD:<path>` to bypass the local CRLF noise.
+
+### Findings — accepted as-is
+
+| Tool | Code | Location | Verdict | Reason |
+|---|---|---|---|---|
+| shellcheck | SC2086 | `03-deploy-worker.sh:70` (`$CPU_THROTTLING_FLAG`) | INTENTIONAL | Word-splitting drops the empty staging flag without an `if` branch. Documented in PRD §3.3 W3.3 and in [[feedback_pnpm_monorepo_docker]] (Rule 1 pattern). |
+| hadolint | DL3008 | `Dockerfile:10` (build apt) + `Dockerfile:53` (runtime apt) | PHASE 2 POLISH | apt package version pinning. Debian stable + frozen base-image digest already provide reproducibility within reasonable bounds. Bumping `git`/`ca-certificates` versions is rarely the cause of build drift. |
+| hadolint | DL4006 | `Dockerfile:94` (find/symlink RUN) | FALSE POSITIVE | hadolint flags any RUN with potential pipes for `pipefail`. The block uses `&&` chains plus `\|\| { ... ; exit 1; }` — no actual pipeline. Could silence with `# hadolint ignore=DL4006` but the rule may surface a real issue if a future RUN adds a pipe; better to leave noisy than mute. |
+| hadolint | DL3059 | `Dockerfile:110-111` (two separate chown RUNs) | INTENTIONAL | PRD §3.2 explicitly separated `/app` and `/opt/ms-playwright` chowns into distinct layers to scope cache invalidation. Consolidating would re-bust the larger /app layer every time the playwright dir changes. |
+
+### Phase 2 backlog (formal entry)
+
+Add to `docs/PRD/phase0-worker-tooling-2026-05-19.md` §7.2 (Phase 2) when starting that PR:
+
+> **Phase 2 cleanup item — apt version pinning**: address hadolint DL3008 on `Dockerfile:10` and `Dockerfile:53` by pinning exact debian package versions (e.g., `git=1:2.39.5-0+deb12u3 ca-certificates=20230311`). Requires a periodic bump cadence (every 3-6 months) tied to the base-image digest bump. Pair with a `dpkg -l > /tmp/expected-deps.lock` snapshot in CI so drift is detected.
+
+### Phase 1 prep hint
+
+Phase 1 (semgrep + osv-scanner) will add more `apt-get install` and binary-download steps. Pre-run all 3 linters on the Phase 1 Dockerfile before pushing the first CI run — Phase 1 has 5+ install commands vs Phase 0's 2, so the DL3008 noise scales linearly. Decide upfront whether Phase 1 commits to version pinning OR adds inline `# hadolint ignore=DL3008` comments at each apt line.
+
+---
+
 ## 7. Reference index
 
 | Topic | File |
