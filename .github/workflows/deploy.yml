@@ -167,7 +167,7 @@ jobs:
             --no-allow-unauthenticated \
             --cpu=4 --memory=4Gi --concurrency=1 --timeout=600 --max-instances=10 \
             --min-instances="$MIN_INSTANCES" \
-            --set-env-vars="PROJECT_ID=${{ secrets.GCP_PROJECT_ID }},REGION=${{ env.REGION }},NODE_ENV=production" \
+            --set-env-vars="PROJECT_ID=${{ secrets.GCP_PROJECT_ID }},REGION=${{ env.REGION }},NODE_ENV=production,AUDIT_WORKER_INVOKER_SA=cloud-run-invoker@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
             --quiet
 
           URL=$(gcloud run services describe "${{ env.SERVICE_NAME }}" \
@@ -178,11 +178,42 @@ jobs:
           printf '%s' "$URL" | gcloud secrets versions add cloud-run-worker-url \
             --data-file=- --project="${{ secrets.GCP_PROJECT_ID }}"
 
+          # Second pass: now that we know the deterministic URL Cloud Run
+          # assigned to the service, persist it as AUDIT_WORKER_URL so the
+          # OIDC middleware (verify-oidc.ts) has its expected audience. The
+          # value must match `audience` on Cloud Tasks OIDC tokens, which
+          # both `apps/web/lib/cloud-tasks/enqueue.ts` and the functions
+          # trigger set to `process.env.AUDIT_WORKER_URL` on their own side.
+          # Without this, the worker returns 503 WORKER_MISCONFIGURED on
+          # every Cloud Tasks dispatch.
+          gcloud run services update "${{ env.SERVICE_NAME }}" \
+            --region="${{ env.REGION }}" \
+            --project="${{ secrets.GCP_PROJECT_ID }}" \
+            --update-env-vars="AUDIT_WORKER_URL=$URL" \
+            --quiet
+
       - name: Install firebase-tools
         # v13 has a CJS/ESM dep rot bug (universal-analytics → uuid) that
         # breaks on Node 20 runtime. v14 dropped the universal-analytics
         # dependency, v15 is the current major.
         run: npm install -g firebase-tools@15
+
+      - name: Write functions/.env.<project> for Cloud Tasks dispatch
+        # Firebase Functions v2 reads `.env.<project-id>` at deploy time and
+        # bakes the values into the function's runtime env. The
+        # `onAuditRunCreated` trigger needs CLOUD_TASKS_* + AUDIT_WORKER_*
+        # to enqueue real tasks; without them the trigger writes
+        # `enqueueMode: "stub"` to the AuditRun doc and the UI shows
+        # "워커 미연결". The file is .gitignore'd intentionally — values come
+        # from secrets + the worker URL we just captured.
+        run: |
+          cat > functions/.env.${{ secrets.GCP_PROJECT_ID }} <<EOF
+          CLOUD_TASKS_PROJECT=${{ secrets.GCP_PROJECT_ID }}
+          CLOUD_TASKS_LOCATION=${{ env.REGION }}
+          CLOUD_TASKS_QUEUE=audit-jobs
+          AUDIT_WORKER_URL=${{ steps.run-deploy.outputs.worker_url }}
+          AUDIT_WORKER_INVOKER_SA=cloud-run-invoker@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+          EOF
 
       - name: Deploy Functions + Firestore rules/indexes + Storage rules
         env:
