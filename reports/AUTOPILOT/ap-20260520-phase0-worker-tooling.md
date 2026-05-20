@@ -43,11 +43,15 @@ Phase 1 (semgrep + osv-scanner) is the next session's PR; Phase 2 (hardening + c
 | 2 EXECUTE — Track C (smoke-tools.sh + README) | DONE | ~2.5 min | backend-developer Agent created `workers/audit-worker/scripts/smoke-tools.sh` (58 lines) + extended `infra/README.deploy.md` (308 → 362) |
 | 3 CROSS_CHECK (spec + quality) | DONE — PASS_WITH_NOTES | ~3 min | spec-reviewer 22/22 work units verified; quality-reviewer 2 MAJOR findings reported |
 | 3 CROSS_CHECK fix-up | DONE | ~2 min | (a) Resolved `node:20.13-bookworm-slim` digest via Docker Hub manifest API → `sha256:cffed8cd39d6...`; (b) Added `--audiences="$URL"` to gcloud identity-token in smoke step |
-| 4 VERIFY (Goal Contract) | DONE — MET | ~5 min | `pnpm install --frozen-lockfile`, `pnpm -r type-check`, `pnpm -r lint`, `pnpm -r test`, `pnpm -F web build` all PASS |
+| 4 VERIFY — local Goal Contract | DONE — MET | ~5 min | `pnpm install --frozen-lockfile`, `pnpm -r type-check`, `pnpm -r lint`, `pnpm -r test`, `pnpm -F web build` all PASS |
+| 4 VERIFY — CI iteration 1 | FAIL → FIX | ~5 min round-trip | `Build audit-worker image` failed: `npx playwright: not found`. pnpm monorepo places playwright binary at `workers/audit-worker/node_modules/.bin/`, not root. **Fix**: `npx` → `pnpm --filter audit-worker exec`. Commit `0529477`. |
+| 4 VERIFY — CI iteration 2 | FAIL → FIX | ~5 min round-trip | `Build audit-worker image` failed: smoke gate reported `$CHROME_PATH is not an executable`. Playwright 1.60.0 (resolved by lockfile) installs chromium at `chromium-1223/chrome-linux64/chrome` — the previous static glob `chromium-*/chrome-linux/chrome` did not match because of the `linux64` suffix (1.49+ layout change). **Fix**: replaced glob with `find ... -type f -executable` discovery + `--version` self-test. Commit `5eeba07`. |
+| 4 VERIFY — CI iteration 3 | FAIL → FIX | ~5 min round-trip | `Build audit-worker image` self-test on the symlinked binary failed: `libglib-2.0.so.0: cannot open shared object file`. `--with-deps` in the build stage apt-installed system libraries but those packages do NOT cross multi-stage boundaries. **Fix**: added `pnpm --filter audit-worker exec playwright install-deps chromium` in the runtime stage after `pnpm install --prod` (single source of truth, no hand-maintained apt list). Commit `a58e67c`. |
+| 4 VERIFY — CI iteration 4 | PASS | ~5 min round-trip | All 5 checks green: Type Check, Lint, Test, Build (apps/web), **Build audit-worker image**. Goal Contract fully MET — local + remote. |
 | 5 IMPROVE | SKIPPED | — | Changes are config/script/doc only; no application-code refactor surface |
-| 6 REPORT | DONE | ~3 min | Committed (1503bdb), pushed branch, created PR #36, wrote this file |
+| 6 REPORT | DONE | ~3 min | Committed (1503bdb, 0e49c7a, 0529477, 5eeba07, a58e67c), pushed branch, created PR #36, updated this file |
 
-The Tracks A/B/C in Phase 2 ran in parallel via three Agent dispatches in one assistant message.
+The Tracks A/B/C in Phase 2 ran in parallel via three Agent dispatches in one assistant message. Phase 4 entered a deliberate fix-loop (4 CI iterations) until the Docker image actually built and ran chromium successfully — this is the proper extension of Goal Contract validation from local-only to full CI.
 
 ---
 
@@ -55,7 +59,11 @@ The Tracks A/B/C in Phase 2 ran in parallel via three Agent dispatches in one as
 
 | SHA | Branch | Message |
 |---|---|---|
-| `1503bdb` | `feat/phase0-worker-tooling` | `feat(phase0): worker tooling — git + chromium + --no-cpu-throttling` |
+| `1503bdb` | `feat/phase0-worker-tooling` | `feat(phase0): worker tooling — git + chromium + --no-cpu-throttling` (initial 6 files) |
+| `0e49c7a` | `feat/phase0-worker-tooling` | `docs(autopilot): session report — Phase 0 worker tooling` |
+| `0529477` | `feat/phase0-worker-tooling` | `fix(phase0): use pnpm exec for playwright install in build stage` (CI iter 1 fix) |
+| `5eeba07` | `feat/phase0-worker-tooling` | `fix(phase0): discover chromium binary path with find instead of glob` (CI iter 2 fix) |
+| `a58e67c` | `feat/phase0-worker-tooling` | `fix(phase0): install chromium system deps in runtime stage` (CI iter 3 fix) |
 
 Merge base: `63172f3` (PR #34 squash merge, the last commit before this PR branched).
 
