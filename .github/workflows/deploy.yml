@@ -152,12 +152,31 @@ jobs:
           # infra/scripts/03-deploy-worker.sh; both branches MUST stay in
           # sync. If you change this policy, update README.deploy.md §3.
           # ---------------------------------------------------------------
+          # ---------------------------------------------------------------
+          # CPU throttling policy (Phase 0 P0.W3 / handoff §6 R-P0-3 D-2)
+          # ---------------------------------------------------------------
+          # Cloud Run throttles CPU after res.json() returns in the default
+          # request-response shape. The audit-worker's POST /run handler
+          # responds 200 immediately and then runs the pipeline in the
+          # background — so under default throttling, chrome-launcher's
+          # path-search has stretched from <1s to 11min (handoff §6.5).
+          #
+          # Trade-off:
+          #   prod        → --no-cpu-throttling  (full CPU for instance
+          #                 lifetime, ~$13–120/mo depending on max-instances
+          #                 utilization). Phase 2 can revisit by refactoring
+          #                 the handler to await-then-respond.
+          #   staging/dev → throttling kept ON   (no idle CPU cost on rarely-
+          #                 used environments).
+          # ---------------------------------------------------------------
           if [[ "${{ secrets.GCP_PROJECT_ID }}" == *"prod"* ]]; then
             MIN_INSTANCES=1
+            CPU_THROTTLING_FLAG="--no-cpu-throttling"
           else
             MIN_INSTANCES=0
+            CPU_THROTTLING_FLAG=""
           fi
-          echo "min-instances=$MIN_INSTANCES (project=${{ secrets.GCP_PROJECT_ID }})"
+          echo "min-instances=$MIN_INSTANCES cpu-throttling=$CPU_THROTTLING_FLAG (project=${{ secrets.GCP_PROJECT_ID }})"
 
           gcloud run deploy "${{ env.SERVICE_NAME }}" \
             --image="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cleartoship-images/audit-worker:${{ steps.meta.outputs.tag }}" \
@@ -167,6 +186,7 @@ jobs:
             --no-allow-unauthenticated \
             --cpu=4 --memory=4Gi --concurrency=1 --timeout=600 --max-instances=10 \
             --min-instances="$MIN_INSTANCES" \
+            $CPU_THROTTLING_FLAG \
             --set-env-vars="PROJECT_ID=${{ secrets.GCP_PROJECT_ID }},REGION=${{ env.REGION }},NODE_ENV=production,AUDIT_WORKER_INVOKER_SA=cloud-run-invoker@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
             --quiet
 
@@ -191,6 +211,37 @@ jobs:
             --project="${{ secrets.GCP_PROJECT_ID }}" \
             --update-env-vars="AUDIT_WORKER_URL=$URL" \
             --quiet
+
+      - name: Smoke /healthz — assert git + lighthouse found
+        # Phase 0 P0.W4.3+W4.4 — verifies prod worker has the new
+        # system tools wired. semgrep / osv-scanner stay missing
+        # until Phase 1; we assert only the Phase 0 surface.
+        #
+        # Audience note: `print-identity-token` without --audiences mints a
+        # token with aud=oauth-client-id, which the worker's verify-oidc.ts
+        # rejects. We MUST pass --audiences=$URL so the worker's audience
+        # check (audience must equal worker URL) passes.
+        #
+        # Invoker note: the deployer-ci SA already holds roles/run.admin
+        # which subsumes roles/run.invoker, so the request authorises at
+        # the Cloud Run boundary. If the binding ever changes, this step
+        # is the canary — a 403 here = re-grant invoker explicitly.
+        run: |
+          URL="${{ steps.run-deploy.outputs.worker_url }}"
+          TOKEN=$(gcloud auth print-identity-token --audiences="$URL")
+          HEALTH=$(curl -fsS -H "Authorization: Bearer $TOKEN" "$URL/healthz")
+          echo "$HEALTH" | jq .
+          GIT_STATUS=$(echo "$HEALTH" | jq -r '.tools.git.status // "missing"')
+          LH_STATUS=$(echo "$HEALTH" | jq -r '.tools.lighthouse.status // "missing"')
+          if [[ "$GIT_STATUS" != "found" ]]; then
+            echo "::error title=Phase 0 smoke fail::tools.git.status='$GIT_STATUS' (expected found)"
+            exit 1
+          fi
+          if [[ "$LH_STATUS" != "found" ]]; then
+            echo "::error title=Phase 0 smoke fail::tools.lighthouse.status='$LH_STATUS' (expected found)"
+            exit 1
+          fi
+          echo "Phase 0 smoke OK — git=$GIT_STATUS lighthouse=$LH_STATUS (semgrep/osv-scanner missing is expected pre-Phase 1)"
 
       - name: Install firebase-tools
         # v13 has a CJS/ESM dep rot bug (universal-analytics → uuid) that

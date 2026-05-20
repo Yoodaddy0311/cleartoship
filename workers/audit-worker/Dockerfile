@@ -1,8 +1,13 @@
 # syntax=docker/dockerfile:1.7
 
 # ---------- Stage 1: build ----------
-FROM node:20.13-alpine AS build
+# Digest pinned 2026-05-20 from `docker buildx imagetools inspect node:20.13-bookworm-slim`.
+# Bump procedure: re-run inspect, replace BOTH FROM lines (build + runtime), re-run full V1~V6 (PRD §4.1).
+FROM node:20.13-bookworm-slim@sha256:cffed8cd39d6a380434e6d08116d188c53e70611175cd5ec7700f93f32a935a6 AS build
 WORKDIR /app
+
+# P0.W1.2 — system tools for build deps (git for npm/pnpm git+ deps, ca-certs for TLS).
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Enable pnpm via corepack.
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
@@ -25,19 +30,30 @@ RUN pnpm --filter @cleartoship/shared-types... build && \
     pnpm --filter @cleartoship/audit-core... build && \
     pnpm --filter audit-worker build
 
+# P0.W1.3 — Chromium + system deps installed via Playwright (single command).
+# Must run AFTER pnpm install so npx finds the playwright binary inside node_modules.
+RUN npx playwright install --with-deps chromium
+
 # ---------- Stage 2: runtime ----------
-FROM node:20.13-alpine AS runtime
+# Same digest as build stage above — pinned 2026-05-20. Both stages MUST move together
+# to keep the playwright deps installed in build stage ABI-compatible with the runtime base.
+FROM node:20.13-bookworm-slim@sha256:cffed8cd39d6a380434e6d08116d188c53e70611175cd5ec7700f93f32a935a6 AS runtime
 WORKDIR /app
 
-# Non-root user (UID 10001 per architecture §7.1).
-RUN addgroup -g 10001 -S worker && \
-    adduser -S -u 10001 -G worker worker
+# P0.W2.2 — runtime needs git for step 03 (clone-repo) plus ca-certs for TLS.
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
+
+# P0.W2.3 — Non-root user (UID 10001 per architecture §7.1). Debian-style.
+RUN groupadd -g 10001 worker && \
+    useradd -u 10001 -g worker -s /bin/false worker
 
 # Production-only deps.
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 
 ENV NODE_ENV=production
 ENV WORKER_PORT=8080
+ENV CHROME_PATH=/usr/local/bin/chromium
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 
 # Copy minimal runtime artifacts.
 COPY --from=build /app/package.json /app/pnpm-workspace.yaml /app/
@@ -48,11 +64,26 @@ COPY --from=build /app/packages/audit-core/dist /app/packages/audit-core/dist
 COPY --from=build /app/workers/audit-worker/package.json /app/workers/audit-worker/
 COPY --from=build /app/workers/audit-worker/dist /app/workers/audit-worker/dist
 
-RUN pnpm install --prod --filter audit-worker... --frozen-lockfile=false && \
-    chown -R worker:worker /app
+# P0.W2.4 — Chromium directory from build stage.
+COPY --from=build /opt/ms-playwright /opt/ms-playwright
+
+RUN pnpm install --prod --filter audit-worker... --frozen-lockfile=false
+
+# P0.W2.5 — symlink the versioned Playwright chromium binary to a stable path.
+# Wildcard glob is interpreted by sh -c (Docker RUN form), so this resolves at build time.
+RUN ln -s /opt/ms-playwright/chromium-*/chrome-linux/chrome /usr/local/bin/chromium
+
+# P0.W2.8 — chown playwright dir BEFORE switching to USER worker (R-P0-2).
+RUN chown -R worker:worker /opt/ms-playwright
+# P0.W2.9 — chown app dir BEFORE switching to USER worker.
+RUN chown -R worker:worker /app
+
+# P0.W4.2 — build-time smoke gate (git + chromium probe).
+COPY workers/audit-worker/scripts/smoke-tools.sh /usr/local/bin/smoke-tools.sh
+RUN chmod +x /usr/local/bin/smoke-tools.sh && /usr/local/bin/smoke-tools.sh
 
 USER worker
 EXPOSE 8080
 
-# Sprint 0 — no system tools yet. Sprint 1+ will add: git, ripgrep, semgrep, etc.
+# Phase 0 — git + chromium installed. Phase 1 will add: semgrep, osv-scanner.
 CMD ["node", "workers/audit-worker/dist/server.js"]
