@@ -222,13 +222,22 @@ jobs:
         # rejects. We MUST pass --audiences=$URL so the worker's audience
         # check (audience must equal worker URL) passes.
         #
+        # Impersonation note: `--audiences` requires a service-account-typed
+        # principal. WIF leaves the gcloud session as a federated user, not
+        # a SA, so `print-identity-token --audiences` errors with
+        # "Invalid account type for `--audiences`". We impersonate the
+        # deployer-ci SA (already the workload_identity_provider target)
+        # to mint an SA-bound ID token with the worker URL as aud.
+        #
         # Invoker note: the deployer-ci SA already holds roles/run.admin
         # which subsumes roles/run.invoker, so the request authorises at
         # the Cloud Run boundary. If the binding ever changes, this step
         # is the canary — a 403 here = re-grant invoker explicitly.
         run: |
           URL="${{ steps.run-deploy.outputs.worker_url }}"
-          TOKEN=$(gcloud auth print-identity-token --audiences="$URL")
+          TOKEN=$(gcloud auth print-identity-token \
+            --impersonate-service-account="${{ secrets.GCP_DEPLOYER_SA }}" \
+            --audiences="$URL")
           HEALTH=$(curl -fsS -H "Authorization: Bearer $TOKEN" "$URL/healthz")
           echo "$HEALTH" | jq .
           GIT_STATUS=$(echo "$HEALTH" | jq -r '.tools.git.status // "missing"')
