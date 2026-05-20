@@ -122,7 +122,14 @@ RUN set -eu; \
 # self-tests beat runtime smoke" (see .claude/memory/feedback_pnpm_monorepo_docker.md).
 ENV PIPX_HOME=/opt/pipx
 ENV PIPX_BIN_DIR=/usr/local/bin
+# pipx isolates each install in its own venv. semgrep imports `pkg_resources`
+# at runtime (provided by setuptools), but pipx's default venv does NOT
+# inherit the system python3-setuptools — and pip-as-a-module is also not
+# present without explicit injection. `pipx inject` adds both into semgrep's
+# venv so the entrypoint can resolve them. Both must be in place BEFORE the
+# build-time `semgrep --version` self-test.
 RUN pipx install --pip-args="--no-cache-dir" semgrep==1.86.0 && \
+    pipx inject semgrep setuptools pip && \
     semgrep --version
 
 # P1.W1.3 — semgrep registry cache pre-warm.
