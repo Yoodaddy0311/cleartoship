@@ -55,6 +55,18 @@ resource "google_service_account_iam_member" "web_ssr_can_impersonate_invoker" {
   member             = "serviceAccount:${google_service_account.web_ssr_runtime.email}"
 }
 
+# Cloud Tasks API requires `iam.serviceAccounts.actAs` on the SA the task will
+# impersonate when calling its OIDC-protected target. That permission lives in
+# `roles/iam.serviceAccountUser`, NOT `roles/iam.serviceAccountTokenCreator` —
+# Token Creator only grants `getOpenIdToken` / `getAccessToken`. Without this
+# binding, `POST /api/audit-runs` crashes when CloudTasksClient.createTask is
+# called, with `7 PERMISSION_DENIED: lacks IAM permission "iam.serviceAccounts.actAs"`.
+resource "google_service_account_iam_member" "web_ssr_can_actas_invoker" {
+  service_account_id = google_service_account.cloud_run_invoker.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.web_ssr_runtime.email}"
+}
+
 resource "google_storage_bucket_iam_member" "web_ssr_uploads" {
   bucket = local.uploads_bucket
   role   = "roles/storage.objectAdmin"
@@ -99,6 +111,16 @@ resource "google_project_iam_member" "functions_tasks_enqueuer" {
 resource "google_service_account_iam_member" "functions_can_impersonate_invoker" {
   service_account_id = google_service_account.cloud_run_invoker.name
   role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.functions_runtime.email}"
+}
+
+# Mirror of `web_ssr_can_actas_invoker` for the on-audit-run-created trigger,
+# which uses the same Cloud Tasks + OIDC pattern. Without this, the Firestore
+# trigger function would crash on the same `iam.serviceAccounts.actAs` check
+# the first time an AuditRun document is created.
+resource "google_service_account_iam_member" "functions_can_actas_invoker" {
+  service_account_id = google_service_account.cloud_run_invoker.name
+  role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${google_service_account.functions_runtime.email}"
 }
 
