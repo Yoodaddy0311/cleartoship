@@ -45,7 +45,11 @@ RUN pnpm --filter audit-worker exec playwright install --with-deps chromium
 FROM node:20.13-bookworm-slim@sha256:cffed8cd39d6a380434e6d08116d188c53e70611175cd5ec7700f93f32a935a6 AS runtime
 WORKDIR /app
 
-# P0.W2.2 — runtime needs git for step 03 (clone-repo) plus ca-certs for TLS.
+# P0.W2.2 — git for step 03 (clone-repo), ca-certs for TLS. Chromium runtime
+# libraries (libglib2.0-0, libnss3, libatk, etc.) are NOT installed here —
+# `playwright install-deps chromium` further down owns that responsibility,
+# so the dep list stays single-sourced and auto-updates with Playwright
+# version bumps instead of drifting against a hand-maintained apt list.
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # P0.W2.3 — Non-root user (UID 10001 per architecture §7.1). Debian-style.
@@ -74,7 +78,14 @@ COPY --from=build /opt/ms-playwright /opt/ms-playwright
 
 RUN pnpm install --prod --filter audit-worker... --frozen-lockfile=false
 
-# P0.W2.5 — symlink the versioned Playwright chromium binary to a stable path.
+# P0.W2.5a — install chromium's system library deps using Playwright's own
+# manifest (libglib2.0-0, libnss3, libatk*, fonts, etc.). This requires the
+# playwright CLI which `pnpm install --prod` above placed in the workspace's
+# node_modules. Runs as root (USER worker is later) so apt can write.
+# Equivalent to `--with-deps` but applied to the runtime stage where it counts.
+RUN pnpm --filter audit-worker exec playwright install-deps chromium && rm -rf /var/lib/apt/lists/*
+
+# P0.W2.5b — symlink the versioned Playwright chromium binary to a stable path.
 # Playwright 1.49+ split chromium into multiple bundles (full chromium-* AND
 # chromium_headless_shell-*) and any specific bundle's leaf binary name can
 # vary (`chrome`, `chrome-headless-shell`). Glob-then-symlink with a fixed
