@@ -26,6 +26,17 @@ if [[ -z "${MIN_INSTANCES:-}" ]]; then
   fi
 fi
 
+# Phase 0 P0.W3.5 — mirror of .github/workflows/deploy.yml CPU
+# throttling policy. Keep both files in sync (substring match on
+# 'prod' in PROJECT_ID).
+if [[ -z "${CPU_THROTTLING_FLAG:-}" ]]; then
+  if [[ "$PROJECT_ID" == *"prod"* ]]; then
+    CPU_THROTTLING_FLAG="--no-cpu-throttling"
+  else
+    CPU_THROTTLING_FLAG=""
+  fi
+fi
+
 require_cmd() {
   command -v "$1" >/dev/null 2>&1 || { echo "ERROR: '$1' is not installed." >&2; exit 1; }
 }
@@ -43,7 +54,7 @@ run() {
   "$@"
 }
 
-echo "==> Deploying Cloud Run service: $SERVICE_NAME (min-instances=$MIN_INSTANCES)"
+echo "==> Deploying Cloud Run service: $SERVICE_NAME (min-instances=$MIN_INSTANCES cpu-throttling=$CPU_THROTTLING_FLAG)"
 run gcloud run deploy "$SERVICE_NAME" \
   --image="$IMAGE_URI" \
   --region="$REGION" \
@@ -56,6 +67,7 @@ run gcloud run deploy "$SERVICE_NAME" \
   --timeout=600 \
   --max-instances=10 \
   --min-instances="$MIN_INSTANCES" \
+  $CPU_THROTTLING_FLAG \
   --set-env-vars="PROJECT_ID=$PROJECT_ID,REGION=$REGION,NODE_ENV=production" \
   --quiet
 

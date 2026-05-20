@@ -144,6 +144,61 @@ PROJECT_ID=cleartoship-prod bash infra/scripts/03-deploy-worker.sh
 
 **모니터링 연동**: `infra/monitoring/alerts.tf`의 p99 latency 알림(5s, 5min window) — cold-start로 인한 spike 감지. min-instances=0 환경에서 false positive를 피하려면 staging에서는 알림 정책을 disable 하거나 threshold를 완화하세요.
 
+#### Rollback procedure (Phase 0+)
+
+Cloud Run의 `min-instances=1` 정책상 새 revision이 머지 즉시 prod 트래픽 100%를 받습니다. Phase 0처럼 base image나 시스템 도구를 바꾸는 경우 R-P0-3(handoff §6 D-2)에 따라 다음 절차를 권장합니다.
+
+##### 1. 직전 revision 보존 (1회, 머지 직전)
+
+새 revision을 만들기 전에 직전 prod revision 이미지를 `rollback-pin-YYYY-MM-DD` 태그로 Artifact Registry에 영구 보존합니다. Artifact Registry GC 정책이 untagged 이미지만 정리하므로, 명시적 태그가 있는 이미지는 자동 삭제 대상에서 빠집니다.
+
+```bash
+# 1) 현재 prod revision의 image digest 확인
+gcloud run services describe audit-worker \
+  --region=asia-northeast3 --project=cleartoship-prod \
+  --format='value(spec.template.spec.containers[0].image)'
+# 예: ...cleartoship-images/audit-worker:sha-6841532
+
+# 2) 같은 digest에 두 번째 태그 부여
+gcloud artifacts docker tags add \
+  asia-northeast3-docker.pkg.dev/cleartoship-prod/cleartoship-images/audit-worker:sha-6841532 \
+  asia-northeast3-docker.pkg.dev/cleartoship-prod/cleartoship-images/audit-worker:rollback-pin-2026-05-20 \
+  --project=cleartoship-prod
+```
+
+##### 2. 트래픽 회수 (rollback 발동 시)
+
+새 revision이 prod에서 잘못 동작하면 즉시 직전 ready revision으로 트래픽 100%를 되돌립니다.
+
+```bash
+# 직전 ready revision name 확인
+gcloud run services describe audit-worker \
+  --region=asia-northeast3 --project=cleartoship-prod \
+  --format='value(status.traffic[].revisionName,status.traffic[].percent)'
+
+# 직전 revision으로 트래픽 회수
+gcloud run services update-traffic audit-worker \
+  --region=asia-northeast3 --project=cleartoship-prod \
+  --to-revisions=<prior-revision-name>=100
+
+# 잘못된 revision은 traffic에서 빼고 비활성화
+gcloud run revisions update <bad-revision-name> \
+  --region=asia-northeast3 --project=cleartoship-prod \
+  --no-traffic
+```
+
+##### 3. 검증
+
+- `curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" "$WORKER_URL/healthz"` 가 200을 반환
+- `tools` 객체 형태가 직전 상태로 복귀 (rollback 대상이 Phase 0 머지 후라면 `tools.git.status` 가 `missing` 으로 돌아와야 정상)
+- Cloud Logging에서 신규 요청이 직전 revision으로 라우팅되는지 확인
+
+##### 4. Forward-fix vs rollback 결정 기준
+
+- **Forward-fix**: 빌드 시점 V1~V6 (Phase 0 PRD §4.1)에서 발견 — PR 수정 후 재 push로 해결.
+- **Rollback**: prod 100% 트래픽을 받은 후 발견된 회귀. 30분 안에 회복 안 되면 트래픽 회수.
+- **Rollback 후 Phase 0 PR 재진입**: 원인 분석 → PR 재 push (forward-fix) → 로컬 V1~V6 + CI 모두 통과 후 재 머지.
+
 ### 4. Functions + Firestore/Storage 규칙 배포 (`04-deploy-functions.sh`)
 
 ```bash
