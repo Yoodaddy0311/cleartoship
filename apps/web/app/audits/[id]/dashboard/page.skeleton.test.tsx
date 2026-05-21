@@ -56,6 +56,7 @@ vi.mock('@/lib/api/audit-runs', () => ({
 }));
 vi.mock('@/lib/api/adapters', () => ({
   adaptCategoryScoresNullable: vi.fn(() => ({})),
+  adaptCategoryScoreOrigins: vi.fn(() => ({})),
   adaptFinding: vi.fn(),
   adaptLaunchStatus: vi.fn(() => 'ready'),
 }));
