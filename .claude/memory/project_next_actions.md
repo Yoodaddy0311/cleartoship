@@ -1,141 +1,103 @@
 ---
 name: project-next-actions
-description: Ordered action queue for the next ClearToShip session (Phase 0 finish + Phase 1 start)
-metadata: 
-  node_type: memory
+description: Ordered action queue for the next ClearToShip session — PR-A4 (scoring + UI badges) is next; PR #38 Phase 1 is the stalled side-quest. Updated 2026-05-21.
+metadata:
   type: project
-  originSessionId: f7dda967-061d-441e-8297-28bb6753e327
 ---
 
-Exact sequence the next session must run before starting any new design work. PR #36 must merge + prod must be verified before Phase 1 begins, because Phase 1 (semgrep/osv-scanner) builds on Phase 0's image as its base.
+# Next session action queue — 2026-05-21 (updated)
 
-**Why**: skipping operator steps and starting Phase 1 means the prod prod runtime never gets validated against the cleartoship self-audit (PRD AC11~AC13). The whole point of Phase 0 was to make the prod audit non-empty; if the next session jumps to Phase 1, the demo-readiness KPI stays unverified.
+Source-driven extraction Phase A is **mostly shipped**:
+- ✅ PR #41 — PRD (3-bucket framework D/F/L)
+- ✅ PR #42 — A1 GitHub metadata expansion (description, topics, languages, stars, releases, license)
+- ✅ PR #43 — A2 DataModelInventory (Prisma + Firestore multi-stack)
+- ✅ PR #44 — A3 RouteInventory (Next.js App + Pages Router with segments + exportedMethods)
 
-**How to apply**: walk this list top-down. Do NOT start Phase 1 PR until step 6 confirms `readinessScore ≥ 50`.
+All three inventories (`state.repoMetadata`, `state.dataModelInventory`, `state.routeInventory`) are plumbed into `PipelineState` and ready to consume — **but scoring still doesn't read them**. The 영역별 점수 categories that should now show numbers (기능 관계도, 데이터 모델, 일부 제품 의도) are still N/A in the UI because the scoring step + UI never got wired up. PR-A4 closes that loop.
 
-## Step-by-step
+**Why**: today's prod self-audit STILL returns 7 N/A categories despite the inventory data being available. Scoring + UI consumption is the visible payoff for the last three PRs.
 
-### 1. Sync + review (5 min)
+**How to apply**: open the session in this branch state, read the linked memories first, then attack PR-A4. PR #38 (Phase 1 worker tooling) is the stalled side-quest — owner can decide whether to retry the semgrep install with the burnt-in lessons or punt to a separate session.
+
+## Task 1 — PR-A4: Scoring step consumption + UI score-origin badges
+
+**Status**: Not started. All three inventory data sources merged on main (PR #42, #43, #44). The scoring step (`packages/audit-core/src/scoring/`) needs to read them.
+
+**Required reading first**:
+- `docs/PRD/source-driven-extraction-2026-05-20.md` §6 (UI changes) + §7.1 (PR split).
+- `packages/shared-types/src/{repo-metadata,data-model-inventory,route-inventory}.ts` — the three schemas the scoring step will read.
+
+**Scope**:
+1. Extend the scoring step to consume the three inventories:
+   - `기능 관계도` — driven by `state.routeInventory.counts.{pages,apis,dynamic}` + counts.byFramework
+   - `데이터 모델` — driven by `state.dataModelInventory.{tech,entities}`
+   - `제품 의도` — partial credit from `state.repoMetadata.{description,topics,license}` (full credit waits for B1)
+2. Each category score carries a D/F/L origin attribution (PRD §6 badge spec).
+3. UI: `apps/web/components/dashboard/category-grid.tsx` — render the origin badge (📦 D / 🌐 F / 🤖 L) per score.
+4. UI: N/A fallback copy gets per-category specificity (similar to PR #39's SKIP-message rewrite).
+5. Tests: scoring step contract + UI snapshot for the new badge.
+
+**Estimated size**: ~400 LOC. Same shape as PR #39's SKIP-reason fix (data flow already plumbed; just consumption + presentation).
+
+**Verification**: after merge, re-run a cleartoship self-audit. Expected:
+- 기능 관계도 → score > 0 (not N/A); UI shows "📦 23 pages, 17 API endpoints"
+- 데이터 모델 → score > 0 (Firestore detected); UI shows "📦 5 collections"
+- 제품 의도 → score > 0 (GitHub metadata); UI shows "🌐 description + 3 topics"
+
+## Task 2 — PR #38 Phase 1 worker tooling (stalled)
+
+**Status**: 5 commits pushed. Docker build keeps failing on the `semgrep` install. 4 attempts so far:
+1. plain pipx → `pkg_resources` missing
+2. + `python3-setuptools` apt → still missing
+3. + `pipx inject semgrep setuptools pip` → still missing
+4. switched to `python3 -m venv /opt/semgrep-venv` → new failure: `pysemgrep` OCaml binary not found
+
+**Required reading first**:
+- `.claude/memory/feedback_pipx_python_docker.md` (committed on PR #38 branch — sync first) — captures the 5 burnt-in pipx + Python + Docker rules.
+
+**Recommended next fix attempt**:
+Switch to a `FROM returntocorp/semgrep:1.86.0 AS semgrep-stage` multi-stage in the Dockerfile and `COPY --from=semgrep-stage /usr/local/bin/semgrep /usr/local/bin/pysemgrep ... /opt/semgrep-venv/` so the OCaml binary + the Python launcher come pre-built from the official image. Sidesteps the "wheel doesn't bundle the OCaml binary on this base" question.
+
+If that fails: punt to a different scanner (`gitleaks` already supported per the partial-results banner) and defer semgrep until 1.90+.
+
+## Task 3 — `/healthz` GFE 404 mystery (parked)
+
+PR #40 bypass works in prod — deploys go through. The mystery itself is unsolved but no longer blocks shipping. Treat as a Phase 2 polish item unless someone has a real lead.
+
+## Task 4 — PR-A3b follow-up (Express + Vue/Remix/SvelteKit)
+
+PR-A3 shipped Next.js App + Pages Router only. Express/Fastify/Hono handler AST scan needs `ts-morph` (not yet a workspace dep). Same module structure as `packages/audit-core/src/feature-graph/route-ast/` — add `express-handlers.ts`, `vue-router.ts`, etc. Estimated ~600 LOC including ts-morph dep + Dockerfile rebuild.
+
+## Task 5 — PR-A2b follow-up (Drizzle + SQL + Mongoose)
+
+PR-A2 shipped Prisma + Firestore. Drizzle (`pgTable` / `mysqlTable` / `sqliteTable`), SQL migration `CREATE TABLE` parser, and Mongoose `mongoose.Schema()` belong in a follow-up. Reuse the inventory schema. ~400 LOC.
+
+## Task 6 — Phase B (LLM)
+
+Blocked on Q1-Q6 decisions from PRD §9 (LLM provider, cache storage, per-audit cost cap, GitHub auth, user notice, opt-out default). Best to settle these inline with a small ADR-style memo before opening PR-B1.
+
+## Useful commands cached from 2026-05-20
+
+Active gcloud account for cleartoship-prod: `heechang1988@gmail.com` (Owner). Re-auth with `gcloud auth login heechang1988@gmail.com` if token expired.
 
 ```powershell
-cd "C:\Users\HeechangLee\Desktop\ClearToShip\repo"
-git fetch origin
-git status                                  # expect: docs/handoff-20260519-golden-path branch
-gh pr view 36                               # browser or terminal
-gh pr checks 36                             # expect: 5/5 PASS
-```
-
-### 2. Merge PR #36 (1 min)
-
-```powershell
-gh pr merge 36 --squash --delete-branch
-git checkout main
-git pull --ff-only
-git log --oneline -5                        # newest = squash-merged Phase 0
-```
-
-This triggers `deploy.yml` automatically. Watch:
-
-```powershell
-gh run watch                                # or visit Actions tab
-```
-
-### 3. Post-merge IMMEDIATE traffic recall (PRD §9 Q1, R-P0-3) (2 min)
-
-`--no-traffic` 분기를 deploy.yml에 영구 추가하지 않았으므로, 자동 deploy가 100% 트래픽을 prod에 즉시 전환한다. 새 revision이 잘못 동작하면 prod가 즉시 영향. 안전 절차:
-
-```powershell
-$env:CLOUDSDK_PYTHON = "C:\Users\HeechangLee\AppData\Local\Google\Cloud SDK\google-cloud-sdk\platform\bundledpython\python.exe"
-
-# 새 revision 정보 확인
-gcloud run services describe audit-worker `
-  --region=asia-northeast3 --project=cleartoship-prod `
-  --format='value(status.latestReadyRevisionName,status.traffic[].revisionName,status.traffic[].percent)'
-
-# 직전 prod revision으로 트래픽 100% 회수 (지난 세션의 audit-worker-00026-srx 또는 그 시점 latest ready)
+# Traffic rollback (proven working 2026-05-20):
 gcloud run services update-traffic audit-worker `
   --region=asia-northeast3 --project=cleartoship-prod `
   --to-revisions=audit-worker-00026-srx=100
-```
 
-(만약 `audit-worker-00026-srx`가 GC된 상태면 그 시점의 `latestReady`를 사용.)
-
-### 4. Rollback-pin tag (W5.1, AC18) (1 min)
-
-```powershell
-$PRIOR_IMAGE = (gcloud run revisions describe audit-worker-00026-srx `
-  --region=asia-northeast3 --project=cleartoship-prod `
-  --format='value(spec.containers[0].image)')
-
-gcloud artifacts docker tags add $PRIOR_IMAGE `
-  asia-northeast3-docker.pkg.dev/cleartoship-prod/cleartoship-images/audit-worker:rollback-pin-2026-05-20 `
-  --project=cleartoship-prod
-```
-
-### 5. Verify new revision smoke (V10~V13) (5 min)
-
-```powershell
-$URL = (gcloud run services describe audit-worker `
-  --region=asia-northeast3 --project=cleartoship-prod `
-  --format='value(status.url)')
-
-# V10 — /healthz on the new revision (still at 0% traffic, but reachable via -tag)
-$TOKEN = (gcloud auth print-identity-token --audiences=$URL)
-Invoke-WebRequest -Uri "$URL/healthz" -Headers @{Authorization="Bearer $TOKEN"} | Select-Object -ExpandProperty Content
-
-# Expect JSON with tools.git.status='found' and tools.lighthouse.status='found'
-# (tools.semgrep / osv-scanner stay 'missing' until Phase 1)
-```
-
-If all 4 V10 expectations hold (git + lighthouse found, semgrep + osv missing, no 5xx): promote new revision to 100%.
-
-```powershell
+# Re-tag verify on a specific revision for tagged-URL probing:
 gcloud run services update-traffic audit-worker `
-  --region=asia-northeast3 --project=cleartoship-prod --to-latest
-```
-
-### 6. Real self-audit run (KPI gate, AC11~AC13) (~30 min)
-
-```powershell
-# Browser: visit web-ssr URL, submit https://github.com/Yoodaddy0311/cleartoship
-$WEB = (gcloud run services describe web-ssr `
   --region=asia-northeast3 --project=cleartoship-prod `
-  --format='value(status.url)')
-Start-Process "$WEB"
+  --set-tags=verify=<revision-name> --to-revisions=<current>=100
 ```
 
-Submit the cleartoship repo. After ~5-15 min (Cloud Run timeout 600s, retry/queue may extend), check:
+Note: the post-deploy `/healthz` probe still 404s through GFE; use `POST /run` with `{}` body + the impersonated ID token to confirm worker reachability after a deploy. deploy.yml smoke step already does this.
 
-- `auditRuns/<newId>.status === 'COMPLETED'`
-- `auditRuns/<newId>.readinessScore >= 50` (Δ from baseline 21 ≥ +29)
-- `auditRuns/<newId>.launchStatus !== 'INDETERMINATE'`
+## Related memories
 
-**If KPI met**: Phase 0 truly DONE. Proceed to Step 7.
-**If KPI not met**: open the audit report, check which steps still SKIPPED in worker logs. Phase 0 should have unblocked 8 of 11 steps. If fewer unblocked, debug before Phase 1.
-
-### 7. Start Phase 1 PR (semgrep + osv-scanner) (next major work block)
-
-Phase 1 scope (PRD §7.1 forward ref):
-- `apt-get install -y python3 python3-pip pipx` in runtime stage
-- `pipx install semgrep==1.86.0` (let pipx own the venv)
-- Pre-warm semgrep registry cache at build time
-- Pin `osv-scanner v1.9.2` from GitHub Releases with SHA256 verify
-- Extend smoke step assertions to all 4 tools (currently only git + lighthouse)
-- Bump Cloud Run `--timeout=600 → 900` (semgrep can take 5-10 min on big repos)
-
-**Pre-merge lint discipline** (see [[reference-lint-tools]]): Phase 1 adds 5+ apt/binary install commands vs Phase 0's 2. Either pin versions (`git=1:2.39.5-0+deb12u3`) or add inline `# hadolint ignore=DL3008` annotations. Decide UPFRONT — don't let the hadolint warning count grow ambiguously.
-
-**Pre-merge build discipline** (see [[feedback-pnpm-monorepo-docker]]): pre-apply Rules 1-3 BEFORE first CI push. Phase 0 burnt 4 CI iterations rediscovering these. Phase 1's similar surface (binaries from npm-adjacent ecosystem + multi-stage) is at risk of repeating.
-
-**Phase 2 backlog** (collected during Phase 0 — fold into Phase 1's "deferred" section or split into a separate Phase 2 PRD):
-- hadolint DL3008 — apt version pinning on `Dockerfile:10` and `Dockerfile:53`
-- `--no-cpu-throttling` cost recovery via handler refactor (PRD §7.2)
-- multi-stage pipx trim (after Phase 1 ships)
-- `smoke-tools.sh` → `smoke-tools.ts` so it shares code with `tools-health.ts`
-- `# shellcheck disable=SC2086` annotation next to unquoted `$CPU_THROTTLING_FLAG` (deploy.yml:189, 03-deploy-worker.sh:70)
-- replace symlink wildcard glob with explicit `nullglob` + count assert (was the same shape Phase 0 had to evolve into find-based discovery — see [[feedback-pnpm-monorepo-docker]] Rule 2)
-- README rollback procedure example date — reconcile `2026-05-20` literal vs the operator's actual merge-day (or convert to `$(date +%F)`)
-
-Start with `/autopilot "Phase 1 worker tooling — semgrep + osv-scanner"` or `/plan` first if scope unclear.
-
-See also: [[project-phase0-status]], [[reference-phase0-prd]], [[feedback-pnpm-monorepo-docker]].
+- [[project_phase0_status]] — Phase 0 verified state (score 54)
+- [[project_visual_audit_vision]] — V1/V2/V3 visual axis (orthogonal to Source-driven Phase A)
+- [[feedback_pipx_python_docker]] — PR #38 prereqs (on PR #38 branch — sync via `scripts/sync-claude-memory.{sh,ps1}`)
+- [[feedback_gcloud_iam_wif]] — Cloud Run IAM / WIF burnt-in (on PR #38 branch)
+- [[feedback_pnpm_monorepo_docker]] — original Phase 0 burnt-in
