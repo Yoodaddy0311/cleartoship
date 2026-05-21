@@ -9,8 +9,10 @@ import type {
   AuditStep,
   CategoryScore,
   CoverageMatrixEntry,
+  DataModelInventory,
   RepoMetadata,
 } from '@cleartoship/shared-types';
+import { EMPTY_DATA_MODEL_INVENTORY } from '@cleartoship/shared-types';
 import type {
   AuditEvidence,
   BusinessEvidence,
@@ -39,6 +41,13 @@ export interface PipelineState {
    * it or throws.
    */
   repoMetadata: RepoMetadata | null;
+  /**
+   * Stack-agnostic data model snapshot built by step 16 (PR-A2 / PRD §3.4).
+   * Always populated (no null) — `EMPTY_DATA_MODEL_INVENTORY` (tech='none')
+   * for repos without a recognised schema. Downstream scoring uses this to
+   * stop returning N/A for the 데이터 모델 category on non-Prisma stacks.
+   */
+  dataModelInventory: DataModelInventory;
   /** Cloned repo's file tree, populated by step03-clone-repo. */
   fileTree: string[];
   /** Tech stack guesses (flat label list — drives the report header). */
@@ -156,6 +165,7 @@ export interface Step {
 export function createInitialState(): PipelineState {
   return {
     repoMetadata: null,
+    dataModelInventory: EMPTY_DATA_MODEL_INVENTORY,
     fileTree: [],
     techStack: [],
     frameworkProfile: null,
