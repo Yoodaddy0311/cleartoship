@@ -147,6 +147,13 @@ export const en: Messages = {
   'dashboard.strengths.severity.p1Zero': 'No High (P1) findings',
   'dashboard.strengths.severity.p1Zero.supplement': 'No high-impact issues block the launch',
   'dashboard.strengths.category.high': '{label} strong ({score})',
+  // PR-A4-fix — surfaceable source-driven inventory cards.
+  'dashboard.strengths.inventory.repoMetadata': 'Found — GitHub metadata (description / topics)',
+  'dashboard.strengths.inventory.repoMetadata.supplement': 'Initial product-intent signal. A precise score comes when Phase B (LLM) lands.',
+  'dashboard.strengths.inventory.routes': 'Found — route inventory (pages · APIs)',
+  'dashboard.strengths.inventory.routes.supplement': 'Structural feature-graph signal. Semantic verification arrives in a later phase.',
+  'dashboard.strengths.inventory.dataModel': 'Found — data model (schemas · collections)',
+  'dashboard.strengths.inventory.dataModel.supplement': 'DB presence confirmed. Security-rule + relational integrity checks come next.',
   'dashboard.top5.title': 'Top 5 items to tackle first',
   'dashboard.summary.title': 'One-line summary',
   'dashboard.tab.dashboard': 'Dashboard',

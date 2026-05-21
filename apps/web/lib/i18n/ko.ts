@@ -142,6 +142,14 @@ export const ko = {
   'dashboard.strengths.severity.p1Zero': 'High(P1) 취약점 0건',
   'dashboard.strengths.severity.p1Zero.supplement': '핵심 개선 사항이 모두 막혀있지 않아요',
   'dashboard.strengths.category.high': '{label} 우수 ({score}점)',
+  // PR-A4-fix — surfaceable source-driven inventory cards. These do NOT
+  // claim quality; they say "we found data, the verdict comes later".
+  'dashboard.strengths.inventory.repoMetadata': '권장사항 — GitHub 메타데이터 발견 (description / topics)',
+  'dashboard.strengths.inventory.repoMetadata.supplement': '제품 의도 검증의 1차 신호. 정밀 평가는 Phase B (LLM 도입) 이후.',
+  'dashboard.strengths.inventory.routes': '권장사항 — 라우트 인벤토리 구축됨 (페이지·API)',
+  'dashboard.strengths.inventory.routes.supplement': '기능 관계도의 구조적 신호. 의미 검증은 다음 단계에서.',
+  'dashboard.strengths.inventory.dataModel': '권장사항 — 데이터 모델 발견 (스키마·컬렉션)',
+  'dashboard.strengths.inventory.dataModel.supplement': 'DB 존재 확인됨. 보안 룰·정합성 검증은 다음 단계에서.',
   'dashboard.top5.title': '가장 먼저 볼 항목 TOP 5',
   'dashboard.summary.title': '한 줄 요약',
   'dashboard.tab.dashboard': '대시보드',

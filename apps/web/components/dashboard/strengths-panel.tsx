@@ -35,9 +35,28 @@ import { t, tf, type I18nKey } from '@/lib/i18n';
 type CategoryScoresMap = ReturnType<typeof adaptCategoryScoresNullable>;
 type CategoryKey = keyof CategoryScoresMap;
 
+/**
+ * PR-A4-fix — surfaceable inventory signals. The scoring step does NOT use
+ * these to assign points (that would conflate existence with quality). The
+ * strengths panel renders each true signal as a positive "권장사항: 발견된
+ * 신호" card so the user sees the source-driven data even though the
+ * matching category remains N/A until Phase B (LLM) judges quality.
+ */
+export interface InventorySignalsView {
+  repoMetadata: boolean;
+  dataModel: boolean;
+  routes: boolean;
+}
+
 interface StrengthsPanelProps {
   severityCounts: Record<Severity, number>;
   categoryScores: CategoryScoresMap;
+  /**
+   * Optional — when omitted (old persisted reports, fixtures) we render
+   * only the legacy severity + high-score cards. New runs ship this from
+   * `report.inventorySignals`.
+   */
+  inventorySignals?: InventorySignalsView;
 }
 
 interface StrengthItem {
@@ -69,6 +88,7 @@ function categoryLabel(category: CategoryKey): string {
 function buildStrengths({
   severityCounts,
   categoryScores,
+  inventorySignals,
 }: StrengthsPanelProps): StrengthItem[] {
   const items: StrengthItem[] = [];
 
@@ -100,6 +120,33 @@ function buildStrengths({
         label: categoryLabel(category),
         score,
       }),
+    });
+  }
+
+  // PR-A4-fix — surface inventory signals as positive cards. These do NOT
+  // contribute to the score (the score for the matching category is still
+  // N/A); they're framed as 권장사항 / 발견된 신호 so the user understands
+  // the source-driven data was found but the quality verdict awaits the
+  // LLM (Phase B) or the missing tool (Phase 1).
+  if (inventorySignals?.repoMetadata) {
+    items.push({
+      id: 'inventory-repoMetadata',
+      headline: t('dashboard.strengths.inventory.repoMetadata'),
+      supplement: t('dashboard.strengths.inventory.repoMetadata.supplement'),
+    });
+  }
+  if (inventorySignals?.routes) {
+    items.push({
+      id: 'inventory-routes',
+      headline: t('dashboard.strengths.inventory.routes'),
+      supplement: t('dashboard.strengths.inventory.routes.supplement'),
+    });
+  }
+  if (inventorySignals?.dataModel) {
+    items.push({
+      id: 'inventory-dataModel',
+      headline: t('dashboard.strengths.inventory.dataModel'),
+      supplement: t('dashboard.strengths.inventory.dataModel.supplement'),
     });
   }
 

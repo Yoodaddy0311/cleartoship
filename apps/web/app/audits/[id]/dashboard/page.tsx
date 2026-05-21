@@ -192,6 +192,7 @@ function DashboardBody({
       <StrengthsPanel
         severityCounts={report.severityCounts}
         categoryScores={categoryScores}
+        inventorySignals={report.inventorySignals}
       />
 
       <section aria-labelledby="categories-title" className="flex flex-col gap-3">

@@ -368,6 +368,18 @@ export const AuditReportSchema = z.object({
   // 인 run 에서는 `undefined` 로 두어 §C.6 edge case 정책에 따라 리포트 §2
   // 섹션 자체를 생략한다.
   coverageMatrix: z.array(CoverageMatrixEntrySchema).optional(),
+  // PR-A4-fix (2026-05-21) — Source-driven inventory signals that are
+  // surfaced as positive evidence cards in the dashboard's strengths panel.
+  // They do NOT contribute to the score (that would conflate "data exists"
+  // with "quality verified"). Optional so old persisted reports remain
+  // schema-valid; readers treat missing as all-false.
+  inventorySignals: z
+    .object({
+      repoMetadata: z.boolean(),
+      dataModel: z.boolean(),
+      routes: z.boolean(),
+    })
+    .optional(),
   createdAt: IsoDateString,
   updatedAt: IsoDateString,
 });
