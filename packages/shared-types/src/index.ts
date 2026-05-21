@@ -9,3 +9,4 @@ export * from './size-guard.js';
 export * from './prd-coverage.js';
 export * from './compute-run-diff.js';
 export * from './fcs.js';
+export * from './repo-metadata.js';

@@ -1,40 +1,46 @@
+// FETCH_REPO_METADATA — PR-A1 expanded.
+//
+// Original Phase 0 step pulled only 5 fields (default_branch, description,
+// size, language, pushed_at). PR-A1 expands the surface to the full
+// `RepoMetadata` shape (PRD source-driven-extraction §3.1): topics,
+// languages bytes, stars/forks/open issues, license, latest release,
+// created_at, and the authenticated/anonymous flag.
+//
+// Size gate (200 MB) is preserved — the audit pipeline downstream of clone
+// can't process megalithic repos in the 5-min user-facing budget.
+//
+// Authentication: `GITHUB_TOKEN` env (set by infra for prod / staging) flips
+// the rate-limit budget from 60/h anonymous → 5000/h authenticated. The
+// `authenticated` field in the resulting metadata surfaces this to the audit
+// report so operators can spot anonymous-mode runs.
+
 import type { Step } from './index.js';
+import { fetchRepoMetadata } from '../../integrations/github-api.js';
 
-// Public GitHub REST API (no auth needed for public repos).
-const GITHUB_API = 'https://api.github.com';
-
-interface GithubRepoResponse {
-  default_branch: string;
-  description: string | null;
-  size: number; // KB
-  language: string | null;
-  pushed_at: string | null;
-}
+const MAX_REPO_SIZE_KB = 200_000;
 
 export const step02FetchRepoMetadata: Step = {
   step: 'FETCH_REPO_METADATA',
   async execute(ctx, state) {
-    const match = /^https:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?\/?$/i.exec(ctx.repoUrl);
-    if (!match) throw new Error(`Failed to parse owner/repo from ${ctx.repoUrl}`);
-    const [, owner, repo] = match;
-    const url = `${GITHUB_API}/repos/${owner}/${repo}`;
-    const resp = await fetch(url, {
-      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'ClearToShip-Audit' },
+    const token = process.env.GITHUB_TOKEN;
+    const metadata = await fetchRepoMetadata(ctx.repoUrl, token);
+
+    if (metadata.sizeKb > MAX_REPO_SIZE_KB) {
+      throw new Error(
+        `Repo가 너무 큽니다 (${Math.round(metadata.sizeKb / 1024)} MB). 200MB 이하만 지원합니다.`
+      );
+    }
+
+    state.repoMetadata = metadata;
+    ctx.log('info', 'Repo metadata fetched', {
+      owner: metadata.owner,
+      repo: metadata.repo,
+      sizeKb: metadata.sizeKb,
+      primaryLanguage: metadata.primaryLanguage,
+      topicsCount: metadata.topics.length,
+      stars: metadata.stars,
+      hasLatestRelease: metadata.latestRelease !== null,
+      authenticated: metadata.authenticated,
     });
-    if (!resp.ok) {
-      throw new Error(`GitHub API error ${resp.status} for ${owner}/${repo}`);
-    }
-    const data = (await resp.json()) as GithubRepoResponse;
-    if (data.size > 200_000) {
-      throw new Error(`Repo가 너무 큽니다 (${Math.round(data.size / 1024)} MB). 200MB 이하만 지원합니다.`);
-    }
-    state.repoMetadata = {
-      defaultBranch: data.default_branch,
-      description: data.description,
-      sizeKb: data.size,
-      primaryLanguage: data.language,
-      pushedAt: data.pushed_at,
-    };
-    ctx.log('info', 'Repo metadata fetched', { sizeKb: data.size, lang: data.language });
   },
 };
