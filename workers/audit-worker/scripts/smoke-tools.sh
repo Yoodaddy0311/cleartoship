@@ -52,6 +52,15 @@ check_semgrep() {
     fail=1
     return
   fi
+  # semgrep 1.x is an OCaml wrapper (osemgrep) that execvp()'s its Python
+  # sibling `pysemgrep` from PATH. Attempt 4 had `semgrep` symlinked but not
+  # `pysemgrep`, so `semgrep --version` failed at CLI.safe_run. Guard against
+  # the same regression by asserting both binaries are PATH-reachable.
+  if ! command -v pysemgrep >/dev/null 2>&1; then
+    echo "[smoke] FAIL: pysemgrep not found in PATH (osemgrep wrapper will fail to exec)"
+    fail=1
+    return
+  fi
   # semgrep --version prints e.g. "1.86.0" to stdout. Capture single line.
   version=$(semgrep --version 2>/dev/null | head -n1 || true)
   if [[ -z "$version" ]]; then

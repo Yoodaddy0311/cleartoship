@@ -119,14 +119,22 @@ RUN set -eu; \
 
 # P1.W1.2 — semgrep via an explicit venv (NOT pipx).
 #
-# Three pipx attempts (commits a4871e9, c0316f6, 3363013) all failed with
-# `ModuleNotFoundError: No module named 'pkg_resources'` at `semgrep --version`.
-# pipx isolates each tool in its own venv, but its post-install layout
-# does NOT seem to expose `pkg_resources` even after `pipx inject setuptools`
-# on this Debian bookworm-slim base. Rather than chase a 4th pipx-internal
-# fix, switch to a plain venv: pip-in-a-venv auto-installs setuptools/wheel,
-# the binary location is explicit, and the wrapper script is a transparent
-# shell shim with no metadata indirection.
+# Four prior attempts failed (commits a4871e9, c0316f6, 3363013, a145d11):
+#   1-3: pipx-isolated venv — `ModuleNotFoundError: No module named 'pkg_resources'`
+#        even after `pipx inject setuptools`.
+#   4:   plain venv — pip install SUCCEEDED (setuptools 82.0.1 + semgrep 1.86.0
+#        installed cleanly), but `semgrep --version` failed with:
+#          [ERROR]: Error: exception Unix_error: No such file or directory execvp pysemgrep
+#          Raised at CLI.safe_run in src/osemgrep/cli/CLI.ml line 266
+#        The semgrep 1.x dist ships an OCaml `osemgrep` binary that shells out
+#        to its Python sibling `pysemgrep` via `execvp`, which searches PATH.
+#        Symlinking only `semgrep` left `pysemgrep` unreachable from PATH.
+#
+# Fix (attempt 5): symlink BOTH `semgrep` AND `pysemgrep` from the venv into
+# /usr/local/bin. The venv's pip generates wrapper scripts with venv-absolute
+# shebangs (`#!/opt/semgrep-venv/bin/python3`), so a symlink (not a copy) is
+# enough — Python resolves `sys.executable` via /proc/self/exe and the shebang
+# still points at the venv interpreter regardless of how the script was invoked.
 #
 # Lessons captured in `.claude/memory/feedback_pipx_python_docker.md`.
 # Build-time self-test (`semgrep --version`) per burnt-in Rule "build-time
@@ -135,7 +143,9 @@ RUN python3 -m venv /opt/semgrep-venv && \
     /opt/semgrep-venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel && \
     /opt/semgrep-venv/bin/pip install --no-cache-dir semgrep==1.86.0 && \
     ln -sfn /opt/semgrep-venv/bin/semgrep /usr/local/bin/semgrep && \
-    semgrep --version
+    ln -sfn /opt/semgrep-venv/bin/pysemgrep /usr/local/bin/pysemgrep && \
+    semgrep --version && \
+    pysemgrep --version
 
 # P1.W1.3 — semgrep registry cache pre-warm.
 # semgrep stores rule packs in $SEMGREP_USER_DATA_FOLDER. Warm the owasp-top-ten
