@@ -506,33 +506,12 @@ function hasRouteSignal(rt: RouteInventory | undefined): boolean {
   return rt.routes.length > 0;
 }
 
-/**
- * Per-category gate — which inventory signal (if any) lifts THIS category
- * out of N/A. Hard-coded mapping kept in one place so adding a new
- * inventory in PR-B is a single edit here, not scattered branches in the
- * main loop.
- */
-function categoryHasInventorySignal(
-  category: AuditCategory,
-  signals: {
-    repoMetadataSignal: boolean;
-    dataModelSignal: boolean;
-    routeSignal: boolean;
-  },
-): boolean {
-  switch (category) {
-    case 'PRODUCT_INTENT':
-    case 'REQUIREMENT_COVERAGE':
-      return signals.repoMetadataSignal;
-    case 'FEATURE_GRAPH':
-    case 'FUNCTIONAL_FLOW':
-      return signals.routeSignal;
-    case 'DATA_MODEL':
-      return signals.dataModelSignal;
-    default:
-      return false;
-  }
-}
+// The previous PR-A4 had a `categoryHasInventorySignal` helper here that
+// mapped each category to its un-N/A inventory bucket. PR-A4-fix removed
+// the un-N/A path entirely (inventory existence ≠ quality), so the helper
+// is no longer referenced anywhere. Phase B will reintroduce a similar
+// mapping but on the LLM-confidence axis — keeping the helper around in
+// the meantime would just be dead code (ESLint flags it; rightly so).
 
 /**
  * Origin attribution for a category score. After PR-A4-fix the inventory
