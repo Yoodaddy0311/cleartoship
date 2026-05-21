@@ -441,6 +441,15 @@ export const en: Messages = {
   // category.na — CategoryNATile in the dashboard category grid.
   'category.na.label': 'N/A',
   'category.na.description': 'Insufficient data to produce a score for this category.',
+  // PR-A4 — score-origin badge.
+  'category.origin.D.aria': 'Score derived from deterministic analysis',
+  'category.origin.D.tooltip': 'Deterministic (D): code/file analysis. Reproducible, no external dependency.',
+  'category.origin.F.aria': 'Score derived from free external APIs',
+  'category.origin.F.tooltip': 'Free API (F): GitHub, npm, OSV, and similar public sources. Depends on those services being reachable.',
+  'category.origin.L.aria': 'Score derived from LLM reasoning',
+  'category.origin.L.tooltip': 'LLM (L): Claude/OpenAI interpreted the semantic input. Used only where natural-language reasoning is required.',
+  'category.origin.mixed.aria': 'Score derived from deterministic plus external/LLM signals',
+  'category.origin.mixed.tooltip': 'Mixed (M): deterministic findings and external data/LLM both contributed.',
 };
 
 export type En = typeof en;

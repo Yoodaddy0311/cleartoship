@@ -21,6 +21,7 @@ vi.mock('@/lib/api/audit-runs', () => ({
 vi.mock('@/lib/api/adapters', () => ({
   adaptCategoryScores: vi.fn(() => ({})),
   adaptCategoryScoresNullable: vi.fn(() => ({})),
+  adaptCategoryScoreOrigins: vi.fn(() => ({})),
   adaptFinding: vi.fn((f: { id: string }) => ({
     id: f.id,
     title: 'Stub finding',

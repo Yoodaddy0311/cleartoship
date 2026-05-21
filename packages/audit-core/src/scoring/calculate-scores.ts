@@ -3,9 +3,13 @@ import type {
   AuditStep,
   CategoryScore,
   Confidence,
+  DataModelInventory,
   FCSResult,
   Finding,
   LaunchStatus,
+  RepoMetadata,
+  RouteInventory,
+  ScoreOrigin,
   Severity,
 } from '@cleartoship/shared-types';
 import { CATEGORY_META } from './checklist-mapping.js';
@@ -177,10 +181,42 @@ export interface AvailableTools {
 export type ScoringFinding = Pick<Finding, 'category' | 'severity'> &
   Partial<Pick<Finding, 'id' | 'confidence' | 'tags'>>;
 
+/**
+ * PR-A4 — source-driven inventories that the scoring step consumes to
+ * un-N/A categories whose pipeline-step measurement was empty but for which
+ * we have alternative evidence:
+ *
+ *   - PRODUCT_INTENT / REQUIREMENT_COVERAGE → `repoMetadata` (F bucket).
+ *     A GitHub description / topics list is enough to lift the category from
+ *     'no signal' to 'baseline 100'; security/quality findings still deduct
+ *     normally so the score reflects real issues, not just "they wrote a
+ *     description".
+ *   - FEATURE_GRAPH → `routeInventory` (D bucket). Route count > 0 is the
+ *     definitive signal that the project has a UI / API surface.
+ *   - DATA_MODEL → `dataModelInventory` (D bucket). Any recognised schema
+ *     (Prisma, Firestore today; Drizzle/SQL follow-up) un-N/As the category.
+ *
+ * Origin attribution flows from which input triggered the un-N/A:
+ *   - F-only un-N/A → origin: 'F'
+ *   - D-only un-N/A → origin: 'D'
+ *   - findings present in the same category → origin: 'mixed'
+ *   - N/A still → origin: 'none'
+ *
+ * Optional + back-compat: callers that omit `inventories` see the previous
+ * behaviour unchanged (every test predating PR-A4 stays green).
+ */
+export interface SourceInventories {
+  readonly repoMetadata?: RepoMetadata | null;
+  readonly dataModelInventory?: DataModelInventory;
+  readonly routeInventory?: RouteInventory;
+}
+
 export interface ScoringInput {
   readonly findings: ReadonlyArray<ScoringFinding>;
   readonly coverage?: CoverageInput;
   readonly availableTools?: AvailableTools;
+  /** PR-A4 source-driven inventories. See `SourceInventories` doc. */
+  readonly inventories?: SourceInventories;
   /**
    * Pipeline steps that actually executed end-to-end. When supplied, any
    * category whose `measuredBy` lists steps not in this set is reported as
@@ -263,6 +299,14 @@ export function calculateScores(input: ScoringInput): ScoringResult {
   );
   const effectiveWeights = applyProfileWeights(baseWeights, input.profile ?? null);
 
+  // PR-A4: pre-compute the source-driven inventory signals once. Each helper
+  // returns `true` when the inventory provides enough evidence to lift the
+  // matching category out of N/A. `null` for missing inventories so callers
+  // that omit `input.inventories` see legacy behaviour.
+  const repoMetadataSignal = hasRepoMetadataSignal(input.inventories?.repoMetadata);
+  const dataModelSignal = hasDataModelSignal(input.inventories?.dataModelInventory);
+  const routeSignal = hasRouteSignal(input.inventories?.routeInventory);
+
   let weightedSum = 0;
   let totalWeight = 0;
   const categoryScores: CategoryScore[] = [];
@@ -275,12 +319,29 @@ export function calculateScores(input: ScoringInput): ScoringResult {
     //   2) zero feature nodes AND it depends on coverage signals
     //      (PRODUCT_INTENT / REQUIREMENT_COVERAGE).
     //   3) caller passed executedSteps AND any measuredBy step did not run.
-    const noMeasurement = meta.measuredBy.length === 0;
-    const coverageNA = zeroFeatureNodes && COVERAGE_DEPENDENT_CATEGORIES.has(meta.category);
-    const measuredButNotRun =
+    let noMeasurement = meta.measuredBy.length === 0;
+    let coverageNA = zeroFeatureNodes && COVERAGE_DEPENDENT_CATEGORIES.has(meta.category);
+    let measuredButNotRun =
       executedSet !== null &&
       meta.measuredBy.length > 0 &&
       meta.measuredBy.some((s) => !executedSet.has(s));
+
+    // PR-A4 — source-driven inventory un-N/A.
+    // Each category that maps to an inventory checks whether the inventory
+    // carries enough signal to lift the category out of N/A. The deduction
+    // logic (P0 cap, P1-P3 deductions) still runs identically; only the
+    // N/A gate changes.
+    const inventoryNonEmpty = categoryHasInventorySignal(meta.category, {
+      repoMetadataSignal,
+      dataModelSignal,
+      routeSignal,
+    });
+    if (inventoryNonEmpty) {
+      noMeasurement = false;
+      coverageNA = false;
+      measuredButNotRun = false;
+    }
+
     const isNA = noMeasurement || coverageNA || measuredButNotRun;
     const score = isNA ? null : Math.round(bucket.score);
     const weight = effectiveWeights.get(meta.category) ?? meta.weight;
@@ -288,11 +349,20 @@ export function calculateScores(input: ScoringInput): ScoringResult {
       weightedSum += bucket.score * weight;
       totalWeight += weight;
     }
+    const origin = decideOrigin({
+      isNA,
+      category: meta.category,
+      hasFindings: bucket.hasP0 || bucket.score < 100,
+      repoMetadataSignal,
+      dataModelSignal,
+      routeSignal,
+    });
     categoryScores.push({
       category: meta.category,
       score,
       label: meta.label,
       summary: null,
+      origin,
     });
   }
 
@@ -382,6 +452,101 @@ function computeToolsAvailableRatio(tools: AvailableTools | undefined): number |
     Number(tools.lighthouse) +
     Number(tools.secretsScanner);
   return available / total;
+}
+
+/**
+ * PR-A4 source-driven inventory signal helpers.
+ *
+ * Each function returns `true` when the inventory carries enough evidence
+ * to lift the matching category out of N/A — i.e. there's *something*
+ * source-driven the scoring step can attribute the result to. False means
+ * either the inventory was omitted by the caller or it came back empty.
+ */
+function hasRepoMetadataSignal(rm: RepoMetadata | null | undefined): boolean {
+  if (!rm) return false;
+  const hasDescription = !!rm.description && rm.description.trim().length > 0;
+  const hasTopics = Array.isArray(rm.topics) && rm.topics.length > 0;
+  return hasDescription || hasTopics;
+}
+
+function hasDataModelSignal(dm: DataModelInventory | undefined): boolean {
+  if (!dm) return false;
+  return dm.tech !== 'none' && dm.entities.length > 0;
+}
+
+function hasRouteSignal(rt: RouteInventory | undefined): boolean {
+  if (!rt) return false;
+  return rt.routes.length > 0;
+}
+
+/**
+ * Per-category gate — which inventory signal (if any) lifts THIS category
+ * out of N/A. Hard-coded mapping kept in one place so adding a new
+ * inventory in PR-B is a single edit here, not scattered branches in the
+ * main loop.
+ */
+function categoryHasInventorySignal(
+  category: AuditCategory,
+  signals: {
+    repoMetadataSignal: boolean;
+    dataModelSignal: boolean;
+    routeSignal: boolean;
+  },
+): boolean {
+  switch (category) {
+    case 'PRODUCT_INTENT':
+    case 'REQUIREMENT_COVERAGE':
+      return signals.repoMetadataSignal;
+    case 'FEATURE_GRAPH':
+    case 'FUNCTIONAL_FLOW':
+      return signals.routeSignal;
+    case 'DATA_MODEL':
+      return signals.dataModelSignal;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Origin attribution for a category score. Reflects which input ultimately
+ * justifies the surfaced number so the UI can render a badge (📦 D / 🌐 F /
+ * 🤖 L). `none` is reserved for genuine N/A.
+ */
+function decideOrigin(args: {
+  isNA: boolean;
+  category: AuditCategory;
+  hasFindings: boolean;
+  repoMetadataSignal: boolean;
+  dataModelSignal: boolean;
+  routeSignal: boolean;
+}): ScoreOrigin {
+  if (args.isNA) return 'none';
+
+  // What inventory bucket does the category map to?
+  let inventoryBucket: 'D' | 'F' | null = null;
+  switch (args.category) {
+    case 'PRODUCT_INTENT':
+    case 'REQUIREMENT_COVERAGE':
+      if (args.repoMetadataSignal) inventoryBucket = 'F';
+      break;
+    case 'FEATURE_GRAPH':
+    case 'FUNCTIONAL_FLOW':
+      if (args.routeSignal) inventoryBucket = 'D';
+      break;
+    case 'DATA_MODEL':
+      if (args.dataModelSignal) inventoryBucket = 'D';
+      break;
+    default:
+      break;
+  }
+
+  // findings-only path → D. Inventory + findings combined → mixed.
+  // Inventory only (no findings) → bucket. No inventory, no findings →
+  // baseline 100 with no source — treat as D since the absence of any
+  // P1-P3 finding is itself a deterministic signal.
+  if (inventoryBucket && args.hasFindings) return 'mixed';
+  if (inventoryBucket) return inventoryBucket;
+  return 'D';
 }
 
 function classifyLaunchStatus(

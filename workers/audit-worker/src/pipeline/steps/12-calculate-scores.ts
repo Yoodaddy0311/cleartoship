@@ -66,6 +66,16 @@ export const step12CalculateScores: Step = {
       availableTools,
       executedSteps: state.executedSteps,
       profile,
+      // PR-A4 — pass the three source-driven inventories so the scorer can
+      // lift PRODUCT_INTENT / FEATURE_GRAPH / DATA_MODEL out of N/A when the
+      // pipeline-step measurement is empty but inventory data exists.
+      // `repoMetadata` is nullable (step02 can throw before populating it);
+      // the inventory helpers tolerate null.
+      inventories: {
+        repoMetadata: state.repoMetadata,
+        dataModelInventory: state.dataModelInventory,
+        routeInventory: state.routeInventory,
+      },
     });
     state.severityCounts = result.severityCounts;
     state.readinessScore = result.readinessScore;

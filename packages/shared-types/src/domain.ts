@@ -283,6 +283,14 @@ export type FeatureGraph = z.infer<typeof FeatureGraphSchema>;
 // AuditReport
 // ---------------------------------------------------------------------------
 
+// PR-A4 (PRD source-driven-extraction §6) — score-origin attribution.
+// Each numeric score is produced by Deterministic analysis (D), Free API
+// data (F), LLM reasoning (L), or a combination (mixed). The UI surfaces
+// this so a reader knows whether the number is reproducible (D), externally
+// sourced (F), or model-dependent (L). N/A scores carry origin `none`.
+export const ScoreOriginSchema = z.enum(['D', 'F', 'L', 'mixed', 'none']);
+export type ScoreOrigin = z.infer<typeof ScoreOriginSchema>;
+
 export const CategoryScoreSchema = z.object({
   category: AuditCategory,
   // null = N/A (coverage signal could not score this category — surfaced as
@@ -290,6 +298,12 @@ export const CategoryScoreSchema = z.object({
   score: z.number().min(0).max(100).nullable(),
   label: z.string(),
   summary: z.string().nullable(),
+  /**
+   * PR-A4 score-origin badge. `none` when the category is N/A (no data
+   * available). Optional for backward compatibility with stored audit runs
+   * predating the field — the UI treats undefined as `none`.
+   */
+  origin: ScoreOriginSchema.optional(),
 });
 export type CategoryScore = z.infer<typeof CategoryScoreSchema>;
 
