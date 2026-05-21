@@ -90,6 +90,10 @@ export const step13GenerateReport: Step = {
       // re-parsing the markdown body. buildReport always populates this
       // field (audit-core SSOT — worker never inlines the rules).
       ...(report.shipVerdict ? { shipVerdict: report.shipVerdict } : {}),
+      // PR-A4-fix — source-driven inventory evidence flags surfaced in the
+      // dashboard's strengths panel. Persisted so the web app can render
+      // the positive cards without re-deriving them.
+      inventorySignals: state.inventorySignals,
     });
     ctx.log('info', 'Report generated', {
       length: report.markdown.length,

@@ -60,6 +60,17 @@ export interface PipelineState {
    * the upcoming feature-graph UI's "23 pages, 17 APIs" breakdown.
    */
   routeInventory: RouteInventory;
+  /**
+   * PR-A4-fix — boolean flags indicating which inventories carried evidence
+   * during this run. Surfaced in the dashboard's strengths panel as
+   * positive cards. Defaults to all-false; populated by step12 from the
+   * scorer's result.
+   */
+  inventorySignals: {
+    repoMetadata: boolean;
+    dataModel: boolean;
+    routes: boolean;
+  };
   /** Cloned repo's file tree, populated by step03-clone-repo. */
   fileTree: string[];
   /** Tech stack guesses (flat label list — drives the report header). */
@@ -179,6 +190,7 @@ export function createInitialState(): PipelineState {
     repoMetadata: null,
     dataModelInventory: EMPTY_DATA_MODEL_INVENTORY,
     routeInventory: EMPTY_ROUTE_INVENTORY,
+    inventorySignals: { repoMetadata: false, dataModel: false, routes: false },
     fileTree: [],
     techStack: [],
     frameworkProfile: null,

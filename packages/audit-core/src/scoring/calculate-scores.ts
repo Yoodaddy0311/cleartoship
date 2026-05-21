@@ -233,6 +233,24 @@ export interface ScoringInput {
   readonly profile?: AuditProfile | null;
 }
 
+/**
+ * PR-A4-fix — surfaceable inventory signals.
+ *
+ * The scorer does NOT use these to assign points — that would conflate
+ * "data exists" with "quality verified". Instead, the dashboard's
+ * strengths panel reads them and renders cards like
+ * "✅ GitHub topics 3개 발견 — 다음 단계 LLM 분석의 입력 자료".
+ *
+ * The presence of each flag is enough — the underlying inventories are
+ * still available on the worker `state` for richer "23 pages, 8 APIs"
+ * breakdowns when the UI wants to expand.
+ */
+export interface InventorySignalSummary {
+  repoMetadata: boolean;
+  dataModel: boolean;
+  routes: boolean;
+}
+
 export interface ScoringResult {
   readinessScore: number;
   launchStatus: LaunchStatus;
@@ -248,6 +266,12 @@ export interface ScoringResult {
    * weighted readinessScore so the dashboard's gauge and verdict never drift.
    */
   fcs: FCSResult;
+  /**
+   * PR-A4-fix — which inventories carried evidence. Surfaced to the
+   * dashboard's strengths panel as positive cards; does NOT contribute to
+   * the numeric score (that would conflate existence with quality).
+   */
+  inventorySignals: InventorySignalSummary;
 }
 
 export function calculateScores(input: ScoringInput): ScoringResult {
@@ -299,10 +323,25 @@ export function calculateScores(input: ScoringInput): ScoringResult {
   );
   const effectiveWeights = applyProfileWeights(baseWeights, input.profile ?? null);
 
-  // PR-A4: pre-compute the source-driven inventory signals once. Each helper
-  // returns `true` when the inventory provides enough evidence to lift the
-  // matching category out of N/A. `null` for missing inventories so callers
-  // that omit `input.inventories` see legacy behaviour.
+  // PR-A4-fix (2026-05-21) — Inventory signals are EVIDENCE, not scores.
+  //
+  // The original PR-A4 used `hasInventorySignal` to lift categories out of
+  // N/A. That turned out to be wrong: an inventory only proves *existence*
+  // ("there's a description on GitHub"), not *quality* ("the description
+  // describes the intent well"). With the 100-baseline + finding-deduct
+  // model that meant `inventory existence → free 100 points` which the user
+  // correctly flagged as misleading.
+  //
+  // Honest model: keep the category N/A when only inventory data is
+  // available, AND surface the inventory facts as positive evidence
+  // ("권장사항: GitHub에 3 topics 발견") in the dashboard's strengths panel.
+  // The N/A signals "we haven't measured quality yet"; the strength card
+  // signals "we found data that the next phase (LLM / Phase 1 tools) will
+  // use to actually score this".
+  //
+  // We pre-compute the signals here so a follow-up step can persist them
+  // into `state.inventorySignals` for the UI to consume — but they do NOT
+  // touch the score / N/A decision.
   const repoMetadataSignal = hasRepoMetadataSignal(input.inventories?.repoMetadata);
   const dataModelSignal = hasDataModelSignal(input.inventories?.dataModelInventory);
   const routeSignal = hasRouteSignal(input.inventories?.routeInventory);
@@ -319,29 +358,12 @@ export function calculateScores(input: ScoringInput): ScoringResult {
     //   2) zero feature nodes AND it depends on coverage signals
     //      (PRODUCT_INTENT / REQUIREMENT_COVERAGE).
     //   3) caller passed executedSteps AND any measuredBy step did not run.
-    let noMeasurement = meta.measuredBy.length === 0;
-    let coverageNA = zeroFeatureNodes && COVERAGE_DEPENDENT_CATEGORIES.has(meta.category);
-    let measuredButNotRun =
+    const noMeasurement = meta.measuredBy.length === 0;
+    const coverageNA = zeroFeatureNodes && COVERAGE_DEPENDENT_CATEGORIES.has(meta.category);
+    const measuredButNotRun =
       executedSet !== null &&
       meta.measuredBy.length > 0 &&
       meta.measuredBy.some((s) => !executedSet.has(s));
-
-    // PR-A4 — source-driven inventory un-N/A.
-    // Each category that maps to an inventory checks whether the inventory
-    // carries enough signal to lift the category out of N/A. The deduction
-    // logic (P0 cap, P1-P3 deductions) still runs identically; only the
-    // N/A gate changes.
-    const inventoryNonEmpty = categoryHasInventorySignal(meta.category, {
-      repoMetadataSignal,
-      dataModelSignal,
-      routeSignal,
-    });
-    if (inventoryNonEmpty) {
-      noMeasurement = false;
-      coverageNA = false;
-      measuredButNotRun = false;
-    }
-
     const isNA = noMeasurement || coverageNA || measuredButNotRun;
     const score = isNA ? null : Math.round(bucket.score);
     const weight = effectiveWeights.get(meta.category) ?? meta.weight;
@@ -411,6 +433,11 @@ export function calculateScores(input: ScoringInput): ScoringResult {
     severityCounts,
     confidenceMultiplier,
     fcs,
+    inventorySignals: {
+      repoMetadata: repoMetadataSignal,
+      dataModel: dataModelSignal,
+      routes: routeSignal,
+    },
     ...(toolsAvailableRatio !== undefined ? { toolsAvailableRatio } : {}),
   };
 }
@@ -508,9 +535,18 @@ function categoryHasInventorySignal(
 }
 
 /**
- * Origin attribution for a category score. Reflects which input ultimately
- * justifies the surfaced number so the UI can render a badge (📦 D / 🌐 F /
- * 🤖 L). `none` is reserved for genuine N/A.
+ * Origin attribution for a category score. After PR-A4-fix the inventory
+ * signals no longer influence the score, so every numeric score is
+ * deterministic (D — finding-based or baseline). The L (LLM) bucket is
+ * reserved for Phase B; F (Free API) re-enters when the LLM step
+ * actually consumes GitHub metadata to score quality (not just existence).
+ *
+ * Current matrix:
+ *   isNA  → 'none'
+ *   else  → 'D'  (deterministic findings or "no P1-P3 finding" baseline)
+ *
+ * The badge surface in the UI stays so PR-B can fill in 'F' / 'L' / 'mixed'
+ * without further schema work.
  */
 function decideOrigin(args: {
   isNA: boolean;
@@ -521,31 +557,12 @@ function decideOrigin(args: {
   routeSignal: boolean;
 }): ScoreOrigin {
   if (args.isNA) return 'none';
-
-  // What inventory bucket does the category map to?
-  let inventoryBucket: 'D' | 'F' | null = null;
-  switch (args.category) {
-    case 'PRODUCT_INTENT':
-    case 'REQUIREMENT_COVERAGE':
-      if (args.repoMetadataSignal) inventoryBucket = 'F';
-      break;
-    case 'FEATURE_GRAPH':
-    case 'FUNCTIONAL_FLOW':
-      if (args.routeSignal) inventoryBucket = 'D';
-      break;
-    case 'DATA_MODEL':
-      if (args.dataModelSignal) inventoryBucket = 'D';
-      break;
-    default:
-      break;
-  }
-
-  // findings-only path → D. Inventory + findings combined → mixed.
-  // Inventory only (no findings) → bucket. No inventory, no findings →
-  // baseline 100 with no source — treat as D since the absence of any
-  // P1-P3 finding is itself a deterministic signal.
-  if (inventoryBucket && args.hasFindings) return 'mixed';
-  if (inventoryBucket) return inventoryBucket;
+  // Silence unused-param warnings — kept in the signature for PR-B re-use.
+  void args.category;
+  void args.hasFindings;
+  void args.repoMetadataSignal;
+  void args.dataModelSignal;
+  void args.routeSignal;
   return 'D';
 }
 

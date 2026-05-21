@@ -84,6 +84,12 @@ export const step12CalculateScores: Step = {
     // `as unknown as` cast. Promoted from a smuggled __categoryScores field
     // so producer/consumer share a checked contract.
     state.categoryScores = result.categoryScores;
+    // PR-A4-fix: surface inventory signals so step13 can persist them in
+    // the report — the dashboard's strengths panel renders them as positive
+    // evidence cards ("권장사항: GitHub topics 발견"). They do NOT contribute
+    // to the score (the fix is precisely to NOT conflate existence with
+    // quality).
+    state.inventorySignals = result.inventorySignals;
     ctx.log('info', 'Scores calculated', {
       readinessScore: result.readinessScore,
       launchStatus: result.launchStatus,
