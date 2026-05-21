@@ -8,6 +8,8 @@ import { ScoreSkeleton } from '@/components/skeletons';
 import { SeverityCounts } from '@/components/dashboard/severity-counts';
 import { StrengthsPanel } from '@/components/dashboard/strengths-panel';
 import { CategoryGrid } from '@/components/dashboard/category-grid';
+import { RepoTreeView } from '@/components/dashboard/repo-tree-view';
+import { PageCardGrid } from '@/components/dashboard/page-card-grid';
 import { SeverityChip } from '@/components/common/severity-chip';
 import { LaunchStatusChip } from '@/components/common/launch-status-chip';
 import {
@@ -30,6 +32,10 @@ import type {
   AuditRun,
   ListFindingsResponse,
 } from '@/lib/api/audit-runs';
+import {
+  EMPTY_DATA_MODEL_INVENTORY,
+  EMPTY_ROUTE_INVENTORY,
+} from '@cleartoship/shared-types';
 
 // L-P1-6 — defer the ScoreOverview chunk. The score card pulls in ScoreRing
 // (SVG gauge + label formatting), LaunchStatusChip, and the i18n module via
@@ -194,6 +200,43 @@ function DashboardBody({
         categoryScores={categoryScores}
         inventorySignals={report.inventorySignals}
       />
+
+      <section
+        aria-labelledby="repo-structure-title"
+        className="flex flex-col gap-3"
+      >
+        <h2
+          id="repo-structure-title"
+          className="text-sm font-medium uppercase tracking-wide text-[color:var(--color-fg-muted)]"
+        >
+          저장소 구조
+        </h2>
+        {/*
+          Phase G MVP layout — collapsible repo tree (left) + responsive page
+          card grid (right). On <lg we stack vertically: tree first, cards
+          second. On lg+ a 12-col grid lays the tree (cols 1-4) next to the
+          card grid (cols 5-12).
+
+          Today both inventories are fed `EMPTY_*` because the report doc
+          doesn't yet persist `routeInventory` / `dataModelInventory`. The
+          worker pipeline produces them (PR-A3 / PR-A2), but persisting them
+          on `AuditReport` is a separate PR (out of scope per briefing's
+          "변경 파일 3개" constraint). Both components render their empty
+          state gracefully — no crash on first paint. Once persistence
+          lands, swap to `report.routeInventory` etc. without other changes.
+        */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+          <div className="lg:col-span-4">
+            <RepoTreeView
+              routeInventory={EMPTY_ROUTE_INVENTORY}
+              dataModelInventory={EMPTY_DATA_MODEL_INVENTORY}
+            />
+          </div>
+          <div className="lg:col-span-8">
+            <PageCardGrid routeInventory={EMPTY_ROUTE_INVENTORY} />
+          </div>
+        </div>
+      </section>
 
       <section aria-labelledby="categories-title" className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between gap-3">
