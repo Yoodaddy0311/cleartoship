@@ -19,6 +19,7 @@ import { categoryLabel } from '@/lib/format/category';
 import { t } from '@/lib/i18n';
 import { getAuditRun, getReport, listFindings } from '@/lib/api/audit-runs';
 import {
+  adaptCategoryScoreOrigins,
   adaptCategoryScoresNullable,
   adaptFinding,
   adaptLaunchStatus,
@@ -156,6 +157,7 @@ function DashboardBody({
   const { report, findings, run } = data;
   const top5 = findings.findings.map((f) => adaptFinding(f));
   const categoryScores = adaptCategoryScoresNullable(report.categoryScores);
+  const categoryOrigins = adaptCategoryScoreOrigins(report.categoryScores);
 
   return (
     <>
@@ -208,7 +210,7 @@ function DashboardBody({
             {t('dashboard.categories.viewAll')}
           </Link>
         </div>
-        <CategoryGrid scores={categoryScores} />
+        <CategoryGrid scores={categoryScores} origins={categoryOrigins} />
       </section>
 
       <Card variant="default" padding="md">

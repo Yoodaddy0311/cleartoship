@@ -12,6 +12,7 @@ import type {
   Finding,
   LaunchStatus as ApiLaunchStatus,
   Confidence as ApiConfidence,
+  ScoreOrigin,
 } from '@cleartoship/shared-types';
 import type { LaunchStatus as UiLaunchStatus } from '@/lib/format/status';
 import type { AuditCategory } from '@/lib/format/category';
@@ -107,6 +108,23 @@ export function adaptCategoryScoresNullable(
     }
   }
   return initial;
+}
+
+/**
+ * PR-A4 — extract per-category score origin (D/F/L/mixed/none) from the
+ * scored report so the CategoryGrid can render origin badges. Returns a
+ * `Partial` map because old audit runs persisted without the field; the
+ * UI treats absent values as `none` (no badge).
+ */
+export function adaptCategoryScoreOrigins(
+  list: AuditReport['categoryScores']
+): Partial<Record<AuditCategory, ScoreOrigin>> {
+  const out: Partial<Record<AuditCategory, ScoreOrigin>> = {};
+  for (const cs of list) {
+    if (!isUiCategory(cs.category)) continue;
+    if (cs.origin) out[cs.category] = cs.origin;
+  }
+  return out;
 }
 
 function splitBulletList(input: string | null): string[] {

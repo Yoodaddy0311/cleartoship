@@ -462,6 +462,15 @@ export const ko = {
   // skipped because no deploy URL was supplied).
   'category.na.label': '판단 불가',
   'category.na.description': '분석 자료가 부족해 점수를 산정하지 않았습니다.',
+  // PR-A4 — score-origin badge (PRD source-driven-extraction §6).
+  'category.origin.D.aria': '결정론 분석에 의한 점수',
+  'category.origin.D.tooltip': '결정론(D): 코드/파일 분석으로 산출된 점수. 재현 가능 + 외부 의존 없음.',
+  'category.origin.F.aria': '외부 무료 API 데이터에 의한 점수',
+  'category.origin.F.tooltip': '외부 데이터(F): GitHub API · npm · OSV 등 무료 공개 데이터로 산출. 외부 서비스 상태에 의존.',
+  'category.origin.L.aria': 'LLM 평가에 의한 점수',
+  'category.origin.L.tooltip': 'LLM(L): Claude/OpenAI가 의미 해석한 결과. 자연어 reasoning 필요한 부분에 한정.',
+  'category.origin.mixed.aria': '결정론 + 외부 데이터 + LLM 조합 점수',
+  'category.origin.mixed.tooltip': '복합(M): 결정론 분석과 외부 데이터/LLM이 함께 기여한 점수.',
 } as const;
 
 export type Ko = typeof ko;
