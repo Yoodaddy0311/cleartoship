@@ -9,6 +9,7 @@ import type {
   AuditStep,
   CategoryScore,
   CoverageMatrixEntry,
+  RepoMetadata,
 } from '@cleartoship/shared-types';
 import type {
   AuditEvidence,
@@ -30,14 +31,14 @@ import type { WorkerCtx, NormalizedFinding } from '../../adapters/index.js';
 import type { FrameworkProfile } from '../framework-profile.js';
 
 export interface PipelineState {
-  /** GitHub metadata fetched in step 2. */
-  repoMetadata: {
-    defaultBranch: string;
-    description: string | null;
-    sizeKb: number;
-    primaryLanguage: string | null;
-    pushedAt: string | null;
-  } | null;
+  /**
+   * GitHub metadata fetched in step 2. PR-A1 expanded this from a 5-field
+   * inline shape to the full `RepoMetadata` (PRD source-driven-extraction
+   * §3.1) — topics, languages bytes, stars/forks, license, latest release,
+   * authenticated flag. Same `null` semantics: step 02 either populates
+   * it or throws.
+   */
+  repoMetadata: RepoMetadata | null;
   /** Cloned repo's file tree, populated by step03-clone-repo. */
   fileTree: string[];
   /** Tech stack guesses (flat label list — drives the report header). */
