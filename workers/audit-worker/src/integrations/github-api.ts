@@ -66,7 +66,10 @@ export interface ParsedRepoUrl {
  */
 export function parseGithubUrl(repoUrl: string): ParsedRepoUrl {
   const match = REPO_URL_PATTERN.exec(repoUrl);
-  if (!match) {
+  // Both capture groups are required (the pattern's `?:` non-capturing tail
+  // is optional but groups 1 + 2 are not), so a successful match implies
+  // both indices are populated. TypeScript can't infer that, so assert.
+  if (!match || !match[1] || !match[2]) {
     throw new Error(`Failed to parse owner/repo from ${repoUrl}`);
   }
   return { owner: match[1], repo: match[2] };

@@ -134,18 +134,26 @@ describe('fetchRepoMetadata', () => {
   });
 
   it('throws a 4xx for non-404 errors with body preview', async () => {
-    fetchSpy.mockResolvedValue(new Response('upstream borked', { status: 500 }));
+    // Use mockImplementation, NOT mockResolvedValue — Promise.all fires 4
+    // parallel requests and a shared Response object would have its body
+    // stream consumed after the first read, hiding the preview from the
+    // assertion.
+    fetchSpy.mockImplementation(() =>
+      Promise.resolve(new Response('upstream borked', { status: 500 }))
+    );
     await expect(
       fetchRepoMetadata('https://github.com/owner/repo', undefined)
     ).rejects.toThrow(/500.*upstream borked/);
   });
 
   it('throws a rate-limit message on 403 with reset hint', async () => {
-    fetchSpy.mockResolvedValue(
-      new Response('rate limit', {
-        status: 403,
-        headers: { 'x-ratelimit-reset': '1779271234', 'x-ratelimit-remaining': '0' },
-      })
+    fetchSpy.mockImplementation(() =>
+      Promise.resolve(
+        new Response('rate limit', {
+          status: 403,
+          headers: { 'x-ratelimit-reset': '1779271234', 'x-ratelimit-remaining': '0' },
+        })
+      )
     );
     await expect(
       fetchRepoMetadata('https://github.com/owner/repo', undefined)
