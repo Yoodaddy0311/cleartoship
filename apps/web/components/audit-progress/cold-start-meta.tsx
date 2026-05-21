@@ -32,6 +32,12 @@ export const STEP_ETA_SEC: Readonly<Record<AuditStep, number>> = {
   ANALYZE_DEPLOY_URL: 15,
   CHECK_DESIGN_CONSISTENCY: 8,
   ANALYZE_BUSINESS_READINESS: 3,
+  // LSP cold start (~3-5s) + documentSymbol walk over up to 500 files —
+  // typical Next.js repo finishes well under 10s with warm tsserver cache.
+  // Per PRD `lsp-backbone-2026-05-21.md` v2 §2 동시성 모델, this step soft-
+  // skips when the LSP server is missing, so the ETA is the upper bound
+  // for the success path.
+  SYMBOL_INVENTORY: 8,
   GENERATE_FEATURE_GRAPH: 3,
   MAP_CHECKLIST: 2,
   CALCULATE_SCORES: 2,

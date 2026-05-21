@@ -76,6 +76,12 @@ describe('runPipeline — integration safety net', () => {
     vi.resetModules();
   });
 
+  // Timeout bumped from the default 5s to 15s. The first test in this file
+  // pays the cost of vi.resetModules() + a full re-import of the steps barrel
+  // (which now also pulls in the LSP infra via step 20). Under concurrent
+  // test-file scheduling that first import can run past 5s on slow CI
+  // workers; subsequent tests benefit from the warm cache and finish well
+  // under a second each.
   it('every STEP_REGISTRY entry uses a step name from AUDIT_STEPS', async () => {
     const { STEP_REGISTRY } = await import('./steps/index.js');
     const declared = new Set<AuditStep>(AUDIT_STEPS);
@@ -85,7 +91,7 @@ describe('runPipeline — integration safety net', () => {
         `STEP_REGISTRY contains "${step.step}" which is not in AUDIT_STEPS`,
       ).toBe(true);
     }
-  });
+  }, 15_000);
 
   it('runs every registered step in declared order and marks the run completed', async () => {
     getAuditRunOrThrowMock.mockResolvedValueOnce({

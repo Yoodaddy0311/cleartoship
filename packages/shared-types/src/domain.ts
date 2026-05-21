@@ -12,6 +12,7 @@ import {
 } from './enums.js';
 import { AuditStepSchema } from './audit-steps.js';
 import { CoverageMatrixEntrySchema } from './coverage-matrix.js';
+import { SymbolInventorySchema } from './symbol-inventory.js';
 
 /**
  * Firestore Timestamp ISO string. We standardize on ISO 8601 strings at the
@@ -380,6 +381,12 @@ export const AuditReportSchema = z.object({
       routes: z.boolean(),
     })
     .optional(),
+  // Phase A LSP backbone (PRD `lsp-backbone-2026-05-21.md` v2 §3). Optional
+  // for backward-compat — reports persisted before SYMBOL_INVENTORY step
+  // existed simply lack the field, and the renderer treats `undefined` the
+  // same as "step didn't run" (no Symbol Explorer link). Populated by the
+  // worker on the success path of `20-symbol-inventory.ts`.
+  symbolInventory: SymbolInventorySchema.optional(),
   createdAt: IsoDateString,
   updatedAt: IsoDateString,
 });
