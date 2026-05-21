@@ -1,11 +1,22 @@
-// ANALYZE_DATA_MODEL — scans Prisma schema files in the cloned working
-// tree and emits NormalizedFindings for the DATA_MODEL audit category.
-// Skips gracefully when no clone path or no schema files are present.
+// ANALYZE_DATA_MODEL — two responsibilities now (PR-A2 / PRD §3.4):
+//
+//   1. (existing) Scan Prisma schemas → NormalizedFindings for the
+//      DATA_MODEL audit category (security/quality issues per model).
+//   2. (new)      Build a stack-agnostic DataModelInventory and write it
+//      to `state.dataModelInventory`. The inventory feeds the scoring step
+//      so the 데이터 모델 category stops returning N/A for non-Prisma
+//      stacks (Firestore today, Drizzle/SQL in a follow-up PR).
+//
+// The two paths are independent: a project with no Prisma but a
+// `firestore.rules` file now produces `state.dataModelInventory` with
+// `tech: 'firestore'` and a list of collections, even though the legacy
+// prisma-only path correctly skips. ToolResult retains the prisma-specific
+// SKIP message so it remains evidence-citable.
 
 import { promises as fsp } from 'node:fs';
 import * as path from 'node:path';
 import type { Step } from './index.js';
-import { analyzePrismaSchema } from '@cleartoship/audit-core';
+import { analyzePrismaSchema, detectDataModelInventory } from '@cleartoship/audit-core';
 import { writeToolResult } from '../../firestore/writers.js';
 
 const SCHEMA_FILENAME = 'schema.prisma';
@@ -62,6 +73,16 @@ export const step16AnalyzeDataModel: Step = {
       });
       return;
     }
+
+    // PR-A2: stack-agnostic inventory always runs (Prisma + Firestore now,
+    // Drizzle/SQL in a follow-up). Stored on state for downstream scoring;
+    // a `tech: 'none'` result is still useful — it tells the UI "this
+    // project has no recognised DB schema" instead of a vague N/A.
+    state.dataModelInventory = await detectDataModelInventory(ctx.clonePath);
+    ctx.log('info', 'Data model inventory detected', {
+      tech: state.dataModelInventory.tech,
+      entityCount: state.dataModelInventory.entities.length,
+    });
 
     const schemas = await findPrismaSchemas(ctx.clonePath);
     if (schemas.length === 0) {
