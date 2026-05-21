@@ -11,3 +11,4 @@ export * from './compute-run-diff.js';
 export * from './fcs.js';
 export * from './repo-metadata.js';
 export * from './data-model-inventory.js';
+export * from './route-inventory.js';

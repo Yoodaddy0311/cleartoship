@@ -1,4 +1,5 @@
 import type { Step, PipelineState } from './index.js';
+import { buildRouteInventory } from '@cleartoship/audit-core';
 import {
   buildAuthEdges,
   buildPageApiEdges,
@@ -49,9 +50,33 @@ export const step05DetectFeatures: Step = {
     buildPageComponentEdges(features, state.fileTree);
 
     state.detectedFeatures = features;
+
+    // PR-A3 — AST-derived RouteInventory (Next.js App + Pages Router).
+    // Co-exists with the file-glob heuristics above: the inventory is a
+    // structured, framework-aware view (segments, dynamic flags,
+    // exportedMethods) that scoring + the future feature-graph UI consume.
+    // `ctx.clonePath` may be falsy on dev paths where step03 was skipped;
+    // we tolerate that and pass an empty path which the route extractors
+    // handle gracefully (they only need fileTree).
+    try {
+      state.routeInventory = await buildRouteInventory(
+        ctx.clonePath ?? '',
+        state.fileTree
+      );
+    } catch (e) {
+      ctx.log('warn', 'buildRouteInventory failed', {
+        error: (e as Error).message,
+      });
+      // state.routeInventory keeps its EMPTY initial value — downstream
+      // consumers treat that as "no routes detected".
+    }
+
     ctx.log('info', 'Features detected', {
       count: features.length,
       byType: countByType(features),
+      routes: state.routeInventory.routes.length,
+      pages: state.routeInventory.counts.pages,
+      apis: state.routeInventory.counts.apis,
     });
   },
 };
