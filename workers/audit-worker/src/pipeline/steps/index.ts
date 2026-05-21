@@ -11,8 +11,12 @@ import type {
   CoverageMatrixEntry,
   DataModelInventory,
   RepoMetadata,
+  RouteInventory,
 } from '@cleartoship/shared-types';
-import { EMPTY_DATA_MODEL_INVENTORY } from '@cleartoship/shared-types';
+import {
+  EMPTY_DATA_MODEL_INVENTORY,
+  EMPTY_ROUTE_INVENTORY,
+} from '@cleartoship/shared-types';
 import type {
   AuditEvidence,
   BusinessEvidence,
@@ -48,6 +52,14 @@ export interface PipelineState {
    * stop returning N/A for the 데이터 모델 category on non-Prisma stacks.
    */
   dataModelInventory: DataModelInventory;
+  /**
+   * AST-derived route inventory built by step05 (PR-A3 / PRD §3.3) —
+   * Next.js App + Pages Router today, Express/Fastify/Hono follow-up.
+   * Always populated (no null); EMPTY for repos without recognised
+   * routes. Downstream scoring uses this for the 기능 관계도 category and
+   * the upcoming feature-graph UI's "23 pages, 17 APIs" breakdown.
+   */
+  routeInventory: RouteInventory;
   /** Cloned repo's file tree, populated by step03-clone-repo. */
   fileTree: string[];
   /** Tech stack guesses (flat label list — drives the report header). */
@@ -166,6 +178,7 @@ export function createInitialState(): PipelineState {
   return {
     repoMetadata: null,
     dataModelInventory: EMPTY_DATA_MODEL_INVENTORY,
+    routeInventory: EMPTY_ROUTE_INVENTORY,
     fileTree: [],
     techStack: [],
     frameworkProfile: null,
