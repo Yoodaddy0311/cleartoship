@@ -184,17 +184,50 @@ RUN set -eu; \
     rm /tmp/osv-scanner; \
     osv-scanner --version
 
+# Phase A — typescript-language-server backbone (PRD `lsp-backbone-2026-05-21.md` §2 P1.4).
+#
+# `workers/audit-worker/src/lsp/typescript-server.ts` spawns the binary as
+# `typescript-language-server --stdio` and drives it over vscode-jsonrpc.
+# tsserver (Microsoft's compiler-server) is the inner engine the LSP
+# delegates to, so both packages must be installed in the same image and
+# share a major version (PRD §2 risk table flags TS 6.x ESM-first as the
+# next break point — the floor pin keeps that change explicit, not silent).
+#
+# typescript version (^5.4.5) tracks the rest of the monorepo (root +
+# audit-core + shared-types + audit-worker package.json) so the LSP runs
+# the same TS as the project that built the worker — eliminates "works on
+# Node, breaks on LSP" parser drift class of bugs.
+#
+# typescript-language-server 4.3.4 is the most recent 4.x release as of
+# 2026-05. Bump procedure: change the ARG, rebuild, confirm
+# `typescript-language-server --version` matches the new pin AND the LSP
+# pipeline step still parses our own monorepo without regression. Holding
+# on 4.x deliberately — 5.x ships ESM-only which would force the audit
+# worker's CJS spawn path through interop shims.
+#
+# Build-time `--version` self-test gates the layer (burnt-in rule:
+# "build-time self-tests beat runtime smoke"). smoke-tools.sh adds a
+# runtime probe that catches the binary disappearing from PATH between
+# image rebuilds — same UX as the existing semgrep/osv-scanner probes.
+ARG TYPESCRIPT_LANGUAGE_SERVER_VERSION=4.3.4
+ARG TYPESCRIPT_VERSION=5.4.5
+RUN npm install -g \
+      "typescript-language-server@${TYPESCRIPT_LANGUAGE_SERVER_VERSION}" \
+      "typescript@${TYPESCRIPT_VERSION}" \
+    && typescript-language-server --version \
+    && tsc --version
+
 # P0.W2.8 — chown playwright dir BEFORE switching to USER worker (R-P0-2).
 RUN chown -R worker:worker /opt/ms-playwright
 # P0.W2.9 — chown app dir BEFORE switching to USER worker.
 RUN chown -R worker:worker /app
 
-# P0.W4.2 — build-time smoke gate (git + chromium + semgrep + osv-scanner probe).
+# P0.W4.2 — build-time smoke gate (git + chromium + semgrep + osv-scanner + typescript-language-server probe).
 COPY workers/audit-worker/scripts/smoke-tools.sh /usr/local/bin/smoke-tools.sh
 RUN chmod +x /usr/local/bin/smoke-tools.sh && /usr/local/bin/smoke-tools.sh
 
 USER worker
 EXPOSE 8080
 
-# Phase 1 — git + chromium + semgrep + osv-scanner installed. Phase 2: prisma + tailwind detectors.
+# Phase 1 + A — git + chromium + semgrep + osv-scanner + typescript-language-server installed. Phase 2: prisma + tailwind detectors.
 CMD ["node", "workers/audit-worker/dist/server.js"]
