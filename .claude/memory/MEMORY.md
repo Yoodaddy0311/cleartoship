@@ -9,5 +9,7 @@
 - [pnpm monorepo + Docker — 4-iteration lesson](feedback_pnpm_monorepo_docker.md) — burnt-in fix patterns for Playwright + multi-stage builds
 - [Phase 0 PRD reference](reference_phase0_prd.md) — pointer to the 750-line plan + how to read it
 - [Static lint tools installed locally](reference_lint_tools.md) — shellcheck/hadolint/actionlint paths + reproduction commands
+- [gcloud IAM + WIF burnt-in lessons (2026-05-20)](feedback_gcloud_iam_wif.md) — 5 IAM/Cloud Run traps from Phase 0 prod deploy
+- [Visual audit UX vision — Phase 2/3 candidates](project_visual_audit_vision.md) — 비개발자가 audit 결과를 시각적으로 이해하게 만드는 V1/V2/V3 후보
 
 > `user_profile.md` is intentionally **not committed** — it lives only in the host's local memory dir as a personal preference scratch pad. Each contributor can write their own.
