@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# smoke-tools.sh — Phase 1 tooling probe.
+# smoke-tools.sh — Phase 0 + 1 + A tooling probe.
 #
 # Used in two places:
 #   1. Build time — Dockerfile RUN gates the image build, so a broken
@@ -8,7 +8,8 @@
 #      confirm tooling survived a deploy.
 #
 # Phase 0 surface: git, chromium.
-# Phase 1 surface: + semgrep, osv-scanner.
+# Phase 1 surface: + semgrep (with pysemgrep PATH guard), osv-scanner.
+# Phase A surface: + typescript-language-server (LSP backbone PRD §2 P1.4).
 #
 # Exit 0 = all required tools found. Exit 1 = at least one missing.
 
@@ -87,15 +88,39 @@ check_osv_scanner() {
   echo "[smoke] OK:   $version"
 }
 
+check_typescript_language_server() {
+  # PRD `lsp-backbone-2026-05-21.md` §2 P1.4 — LSP backbone for the
+  # symbol-inventory + cross-reference + diagnostics pipeline steps.
+  # `workers/audit-worker/src/lsp/typescript-server.ts` spawns this binary
+  # with `--stdio` and drives it over vscode-jsonrpc. The pipeline step
+  # soft-skips when the tool is unavailable (audit-quality-framework §B.4),
+  # so this smoke gate is the canonical "is the image healthy" assertion —
+  # without it a regression that removes the binary would show up only as
+  # `symbolInventory.summary.skipped = true` in production audits.
+  if ! command -v typescript-language-server >/dev/null 2>&1; then
+    echo "[smoke] FAIL: typescript-language-server not found in PATH"
+    fail=1
+    return
+  fi
+  version=$(typescript-language-server --version 2>/dev/null | head -n1 || true)
+  if [[ -z "$version" ]]; then
+    echo "[smoke] FAIL: 'typescript-language-server --version' produced no output"
+    fail=1
+    return
+  fi
+  echo "[smoke] OK:   typescript-language-server $version"
+}
+
 check_git
 check_chromium
 check_semgrep
 check_osv_scanner
+check_typescript_language_server
 
 if [[ "$fail" != "0" ]]; then
   echo "[smoke] One or more required tools missing. See errors above."
   exit 1
 fi
 
-echo "[smoke] Phase 1 surface OK (git + chromium + semgrep + osv-scanner)."
+echo "[smoke] Phase 0+1+A surface OK (git + chromium + semgrep + osv-scanner + typescript-language-server)."
 exit 0
