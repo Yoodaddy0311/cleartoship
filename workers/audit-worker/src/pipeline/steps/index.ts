@@ -240,7 +240,12 @@ import { step16AnalyzeDataModel } from './16-analyze-data-model.js';
 import { step09AnalyzeDeployUrl } from './09-analyze-deploy-url.js';
 import { step17DesignConsistency } from './17-design-consistency.js';
 import { step13bAnalyzeBusinessReadiness } from './13b-analyze-business-readiness.js';
-import { step20SymbolInventory } from './20-symbol-inventory.js';
+// TEMP DISABLE — LSP client (`workers/audit-worker/src/lsp/*`) doesn't catch
+// child process `'error'` events on spawn ENOENT, causing container exit(1)
+// and stuck audit runs. Re-enable after lsp-backend hotfix (Task #14) lands
+// with proper error handlers + soft-skip semantics. See PR #53 (revert) and
+// prod log evidence from 2026-05-26.
+// import { step20SymbolInventory } from './20-symbol-inventory.js';
 import { step10GenerateFeatureGraph } from './10-generate-feature-graph.js';
 import { step11MapChecklist } from './11-map-checklist.js';
 import { step12CalculateScores } from './12-calculate-scores.js';
@@ -263,7 +268,7 @@ export const STEP_REGISTRY: ReadonlyArray<Step> = [
   step09AnalyzeDeployUrl,
   step17DesignConsistency,
   step13bAnalyzeBusinessReadiness,
-  step20SymbolInventory,
+  // step20SymbolInventory,  // TEMP DISABLE — see import comment above
   step10GenerateFeatureGraph,
   step11MapChecklist,
   step12CalculateScores,
