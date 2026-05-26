@@ -238,7 +238,7 @@ describe('step06StaticAnalysis', () => {
     expect(logCalls.some((c) => String(c[1]).includes('JSON parse failed'))).toBe(true);
   });
 
-  it('passes correct semgrep CLI args to spawnTool (config=auto, json, target=clonePath)', async () => {
+  it('passes correct semgrep CLI args to spawnTool (config=p/owasp-top-ten, json, target=clonePath)', async () => {
     const ctx = makeCtx({ clonePath: '/tmp/cleartoship-X' });
     const state: PipelineState = createInitialState();
     spawnToolMock.mockResolvedValueOnce({
@@ -253,7 +253,7 @@ describe('step06StaticAnalysis', () => {
 
     const [cmd, args] = spawnToolMock.mock.calls[0] as [string, string[]];
     expect(cmd).toBe('semgrep');
-    expect(args).toContain('--config=auto');
+    expect(args).toContain('--config=p/owasp-top-ten');
     expect(args).toContain('--json');
     expect(args).toContain('/tmp/cleartoship-X');
   });

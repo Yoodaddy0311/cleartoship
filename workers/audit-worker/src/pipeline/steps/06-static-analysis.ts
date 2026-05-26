@@ -1,5 +1,13 @@
-// Semgrep CE static analysis. Invokes `semgrep --config=auto --json` against
-// the cloned working tree. Gracefully skips when the binary is not present.
+// Semgrep CE static analysis. Invokes `semgrep --config=p/owasp-top-ten --json`
+// against the cloned working tree. Gracefully skips when the binary is not present.
+//
+// Config choice: `p/owasp-top-ten` (NOT `--config=auto`). Two reasons:
+//   1. `auto` requires `--metrics=on` (telemetry); we run with `--metrics=off`
+//      for privacy, so `auto` fails with exit code 2 ("Cannot create auto
+//      config when metrics are off").
+//   2. PR #38 Dockerfile build-time warms the `p/owasp-top-ten` registry cache
+//      (`semgrep --config=p/owasp-top-ten --version` during image build), so
+//      first-run cost is near-zero.
 
 import type { Step } from './index.js';
 import type { NormalizedFinding } from '../../adapters/index.js';
@@ -100,7 +108,7 @@ export const step06StaticAnalysis: Step = {
 
     const result = await spawnTool(
       'semgrep',
-      ['--config=auto', '--json', '--quiet', '--timeout=60', '--metrics=off', ctx.clonePath],
+      ['--config=p/owasp-top-ten', '--json', '--quiet', '--timeout=60', '--metrics=off', ctx.clonePath],
       { timeoutMs: 180_000 },
     );
 
