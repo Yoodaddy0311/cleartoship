@@ -119,28 +119,36 @@ RUN set -eu; \
 
 # P1.W1.2 — semgrep via an explicit venv (NOT pipx).
 #
-# Four prior attempts failed (commits a4871e9, c0316f6, 3363013, a145d11):
+# Five prior attempts failed (commits a4871e9, c0316f6, 3363013, a145d11, bf0f3be):
 #   1-3: pipx-isolated venv — `ModuleNotFoundError: No module named 'pkg_resources'`
 #        even after `pipx inject setuptools`.
-#   4:   plain venv — pip install SUCCEEDED (setuptools 82.0.1 + semgrep 1.86.0
-#        installed cleanly), but `semgrep --version` failed with:
-#          [ERROR]: Error: exception Unix_error: No such file or directory execvp pysemgrep
-#          Raised at CLI.safe_run in src/osemgrep/cli/CLI.ml line 266
-#        The semgrep 1.x dist ships an OCaml `osemgrep` binary that shells out
-#        to its Python sibling `pysemgrep` via `execvp`, which searches PATH.
-#        Symlinking only `semgrep` left `pysemgrep` unreachable from PATH.
+#   4:   plain venv with `semgrep` symlink only — `semgrep --version` failed
+#        with `execvp pysemgrep` (OCaml osemgrep can't find its Python sibling
+#        on PATH).
+#   5:   plain venv with BOTH `semgrep` AND `pysemgrep` symlinked. pysemgrep
+#        booted but crashed at startup with:
+#          ModuleNotFoundError: No module named 'pkg_resources'
+#          from pkg_resources import (
+#        despite `pip install --upgrade setuptools` reporting success.
 #
-# Fix (attempt 5): symlink BOTH `semgrep` AND `pysemgrep` from the venv into
-# /usr/local/bin. The venv's pip generates wrapper scripts with venv-absolute
-# shebangs (`#!/opt/semgrep-venv/bin/python3`), so a symlink (not a copy) is
-# enough — Python resolves `sys.executable` via /proc/self/exe and the shebang
-# still points at the venv interpreter regardless of how the script was invoked.
+# Root cause (attempt 5 → attempt 6 fix):
+#   setuptools 82.0.0 (released 2026-02-08, per PyPA setuptools history)
+#   COMPLETELY REMOVED the `pkg_resources` module. It had been deprecated
+#   since v67.5.0 (2023-03) and a removal deadline was announced in v80.9.0
+#   (2025-05). `pip install --upgrade setuptools` happily pulled 82.0.1 into
+#   our venv, leaving pysemgrep (which still imports pkg_resources at startup)
+#   without its dependency.
 #
-# Lessons captured in `.claude/memory/feedback_pipx_python_docker.md`.
+# Fix (attempt 6): pin `setuptools<82`. setuptools 81.x is the last line that
+# still ships pkg_resources, otherwise a drop-in for the deprecation-warning
+# story we've been seeing. When semgrep upstream migrates off pkg_resources,
+# remove this pin in lock-step with the semgrep version bump.
+#
+# attempts 1-5 lessons captured in `.claude/memory/feedback_pipx_python_docker.md`.
 # Build-time self-test (`semgrep --version`) per burnt-in Rule "build-time
 # self-tests beat runtime smoke".
 RUN python3 -m venv /opt/semgrep-venv && \
-    /opt/semgrep-venv/bin/pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    /opt/semgrep-venv/bin/pip install --no-cache-dir --upgrade pip "setuptools<82" wheel && \
     /opt/semgrep-venv/bin/pip install --no-cache-dir semgrep==1.86.0 && \
     ln -sfn /opt/semgrep-venv/bin/semgrep /usr/local/bin/semgrep && \
     ln -sfn /opt/semgrep-venv/bin/pysemgrep /usr/local/bin/pysemgrep && \
