@@ -55,8 +55,14 @@ describe('getToolsHealth()', () => {
     vi.restoreAllMocks();
   });
 
-  it('exposes TOOL_NAMES = [semgrep, osv-scanner, lighthouse, git]', () => {
-    expect(TOOL_NAMES).toEqual(['semgrep', 'osv-scanner', 'lighthouse', 'git']);
+  it('exposes TOOL_NAMES with the full Phase 0+1+A surface', () => {
+    expect(TOOL_NAMES).toEqual([
+      'semgrep',
+      'osv-scanner',
+      'lighthouse',
+      'git',
+      'typescript-language-server',
+    ]);
   });
 
   it('returns status=found with parsed version when all 4 tools succeed', async () => {
@@ -105,13 +111,20 @@ describe('getToolsHealth()', () => {
 
     await getToolsHealth();
 
-    expect(spawnSyncMock).toHaveBeenCalledTimes(4);
+    // Phase A added the typescript-language-server probe — bump from 4 to 5.
+    expect(spawnSyncMock).toHaveBeenCalledTimes(5);
     const calls = spawnSyncMock.mock.calls.map((c) => ({
       cmd: c[0] as string,
       args: c[1] as string[],
     }));
     const cmds = calls.map((c) => c.cmd).sort();
-    expect(cmds).toEqual(['git', 'lighthouse', 'osv-scanner', 'semgrep']);
+    expect(cmds).toEqual([
+      'git',
+      'lighthouse',
+      'osv-scanner',
+      'semgrep',
+      'typescript-language-server',
+    ]);
     for (const c of calls) {
       expect(c.args).toContain('--version');
     }

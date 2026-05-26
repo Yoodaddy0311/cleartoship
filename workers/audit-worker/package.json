@@ -27,6 +27,7 @@
     "lighthouse": "^12.2.1",
     "playwright": "^1.45.0",
     "simple-git": "^3.25.0",
+    "vscode-jsonrpc": "^8.2.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {

@@ -23,6 +23,12 @@ export const AUDIT_STEPS = [
   'ANALYZE_DEPLOY_URL',
   'CHECK_DESIGN_CONSISTENCY',
   'ANALYZE_BUSINESS_READINESS',
+  // Phase A — Symbol Inventory (PRD `lsp-backbone-2026-05-21.md` v2 §3).
+  // Sits before GENERATE_FEATURE_GRAPH so downstream feature/graph rendering
+  // can read `state.symbolInventory` once we wire up the Symbol Explorer.
+  // Soft-skip semantics: when typescript-language-server is absent the step
+  // records SKIPPED + leaves the empty inventory in state (no scorer impact).
+  'SYMBOL_INVENTORY',
   'GENERATE_FEATURE_GRAPH',
   'MAP_CHECKLIST',
   'CALCULATE_SCORES',
@@ -51,6 +57,7 @@ export const AUDIT_STEP_LABELS_KO: Record<AuditStep, string> = {
   ANALYZE_DEPLOY_URL: '배포 URL 진단',
   CHECK_DESIGN_CONSISTENCY: '디자인 일관성 점검',
   ANALYZE_BUSINESS_READINESS: '비즈니스 준비도 점검',
+  SYMBOL_INVENTORY: '코드 심볼 인벤토리',
   GENERATE_FEATURE_GRAPH: '기능 관계도 구성',
   MAP_CHECKLIST: '체크리스트 매핑',
   CALCULATE_SCORES: '점수 계산',

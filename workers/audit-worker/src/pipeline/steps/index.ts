@@ -12,10 +12,12 @@ import type {
   DataModelInventory,
   RepoMetadata,
   RouteInventory,
+  SymbolInventory,
 } from '@cleartoship/shared-types';
 import {
   EMPTY_DATA_MODEL_INVENTORY,
   EMPTY_ROUTE_INVENTORY,
+  EMPTY_SYMBOL_INVENTORY,
 } from '@cleartoship/shared-types';
 import type {
   AuditEvidence,
@@ -60,6 +62,15 @@ export interface PipelineState {
    * the upcoming feature-graph UI's "23 pages, 17 APIs" breakdown.
    */
   routeInventory: RouteInventory;
+  /**
+   * LSP-derived symbol inventory built by step20-symbol-inventory.ts
+   * (PRD `lsp-backbone-2026-05-21.md` v2 §3, Phase A P2). Always populated
+   * (no null) — EMPTY_SYMBOL_INVENTORY when the LSP soft-skip path runs.
+   * The scorer treats "EMPTY" identically to "step did not run" via the
+   * separate `executedSteps` channel (BUG-1 invariant), so no second null
+   * branch is needed for the consumer.
+   */
+  symbolInventory: SymbolInventory;
   /**
    * PR-A4-fix — boolean flags indicating which inventories carried evidence
    * during this run. Surfaced in the dashboard's strengths panel as
@@ -190,6 +201,7 @@ export function createInitialState(): PipelineState {
     repoMetadata: null,
     dataModelInventory: EMPTY_DATA_MODEL_INVENTORY,
     routeInventory: EMPTY_ROUTE_INVENTORY,
+    symbolInventory: { ...EMPTY_SYMBOL_INVENTORY },
     inventorySignals: { repoMetadata: false, dataModel: false, routes: false },
     fileTree: [],
     techStack: [],
@@ -228,6 +240,7 @@ import { step16AnalyzeDataModel } from './16-analyze-data-model.js';
 import { step09AnalyzeDeployUrl } from './09-analyze-deploy-url.js';
 import { step17DesignConsistency } from './17-design-consistency.js';
 import { step13bAnalyzeBusinessReadiness } from './13b-analyze-business-readiness.js';
+import { step20SymbolInventory } from './20-symbol-inventory.js';
 import { step10GenerateFeatureGraph } from './10-generate-feature-graph.js';
 import { step11MapChecklist } from './11-map-checklist.js';
 import { step12CalculateScores } from './12-calculate-scores.js';
@@ -250,6 +263,7 @@ export const STEP_REGISTRY: ReadonlyArray<Step> = [
   step09AnalyzeDeployUrl,
   step17DesignConsistency,
   step13bAnalyzeBusinessReadiness,
+  step20SymbolInventory,
   step10GenerateFeatureGraph,
   step11MapChecklist,
   step12CalculateScores,

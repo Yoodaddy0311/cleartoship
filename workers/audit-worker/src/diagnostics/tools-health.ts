@@ -16,7 +16,17 @@
 
 import { spawnSync } from 'node:child_process';
 
-export const TOOL_NAMES = ['semgrep', 'osv-scanner', 'lighthouse', 'git'] as const;
+// PRD `lsp-backbone-2026-05-21.md` §2 (P1.4) adds `typescript-language-server`
+// as the LSP backbone. The probe sits alongside the existing CLI tools so
+// /healthz surfaces a SKIPPED indicator the moment the LSP binary disappears
+// from the image — same UX as a missing semgrep.
+export const TOOL_NAMES = [
+  'semgrep',
+  'osv-scanner',
+  'lighthouse',
+  'git',
+  'typescript-language-server',
+] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
 export type ToolStatus = 'found' | 'missing';
