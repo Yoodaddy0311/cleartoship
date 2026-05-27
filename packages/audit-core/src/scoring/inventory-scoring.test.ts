@@ -459,3 +459,53 @@ describe('calculateScores — Phase 1.3 inventory baselines (integration)', () =
     expect(r.categoryScores.find((c) => c.category === 'DATA_MODEL')!.score).toBeNull();
   });
 });
+
+describe('calculateScores — Phase 2 patternScores integration', () => {
+  it('lifts a no-measuredBy category (FRONTEND_CODE) to its pattern score', () => {
+    const r = calculateScores({
+      findings: [],
+      patternScores: { FRONTEND_CODE: { score: 78, origin: 'D' } },
+    });
+    const fc = r.categoryScores.find((c) => c.category === 'FRONTEND_CODE')!;
+    expect(fc.score).toBe(78);
+    expect(fc.origin).toBe('D');
+  });
+
+  it('lifts MAINTAINABILITY_DOCUMENTATION from N/A to its pattern score', () => {
+    const r = calculateScores({
+      findings: [],
+      patternScores: { MAINTAINABILITY_DOCUMENTATION: { score: 85, origin: 'D' } },
+    });
+    expect(
+      r.categoryScores.find((c) => c.category === 'MAINTAINABILITY_DOCUMENTATION')!.score,
+    ).toBe(85);
+  });
+
+  it('a pattern score takes precedence over an inventory baseline for the same category', () => {
+    const r = calculateScores({
+      findings: [],
+      inventories: { routeInventory: routeInventoryWith(3) }, // FEATURE_GRAPH baseline 50
+      patternScores: { FEATURE_GRAPH: { score: 82, origin: 'D' } },
+    });
+    expect(r.categoryScores.find((c) => c.category === 'FEATURE_GRAPH')!.score).toBe(82);
+  });
+
+  it('does NOT override a measured category (SECURITY_PRIVACY has a measuredBy step)', () => {
+    const r = calculateScores({
+      findings: [],
+      patternScores: { SECURITY_PRIVACY: { score: 10, origin: 'D' } },
+    });
+    // SECURITY_PRIVACY is not N/A → the pattern score is ignored; no findings → 100.
+    expect(r.categoryScores.find((c) => c.category === 'SECURITY_PRIVACY')!.score).toBe(100);
+  });
+
+  it('a pattern-scored category enters the weighted average', () => {
+    const withP = calculateScores({
+      findings: [],
+      patternScores: { MAINTAINABILITY_DOCUMENTATION: { score: 40, origin: 'D' } },
+    });
+    const without = calculateScores({ findings: [] });
+    expect(without.readinessScore).toBe(100);
+    expect(withP.readinessScore).toBeLessThan(100);
+  });
+});

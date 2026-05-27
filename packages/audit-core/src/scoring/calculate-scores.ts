@@ -221,6 +221,18 @@ export interface ScoringInput {
   /** PR-A4 source-driven inventories. See `SourceInventories` doc. */
   readonly inventories?: SourceInventories;
   /**
+   * Audit Quality Roadmap §5 (Phase 2) — pre-computed Pattern Library scores
+   * per category, supplied by the worker (which runs the deterministic
+   * detectors in `patterns/*-patterns.ts` over `state.fileTree` + W1-A
+   * markers). A pattern score takes precedence over an inventory baseline for
+   * the same category, and like a baseline it only applies to a category that
+   * is otherwise N/A for lack of a measuredBy step. Omitting it preserves
+   * prior behaviour.
+   */
+  readonly patternScores?: Partial<
+    Record<AuditCategory, { readonly score: number; readonly origin: ScoreOrigin }>
+  >;
+  /**
    * Pipeline steps that actually executed end-to-end. When supplied, any
    * category whose `measuredBy` lists steps not in this set is reported as
    * N/A — its 100-baseline is not a real measurement (BUG-1).
@@ -402,12 +414,14 @@ export function calculateScores(input: ScoringInput): ScoringResult {
       meta.measuredBy.length > 0 &&
       meta.measuredBy.some((s) => !executedSet.has(s));
 
-    // Phase 1.3 (roadmap §4.3): a structural category that is N/A *purely*
-    // because it has no measuredBy step gets lifted to a deterministic
-    // inventory baseline when the file-tree inventory carries structure.
-    // Coverage-driven or measured-but-not-run N/A is NOT overridden — those
-    // are genuine "we could not measure" signals, not "no registry mapping".
-    const baseline = inventoryBaselines.get(meta.category);
+    // Phase 1.3 (§4.3) + Phase 2 (§5): a structural category that is N/A
+    // *purely* because it has no measuredBy step gets lifted to a
+    // deterministic score. Precedence: a Phase 2 Pattern Library score (richer)
+    // wins over a Phase 1.3 inventory baseline (coarser) for the same category.
+    // Coverage-driven or measured-but-not-run N/A is NOT overridden — those are
+    // genuine "we could not measure" signals, not "no registry mapping".
+    const baseline =
+      input.patternScores?.[meta.category] ?? inventoryBaselines.get(meta.category);
     const useBaseline =
       baseline !== undefined && noMeasurement && !coverageNA && !measuredButNotRun;
 

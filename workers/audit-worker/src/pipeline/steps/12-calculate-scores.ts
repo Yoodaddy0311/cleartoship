@@ -2,6 +2,8 @@ import type { Step } from './index.js';
 import {
   calculateScores,
   getProfile,
+  scoreFrontendCode,
+  scoreMaintainability,
   type AvailableTools,
 } from '@cleartoship/audit-core';
 import { getToolsHealthSync } from '../../diagnostics/tools-health.js';
@@ -49,6 +51,42 @@ export const step12CalculateScores: Step = {
       deployUrlReachable: !!ctx.deployUrl,
     };
     const availableTools = probeAvailableTools();
+    // Phase 2 (Audit Quality Roadmap §5) — deterministic Pattern Library scores
+    // for the two structural categories still N/A after Phase 1.3. The
+    // detectors are pure over `state.fileTree` + the W1-A file markers; they
+    // run here rather than in a dedicated pipeline step because every input is
+    // already on `state` at scoring time (no second file walk needed). Each
+    // returns null when the category is genuinely not assessable (no frontend
+    // code / empty file tree) → the category stays N/A.
+    const componentFeatureCount = state.detectedFeatures.filter(
+      (f) => f.type === 'component',
+    ).length;
+    const frontendScore = scoreFrontendCode({
+      fileTree: state.fileTree,
+      componentFeatureCount,
+      pageCount: state.routeInventory.counts.pages,
+    });
+    const maintainabilityScore = scoreMaintainability({
+      fileTree: state.fileTree,
+      hasReadme: state.w1aEvidence.README_PRESENT,
+      hasTests: state.w1aEvidence.TESTS_DIR_PRESENT,
+      hasCiConfig: state.w1aEvidence.CI_CONFIG_PRESENT,
+      hasLicense: state.w1aEvidence.LICENSE_PRESENT,
+      hasPackageScripts: state.w1aEvidence.PACKAGE_SCRIPTS_PRESENT,
+    });
+    const patternScores = {
+      ...(frontendScore
+        ? { FRONTEND_CODE: { score: frontendScore.score, origin: frontendScore.origin } }
+        : {}),
+      ...(maintainabilityScore
+        ? {
+            MAINTAINABILITY_DOCUMENTATION: {
+              score: maintainabilityScore.score,
+              origin: maintainabilityScore.origin,
+            },
+          }
+        : {}),
+    };
     // T2.4: resolve the audit profile selected at run start (if any). Unknown
     // / missing ids return null — `applyProfileWeights` is a no-op under
     // null, so spec defaults still apply. `getProfile` swallows typos/legacy
@@ -76,6 +114,12 @@ export const step12CalculateScores: Step = {
         dataModelInventory: state.dataModelInventory,
         routeInventory: state.routeInventory,
       },
+      // Phase 2 (§5) — Pattern Library scores for FRONTEND_CODE /
+      // MAINTAINABILITY_DOCUMENTATION. The scorer applies these only to
+      // categories that are otherwise N/A for lack of a measuredBy step, and a
+      // pattern score wins over a Phase 1.3 inventory baseline for the same
+      // category.
+      patternScores,
       // Audit Quality Roadmap §4.1 — external (W1-A file-marker) evidence for
       // the 7-Question Launch Gate. The scorer derives the rest (P0 count,
       // deploy reachability, category scores) from its own output.
