@@ -35,7 +35,7 @@ REQUIREMENT_COVERAGE) are addressed by an opt-in Claude Code skill bundle
 | 5 IMPROVE | DONE | honest scope reconciliation (PR-A4-fix), dropped non-deterministic patterns rather than faking them, generalized baseline→pattern precedence | — |
 | 6 REPORT | DONE | this file | — |
 
-## 3. Commits (on `feat/audit-quality-phase1`, NOT pushed)
+## 3. Commits (on `feat/audit-quality-phase1`, **pushed → PR #57**)
 
 | SHA | Scope |
 |---|---|
@@ -43,6 +43,11 @@ REQUIREMENT_COVERAGE) are addressed by an opt-in Claude Code skill bundle
 | `4af4616` | Phase 1.2 — OSV/CISA KEV coverage refresh (Python stdlib script + weekly workflow) |
 | `4f9e2a8` | Phase 2 — Pattern Library: score model + FRONTEND_CODE + MAINTAINABILITY detectors + docs |
 | `222acd0` | Phase 3 — L-bucket skill bundle (4 skills) + architecture/contract doc |
+| `b85a41a` | session report (this file) |
+| `7a28028` | Phase 3 — D+L score blend (`blendScores`, §6.5) |
+| `58f1417` | Phase 3 — async enrichment opt-in path (§6.6): `aiEnhanced` flag + enrichment schemas + `applyEnrichment` + form checkbox + dashboard merge |
+
+PR: https://github.com/Yoodaddy0311/cleartoship/pull/57
 
 ## 4. What shipped, by phase
 
@@ -76,19 +81,27 @@ REQUIREMENT_COVERAGE) are addressed by an opt-in Claude Code skill bundle
 
 ## 7. Queued / remaining work (honest)
 
-1. **Push + PR**: the 4 commits are on `feat/audit-quality-phase1`, NOT pushed (outward-facing — left for operator approval). Roadmap §10 L1 suggested 3 PRs; the work is committed as 4 logical commits and can be split or PR'd as-is.
-2. **Phase 3 runtime wiring** (intentionally deferred — needs a product decision, see architecture doc §"Remaining wiring"):
-   - Persist a skill's L-score back onto the report (write path keyed by `commitSha+category`, gated by the opt-in flag).
-   - "AI enhanced" toggle on the audit-start form + "AI-assisted" badge on `CategoryScore` rows where `origin ∈ {'L','mixed'}` (schema already supports it).
-3. **Phase 2 enrichment** (optional): FEATURE_GRAPH/FUNCTIONAL_FLOW/DATA_MODEL currently use Phase 1.3 baselines; they could be upgraded to full Pattern Library detectors (route-edge density, flow patterns, schema relations) the same way FRONTEND_CODE/MAINTAINABILITY were.
-4. **LSP re-enable** (orthogonal, roadmap §10 L6): SYMBOL_INVENTORY is still disabled (PR #54). When re-enabled, FRONTEND_CODE patterns could use richer component/function counts instead of file-tree heuristics.
+Phase 3 runtime wiring chosen model = **async enrichment job** (operator
+decision, 2026-05-27). The deterministic spine is built (opt-in flag → schemas
+→ `applyEnrichment` blend → dashboard merge + badge). **One** boundary remains:
+
+1. **The enrichment job runner** — a process that, on a completed opt-in run
+   (`AuditRun.aiEnhanced`), opens a Claude Agent SDK session loading
+   `.claude/skills/audit-*`, produces a `CategoryEnrichment[]`, and writes
+   `report.enrichment`. Left unimplemented: needs the **Anthropic API key** +
+   per-category token-budget/cost ownership, and an **infra deploy target**
+   (Cloud Run job / Cloud Function on a Firestore `onCreate(completed +
+   aiEnhanced)` trigger). Everything before/after the boundary is built +
+   tested; the runner only has to emit a valid `AuditEnrichment`. Build notes
+   in `docs/skills/audit-l-bucket-architecture.md` §"Remaining boundary".
+2. **Phase 2 enrichment** (optional): FEATURE_GRAPH/FUNCTIONAL_FLOW/DATA_MODEL
+   use Phase 1.3 baselines; could be upgraded to full Pattern Library detectors
+   (route-edge density, flow patterns, schema relations) like FRONTEND_CODE/MNT.
+3. **LSP re-enable** (orthogonal, §10 L6): SYMBOL_INVENTORY still disabled
+   (PR #54); when back, FRONTEND_CODE patterns could use richer symbol counts.
 
 ## 8. Next action
 
-```bash
-# review the branch
-git -C . log --oneline main..feat/audit-quality-phase1
-git -C . diff main..feat/audit-quality-phase1 --stat
-# when satisfied:
-git push -u origin feat/audit-quality-phase1   # operator decision
-```
+- Review + merge **PR #57**.
+- To finish the L bucket: implement the enrichment job runner (item 7.1) once
+  the API key + deploy target are decided.
