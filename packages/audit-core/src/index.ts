@@ -4,6 +4,7 @@ export * from './scoring/checklist-mapping.js';
 export * from './scoring/calculate-scores.js';
 export * from './scoring/inventory-scoring.js';
 export * from './scoring/blend-scores.js';
+export * from './scoring/apply-enrichment.js';
 export * from './launch-gate/seven-question-gate.js';
 export * from './patterns/score-from-patterns.js';
 export * from './patterns/frontend-code-patterns.js';

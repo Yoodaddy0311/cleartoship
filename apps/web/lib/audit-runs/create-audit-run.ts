@@ -107,6 +107,14 @@ export interface CreateAuditRunOptions {
    * the guardrail end-to-end without leaking real IPs into the path id.
    */
   clientIp?: string | null;
+  /**
+   * Audit Quality Roadmap §6.6 — opt-in "AI enhanced" flag from the start form.
+   * Carried via options (not the shared `CreateAuditRunRequest`, which omits
+   * the field) so the AuditRun doc records `aiEnhanced: true` and a post-audit
+   * async enrichment job may run. Default / false keeps the audit fully
+   * deterministic.
+   */
+  aiEnhanced?: boolean;
 }
 
 /**
@@ -259,6 +267,10 @@ export async function createAuditRun(
     // the worker resolves `getProfile(run.profileId)` and falls back to spec
     // defaults when the field is absent.
     ...(request.profileId ? { profileId: request.profileId } : {}),
+    // §6.6: persist the opt-in "AI enhanced" flag. Conditionally spread (only
+    // when true) for the same Firestore-vs-undefined reason as profileId above
+    // — absent ⇒ the converter treats it as false (fully deterministic audit).
+    ...(options.aiEnhanced ? { aiEnhanced: true } : {}),
     createdAt: now,
     updatedAt: now,
   };

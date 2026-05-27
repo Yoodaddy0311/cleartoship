@@ -18,6 +18,7 @@ import {
   PartialResultBanner,
 } from '@/components/common/resource-state-panel';
 import { usePrefetchGraphCanvas } from '@/components/feature-graph/use-prefetch-graph-canvas';
+import { applyEnrichment } from '@cleartoship/audit-core';
 import { categoryLabel } from '@/lib/format/category';
 import { t } from '@/lib/i18n';
 import { getAuditRun, getReport, listFindings } from '@/lib/api/audit-runs';
@@ -163,8 +164,19 @@ function DashboardBody({
 }) {
   const { report, findings, run } = data;
   const top5 = findings.findings.map((f) => adaptFinding(f));
-  const categoryScores = adaptCategoryScoresNullable(report.categoryScores);
-  const categoryOrigins = adaptCategoryScoreOrigins(report.categoryScores);
+  // §6 — fold the opt-in L-bucket enrichment into the deterministic category
+  // scores BEFORE adapting to the UI shapes. `applyEnrichment` is a pure merge:
+  // when an enrichment exists (status DONE) it blends each enriched category's
+  // D score with its L score and rewrites the origin to 'L'/'mixed' (the
+  // existing OriginBadge renders these as 🤖/⚙️); when absent / not DONE it
+  // returns the input unchanged, so behaviour is identical to today.
+  const mergedCategoryScores = applyEnrichment(
+    report.categoryScores,
+    report.enrichment,
+  );
+  const categoryScores = adaptCategoryScoresNullable(mergedCategoryScores);
+  const categoryOrigins = adaptCategoryScoreOrigins(mergedCategoryScores);
+  const enrichmentPending = report.enrichment?.status === 'PENDING';
 
   return (
     <>
@@ -262,6 +274,14 @@ function DashboardBody({
             {t('dashboard.categories.viewAll')}
           </Link>
         </div>
+        {/* §6.6: enrichment still running — a muted, non-blocking note. The
+            deterministic scores already render; the AI-blended values + 🤖/⚙️
+            origin badges swap in on the next load once status flips to DONE. */}
+        {enrichmentPending ? (
+          <p className="text-xs text-[color:var(--color-fg-muted)]">
+            AI 보조 분석 진행 중
+          </p>
+        ) : null}
         <CategoryGrid scores={categoryScores} origins={categoryOrigins} />
       </section>
 

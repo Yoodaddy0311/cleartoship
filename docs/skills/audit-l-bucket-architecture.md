@@ -104,19 +104,56 @@ A D+L **conflict** never silently averages away — it surfaces a ⚠️ flag (�
 Each lives in `.claude/skills/audit-*/SKILL.md` with a `description:` field whose
 keywords drive auto-trigger (the Claude-BugHunter pattern).
 
-## Remaining wiring (queued — needs a product decision)
+## Chosen model: async enrichment job
 
-The skill bundles + this contract are the L-bucket *knowledge layer*. Two pieces
-of *runtime wiring* are intentionally deferred because they need a product
-decision on cost/opt-in UX, not just code:
+The audit completes deterministically (D + F) and returns immediately. When the
+run is **opt-in** (`AuditRun.aiEnhanced === true`), a separate **async
+enrichment job** runs the `audit-*` skill bundle, blends each result with the D
+score, and persists it onto the report — the dashboard then re-renders blended
+scores with the AI-assisted badge. This keeps the runtime pipeline LLM-free.
 
-1. **Persistence of an L-score back onto the report** (a write path keyed by
-   `commitSha + category`, gated behind the opt-in flag). Until then the skills
-   produce narrative + an in-session score, not a persisted `scoreFinal`.
-2. **The "AI enhanced" toggle UI** on the audit-start form + the "AI-assisted"
-   badge on `CategoryScore` rows where `origin ∈ {'L','mixed'}`. The schema
-   already supports `origin: 'L' | 'mixed'`; the dashboard chip work is small
-   but should land with the toggle so users only ever see AI-assisted scores
-   they opted into.
+```
+audit done (D) ──▶ AuditRun.aiEnhanced? ──no──▶ (deterministic report only)
+                          │ yes
+                          ▼
+        Firestore onCreate(completed + aiEnhanced) ──▶ enrichment job
+                          │
+        Claude Agent SDK session loads .claude/skills/audit-*  →  per category:
+          scoreL + narrative (token-budgeted, cached by commitSha+category)
+                          │
+        write report.enrichment = { status:'DONE', categories:[…] }
+                          ▼
+        dashboard: applyEnrichment(report.categoryScores, report.enrichment)
+                   → blended score + origin 'L'/'mixed' + 🤖/⚙️ badge
+```
+
+### Built (this PR)
+
+- **Opt-in flag** — `AuditRun.aiEnhanced` + `CreateAuditRunRequest.aiEnhanced`
+  (shared-types); "AI 보조 분석 (옵션)" checkbox on the audit-start form, plumbed
+  through `create-audit-run`. Default OFF.
+- **Enrichment data shape** — `AuditEnrichment` / `CategoryEnrichment` +
+  `AuditReport.enrichment` (shared-types).
+- **Blend + merge** — audit-core `blendScores` (§6.5) and `applyEnrichment`
+  (folds enrichment into `categoryScores`, ⚠️ on conflict, immutable) +
+  `enrichmentCacheKey` + `ENRICHMENT_TOKEN_BUDGET_PER_CATEGORY`.
+- **Display** — dashboard merges via `applyEnrichment` before render; the
+  `OriginBadge` (🤖 L / ⚙️ mixed) + i18n tooltips already existed (PR-A4); a
+  muted "AI 보조 분석 진행 중" note shows on `enrichment.status === 'PENDING'`.
+
+### Remaining boundary (one piece — needs the Anthropic API key + a deploy target)
+
+The **enrichment job runner** itself: a process that, on a completed opt-in
+run, opens a Claude Agent SDK session loading `.claude/skills/audit-*`, produces
+a `CategoryEnrichment[]`, and writes `report.enrichment`. Everything up to and
+after this boundary is built and tested — the runner only has to emit a valid
+`AuditEnrichment`. It is left unimplemented here because it requires (a) an
+Anthropic API key + per-category token-budget/cost ownership decision, and
+(b) an infra deploy target (Cloud Run job vs Cloud Function on the Firestore
+`onCreate(completed + aiEnhanced)` trigger). Build notes:
+- Enforce `ENRICHMENT_TOKEN_BUDGET_PER_CATEGORY` per skill; truncate inputs.
+- Cache by `enrichmentCacheKey(commitSha, category)` — never re-judge a commit.
+- Set `report.enrichment.status` to `PENDING` on enqueue, `DONE`/`ERROR`/`SKIPPED`
+  on completion, so the dashboard note reflects progress.
 
 See the PRD §6.5–6.7 for the full target state.

@@ -60,6 +60,10 @@ export const en: Messages = {
   'home.form.profile.option.ecommerce': 'E-commerce (security, checkout, UX flows)',
   'home.form.profile.option.vibeCoded':
     'Vibe-coded (prompt consistency, implementation alignment)',
+  // Audit Quality Roadmap §6.6 — opt-in "AI enhanced" checkbox. Default OFF.
+  'home.form.aiEnhanced.label': 'AI-assisted analysis (optional)',
+  'home.form.aiEnhanced.hint':
+    'AI helps score language-judgment categories like PRODUCT_INTENT and REQUIREMENT_COVERAGE. Off by default — when on, it runs asynchronously after the audit completes.',
   'home.form.submit': 'Start Audit',
   'home.form.submitting': 'Requesting audit...',
   'home.form.auth.initializing': 'Preparing authentication...',

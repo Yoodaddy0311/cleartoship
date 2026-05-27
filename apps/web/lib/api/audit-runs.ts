@@ -33,6 +33,11 @@ export interface AuditRunCreateInput {
   // T2.4: optional domain audit profile id (e.g. 'landing' | 'saas' |
   // 'ecommerce'). Omit / undefined preserves spec-default scoring.
   profileId?: string;
+  // Audit Quality Roadmap §6.6: opt-in "AI enhanced" flag. Omit / false keeps
+  // the audit fully deterministic (no LLM). When true the server records
+  // `aiEnhanced: true` on the AuditRun so a post-audit async enrichment job may
+  // run. Default OFF — the form checkbox starts unchecked.
+  aiEnhanced?: boolean;
 }
 
 /**
