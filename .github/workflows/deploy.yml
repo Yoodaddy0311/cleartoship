@@ -310,11 +310,27 @@ jobs:
         # secretmanager.secretAccessor; the functions-runtime SA needs
         # roles/run.developer on this job to dispatch it.
         run: |
+          PROJECT="${{ secrets.GCP_PROJECT_ID }}"
+          SA="enrichment-worker-runtime@${PROJECT}.iam.gserviceaccount.com"
+          # Operator prereqs (one-time): the ANTHROPIC_API_KEY secret + the
+          # runtime SA. Until BOTH exist, skip the job deploy WITHOUT failing
+          # the pipeline — the rest of the deploy (web / worker / functions) is
+          # independent of the enrichment job, so a missing AI prereq must not
+          # red the whole deploy. Once the operator creates them
+          # (infra/scripts/06-deploy-enrichment.sh), this step auto-activates.
+          if ! gcloud secrets describe ANTHROPIC_API_KEY --project="$PROJECT" >/dev/null 2>&1; then
+            echo "::notice title=Enrichment job skipped::ANTHROPIC_API_KEY secret not found — create it to enable AI enrichment. Skipping job deploy (non-fatal)."
+            exit 0
+          fi
+          if ! gcloud iam service-accounts describe "$SA" --project="$PROJECT" >/dev/null 2>&1; then
+            echo "::notice title=Enrichment job skipped::Runtime SA $SA not found — create it + grant roles/datastore.user + secretmanager.secretAccessor. Skipping job deploy (non-fatal)."
+            exit 0
+          fi
           gcloud run jobs deploy enrichment-worker \
             --image="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cleartoship-images/enrichment-worker:${{ steps.meta.outputs.tag }}" \
             --region="${{ env.REGION }}" \
             --project="${{ secrets.GCP_PROJECT_ID }}" \
-            --service-account="enrichment-worker-runtime@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
+            --service-account="$SA" \
             --max-retries=1 \
             --task-timeout=600 \
             --set-secrets="ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest" \
