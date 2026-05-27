@@ -13,6 +13,7 @@ import {
 import { AuditStepSchema } from './audit-steps.js';
 import { CoverageMatrixEntrySchema } from './coverage-matrix.js';
 import { SymbolInventorySchema } from './symbol-inventory.js';
+import { LaunchGateResultSchema } from './launch-gate.js';
 
 /**
  * Firestore Timestamp ISO string. We standardize on ISO 8601 strings at the
@@ -142,6 +143,13 @@ export const AuditRunSchema = z.object({
   // zod enum) so adding a new profile in audit-core doesn't require a
   // shared-types release.
   profileId: z.string().optional(),
+  // Audit Quality Roadmap §6.6 — opt-in "AI enhanced" flag. When true, a
+  // post-audit async enrichment job (Claude Agent SDK) may run the audit-*
+  // skill bundle to add L-judgment for PRODUCT_INTENT / REQUIREMENT_COVERAGE
+  // and narratives. Default OFF: the deterministic audit never invokes an LLM.
+  // Optional for forward-compat — legacy runs lack it; the converter treats
+  // missing as false.
+  aiEnhanced: z.boolean().optional(),
   createdAt: IsoDateString,
   updatedAt: IsoDateString,
 });
@@ -347,6 +355,42 @@ export const ShipVerdictSchema = z
   .strict();
 export type ShipVerdict = z.infer<typeof ShipVerdictSchema>;
 
+// ---------------------------------------------------------------------------
+// Audit enrichment (Audit Quality Roadmap §6) — opt-in L-bucket result.
+//
+// Produced by the async enrichment job (Claude Agent SDK running the audit-*
+// skill bundle), NOT by the deterministic pipeline. Persisted onto the report
+// so the dashboard can render blended D+L scores + the AI-assisted badge. See
+// `docs/skills/audit-l-bucket-architecture.md` and audit-core `applyEnrichment`.
+// ---------------------------------------------------------------------------
+
+export const CategoryEnrichmentSchema = z.object({
+  category: AuditCategory,
+  /** The skill's LLM-assisted score for this category (0–100). */
+  scoreL: z.number().min(0).max(100),
+  /** Non-developer narrative explaining the judgment. */
+  narrative: z.string(),
+  confidence: Confidence,
+  /** Files / artifacts the skill cited (honest sourcing). */
+  sources: z.array(z.string()),
+});
+export type CategoryEnrichment = z.infer<typeof CategoryEnrichmentSchema>;
+
+export const AuditEnrichmentSchema = z.object({
+  status: z.enum(['PENDING', 'DONE', 'SKIPPED', 'ERROR']),
+  /**
+   * Commit the enrichment was computed against — the cache key component so a
+   * re-audit of the same commit can reuse the L-judgment (§6.6). Null when the
+   * audit had no resolvable commit.
+   */
+  commitSha: z.string().nullable(),
+  categories: z.array(CategoryEnrichmentSchema),
+  /** Total tokens spent across all category skills (cost surfacing, §6.6). */
+  totalTokens: z.number().int().nonnegative().optional(),
+  generatedAt: IsoDateString.optional(),
+});
+export type AuditEnrichment = z.infer<typeof AuditEnrichmentSchema>;
+
 export const AuditReportSchema = z.object({
   id: z.literal('main'),
   auditRunId: z.string(),
@@ -387,6 +431,16 @@ export const AuditReportSchema = z.object({
   // same as "step didn't run" (no Symbol Explorer link). Populated by the
   // worker on the success path of `20-symbol-inventory.ts`.
   symbolInventory: SymbolInventorySchema.optional(),
+  // Audit Quality Roadmap §4.1 — 7-Question Launch Gate verdict. Optional for
+  // backward-compat (reports persisted before the gate existed lack it; the
+  // dashboard renders the chip only when present). Populated by step12
+  // CALCULATE_SCORES via `calculateScores().launchGate`.
+  launchGate: LaunchGateResultSchema.optional(),
+  // Audit Quality Roadmap §6 — opt-in L-bucket enrichment (async job output).
+  // Absent on deterministic-only runs. The dashboard merges these into
+  // `categoryScores` via audit-core `applyEnrichment` to show blended D+L
+  // scores + the AI-assisted badge.
+  enrichment: AuditEnrichmentSchema.optional(),
   createdAt: IsoDateString,
   updatedAt: IsoDateString,
 });

@@ -1,0 +1,30 @@
+{
+  "name": "enrichment-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsx --env-file=.env src/index.ts",
+    "type-check": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint . --max-warnings=0",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@cleartoship/audit-core": "workspace:*",
+    "@cleartoship/shared-types": "workspace:*",
+    "@google/genai": "^1.52.0",
+    "firebase-admin": "^12.1.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@vitest/coverage-v8": "^1.6.0",
+    "tsx": "^4.11.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}

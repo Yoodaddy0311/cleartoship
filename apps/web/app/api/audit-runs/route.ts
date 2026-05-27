@@ -123,11 +123,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // §6.6: opt-in AI-enhanced flag (default OFF when absent). Now part of the
+  // shared CreateAuditRunRequestSchema, so it survives validation directly.
+  const aiEnhanced = parsed.data.aiEnhanced === true;
+
   try {
     const clientIp = extractClientIp(req);
     const result = await createAuditRun(parsed.data, {
       ownerId: caller.uid,
       clientIp,
+      aiEnhanced,
     });
     // Best-effort denormalize for daily-cleanup (Item #15 option a). A failure
     // here must not block the audit-run create, so we swallow + log only.

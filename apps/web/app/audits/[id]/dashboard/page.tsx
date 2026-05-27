@@ -8,6 +8,7 @@ import { ScoreSkeleton } from '@/components/skeletons';
 import { SeverityCounts } from '@/components/dashboard/severity-counts';
 import { StrengthsPanel } from '@/components/dashboard/strengths-panel';
 import { CategoryGrid } from '@/components/dashboard/category-grid';
+import { LaunchVerdictChip } from '@/components/dashboard/launch-verdict-chip';
 import { RepoTreeView } from '@/components/dashboard/repo-tree-view';
 import { PageCardGrid } from '@/components/dashboard/page-card-grid';
 import { SeverityChip } from '@/components/common/severity-chip';
@@ -17,6 +18,11 @@ import {
   PartialResultBanner,
 } from '@/components/common/resource-state-panel';
 import { usePrefetchGraphCanvas } from '@/components/feature-graph/use-prefetch-graph-canvas';
+// Deep import (NOT the barrel): this is a 'use client' component, and the
+// audit-core barrel transitively pulls node-only modules (symbols/LSP, etc.)
+// that break the client webpack bundle (node:fs/net/dns). apply-enrichment is
+// pure (blend-scores + shared-types types only), so the subpath is client-safe.
+import { applyEnrichment } from '@cleartoship/audit-core/scoring/apply-enrichment';
 import { categoryLabel } from '@/lib/format/category';
 import { t } from '@/lib/i18n';
 import { getAuditRun, getReport, listFindings } from '@/lib/api/audit-runs';
@@ -162,8 +168,19 @@ function DashboardBody({
 }) {
   const { report, findings, run } = data;
   const top5 = findings.findings.map((f) => adaptFinding(f));
-  const categoryScores = adaptCategoryScoresNullable(report.categoryScores);
-  const categoryOrigins = adaptCategoryScoreOrigins(report.categoryScores);
+  // §6 — fold the opt-in L-bucket enrichment into the deterministic category
+  // scores BEFORE adapting to the UI shapes. `applyEnrichment` is a pure merge:
+  // when an enrichment exists (status DONE) it blends each enriched category's
+  // D score with its L score and rewrites the origin to 'L'/'mixed' (the
+  // existing OriginBadge renders these as 🤖/⚙️); when absent / not DONE it
+  // returns the input unchanged, so behaviour is identical to today.
+  const mergedCategoryScores = applyEnrichment(
+    report.categoryScores,
+    report.enrichment,
+  );
+  const categoryScores = adaptCategoryScoresNullable(mergedCategoryScores);
+  const categoryOrigins = adaptCategoryScoreOrigins(mergedCategoryScores);
+  const enrichmentPending = report.enrichment?.status === 'PENDING';
 
   return (
     <>
@@ -184,6 +201,13 @@ function DashboardBody({
         launchStatus={adaptLaunchStatus(report.launchStatus)}
         summary={report.executiveSummary}
       />
+
+      {/* 7-Question Launch Gate — optional on AuditReport (older reports lack
+          it). Rendered directly below the score so the founder reads the
+          number, then the crisp launch verdict + the seven supporting checks. */}
+      {report.launchGate ? (
+        <LaunchVerdictChip launchGate={report.launchGate} />
+      ) : null}
 
       <section aria-labelledby="severity-title" className="flex flex-col gap-3">
         <h2
@@ -254,6 +278,14 @@ function DashboardBody({
             {t('dashboard.categories.viewAll')}
           </Link>
         </div>
+        {/* §6.6: enrichment still running — a muted, non-blocking note. The
+            deterministic scores already render; the AI-blended values + 🤖/⚙️
+            origin badges swap in on the next load once status flips to DONE. */}
+        {enrichmentPending ? (
+          <p className="text-xs text-[color:var(--color-fg-muted)]">
+            AI 보조 분석 진행 중
+          </p>
+        ) : null}
         <CategoryGrid scores={categoryScores} origins={categoryOrigins} />
       </section>
 

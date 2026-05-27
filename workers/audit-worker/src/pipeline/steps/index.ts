@@ -10,6 +10,7 @@ import type {
   CategoryScore,
   CoverageMatrixEntry,
   DataModelInventory,
+  LaunchGateResult,
   RepoMetadata,
   RouteInventory,
   SymbolInventory,
@@ -173,6 +174,12 @@ export interface PipelineState {
    */
   categoryScores: CategoryScore[] | null;
   /**
+   * Audit Quality Roadmap §4.1 — 7-Question Launch Gate verdict produced by
+   * CALCULATE_SCORES (step12) and persisted by GENERATE_REPORT (step13). Null
+   * until step12 runs, or when the scorer was called without launch evidence.
+   */
+  launchGate: LaunchGateResult | null;
+  /**
    * Business readiness evidence (T2.8 / UPG-06 / W2-BR). Strict record (all 5
    * keys present, default false). step13b fills the keys it can detect (Legal
    * + Analytics in Phase 1); the rest fall through as false so the checklist
@@ -219,6 +226,7 @@ export function createInitialState(): PipelineState {
     w1aEvidence: { ...EMPTY_W1A_EVIDENCE },
     prdAnalysis: null,
     categoryScores: null,
+    launchGate: null,
     businessEvidence: { ...EMPTY_BUSINESS_EVIDENCE },
     prdCoverageMatrix: null,
   };

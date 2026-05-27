@@ -10,4 +10,5 @@ if (getApps().length === 0) {
 }
 
 export { onAuditRunCreated } from './triggers/on-audit-run-created.js';
+export { onAuditRunCompleted } from './triggers/on-audit-run-completed.js';
 export { dailyCleanup } from './triggers/daily-cleanup.js';

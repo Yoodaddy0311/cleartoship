@@ -54,6 +54,10 @@ export const ko = {
   // The vibe-coded key is new (added by Sprint 4 W2 Batch A) — landing/saas/
   // ecommerce already exist above and are reused.
   'home.form.profile.option.vibeCoded': '바이브 코딩 (프롬프트 일관성·구현 정합성 강조)',
+  // Audit Quality Roadmap §6.6 — opt-in "AI enhanced" checkbox. Default OFF.
+  'home.form.aiEnhanced.label': 'AI 보조 분석 (옵션)',
+  'home.form.aiEnhanced.hint':
+    'PRODUCT_INTENT·REQUIREMENT_COVERAGE 등 언어 판단이 필요한 항목을 AI가 보조 채점합니다. 기본 OFF — 켜면 분석 완료 후 비동기로 실행됩니다.',
   'home.form.submit': '감사 시작',
   'home.form.submitting': '감사 요청 중...',
   'home.form.auth.initializing': '인증 준비 중...',

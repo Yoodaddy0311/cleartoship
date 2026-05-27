@@ -38,6 +38,14 @@ export default defineConfig({
   resolve: {
     alias: {
       '@cleartoship/shared-types': path.resolve(__dirname, '../../packages/shared-types/src/index.ts'),
+      // Subpath alias MUST precede the barrel alias (rollup-alias matches in
+      // order). The dashboard deep-imports this pure module to avoid pulling
+      // the node-only barrel into the client bundle (next build); vitest needs
+      // the same subpath to resolve to src instead of `index.ts/scoring/...`.
+      '@cleartoship/audit-core/scoring/apply-enrichment': path.resolve(
+        __dirname,
+        '../../packages/audit-core/src/scoring/apply-enrichment.ts',
+      ),
       '@cleartoship/audit-core': path.resolve(__dirname, '../../packages/audit-core/src/index.ts'),
       '@cleartoship/ui': path.resolve(__dirname, '../../packages/ui/src/index.ts'),
       '@': path.resolve(__dirname, '.'),

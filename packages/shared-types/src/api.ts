@@ -68,6 +68,10 @@ export const CreateAuditRunRequestSchema = z.object({
   // doesn't force a shared-types release; worker resolves via getProfile()
   // which returns null on unknown ids (spec-default scoring).
   profileId: z.string().optional(),
+  // Audit Quality Roadmap §6.6 — opt-in "AI enhanced" flag. When true, a
+  // post-audit async enrichment job (Claude Agent SDK + the audit-* skills)
+  // may add L-judgment. Default OFF; absent on legacy clients.
+  aiEnhanced: z.boolean().optional(),
 });
 export type CreateAuditRunRequest = z.infer<typeof CreateAuditRunRequestSchema>;
 

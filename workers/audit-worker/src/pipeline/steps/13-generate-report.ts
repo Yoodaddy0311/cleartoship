@@ -94,6 +94,10 @@ export const step13GenerateReport: Step = {
       // dashboard's strengths panel. Persisted so the web app can render
       // the positive cards without re-deriving them.
       inventorySignals: state.inventorySignals,
+      // Audit Quality Roadmap §4.1 — 7-Question Launch Gate verdict. Optional
+      // on the schema; only written when step12 produced one (older runs and
+      // guardrail-blocked runs simply omit it → dashboard hides the chip).
+      ...(state.launchGate ? { launchGate: state.launchGate } : {}),
     });
     ctx.log('info', 'Report generated', {
       length: report.markdown.length,

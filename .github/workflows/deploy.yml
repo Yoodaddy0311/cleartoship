@@ -130,6 +130,21 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build & push enrichment-worker image
+        uses: docker/build-push-action@4a13e500e55cf31b7a5d59a38ab2040ab0f42f56 # v5.1.0
+        with:
+          # Same monorepo-rooted COPY paths (packages/, workers/, .claude/skills),
+          # so the build context must be the repo root.
+          context: .
+          file: workers/enrichment-worker/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cleartoship-images/enrichment-worker:${{ steps.meta.outputs.tag }}
+            ${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cleartoship-images/enrichment-worker:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Deploy Cloud Run worker
         id: run-deploy
         run: |
@@ -279,6 +294,49 @@ jobs:
               ;;
           esac
 
+      - name: Deploy Cloud Run job (enrichment-worker)
+        # Deployed BEFORE the functions step so the `enrichment-worker` job
+        # resource exists by the time the `onAuditRunCompleted` trigger ships
+        # and could fire. `gcloud run jobs deploy` creates-or-updates the job.
+        #
+        # JOB flags only — services-only flags (--port/--concurrency/
+        # --min-instances/--no-cpu-throttling/--allow-unauthenticated) do NOT
+        # apply to jobs and gcloud rejects them. A job bills only while a task
+        # runs, so there is no warm-instance / cpu-throttling policy here.
+        #
+        # GEMINI_API_KEY must already exist in Secret Manager (operator
+        # prereq — see infra/scripts/06-deploy-enrichment.sh header). The job
+        # runtime SA (enrichment-worker-runtime) needs roles/datastore.user +
+        # secretmanager.secretAccessor; the functions-runtime SA needs
+        # roles/run.developer on this job to dispatch it.
+        run: |
+          PROJECT="${{ secrets.GCP_PROJECT_ID }}"
+          SA="enrichment-worker-runtime@${PROJECT}.iam.gserviceaccount.com"
+          # Operator prereqs (one-time): the GEMINI_API_KEY secret + the
+          # runtime SA. Until BOTH exist, skip the job deploy WITHOUT failing
+          # the pipeline — the rest of the deploy (web / worker / functions) is
+          # independent of the enrichment job, so a missing AI prereq must not
+          # red the whole deploy. Once the operator creates them
+          # (infra/scripts/06-deploy-enrichment.sh), this step auto-activates.
+          if ! gcloud secrets describe GEMINI_API_KEY --project="$PROJECT" >/dev/null 2>&1; then
+            echo "::notice title=Enrichment job skipped::GEMINI_API_KEY secret not found — create it to enable AI enrichment. Skipping job deploy (non-fatal)."
+            exit 0
+          fi
+          if ! gcloud iam service-accounts describe "$SA" --project="$PROJECT" >/dev/null 2>&1; then
+            echo "::notice title=Enrichment job skipped::Runtime SA $SA not found — create it + grant roles/datastore.user + secretmanager.secretAccessor. Skipping job deploy (non-fatal)."
+            exit 0
+          fi
+          gcloud run jobs deploy enrichment-worker \
+            --image="${{ env.REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/cleartoship-images/enrichment-worker:${{ steps.meta.outputs.tag }}" \
+            --region="${{ env.REGION }}" \
+            --project="${{ secrets.GCP_PROJECT_ID }}" \
+            --service-account="$SA" \
+            --max-retries=1 \
+            --task-timeout=600 \
+            --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest" \
+            --set-env-vars="ENRICHMENT_MODEL=gemini-3.5-flash,GCP_PROJECT=${{ secrets.GCP_PROJECT_ID }},REGION=${{ env.REGION }},NODE_ENV=production" \
+            --quiet
+
       - name: Install firebase-tools
         # v13 has a CJS/ESM dep rot bug (universal-analytics → uuid) that
         # breaks on Node 20 runtime. v14 dropped the universal-analytics
@@ -300,6 +358,7 @@ jobs:
           CLOUD_TASKS_QUEUE=audit-jobs
           AUDIT_WORKER_URL=${{ steps.run-deploy.outputs.worker_url }}
           AUDIT_WORKER_INVOKER_SA=cloud-run-invoker@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com
+          ENRICHMENT_JOB_NAME=enrichment-worker
           EOF
 
       - name: Deploy Functions + Firestore rules/indexes + Storage rules

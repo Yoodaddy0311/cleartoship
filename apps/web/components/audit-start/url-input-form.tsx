@@ -72,6 +72,9 @@ export function UrlInputForm() {
   // W2-A: PrdInput owns its own file-read + counter UI; the form only holds
   // the canonical text value and forwards it to the create payload.
   const [prdText, setPrdText] = useState<string>('');
+  // §6.6: opt-in "AI 보조 분석" flag. Default UNCHECKED — the audit stays fully
+  // deterministic unless the user explicitly turns this on.
+  const [aiEnhanced, setAiEnhanced] = useState<boolean>(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -120,6 +123,9 @@ export function UrlInputForm() {
           ...(parsed.data.deployUrl ? { deployUrl: parsed.data.deployUrl } : {}),
           ...(parsed.data.prdText ? { prdText: parsed.data.prdText } : {}),
           ...(profileId ? { profileId } : {}),
+          // §6.6: only carry the flag when opted in (mirror profileId above) so
+          // the default request body is byte-for-byte identical to today's.
+          ...(aiEnhanced ? { aiEnhanced: true } : {}),
         };
         const response = await createAuditRun(payload);
         router.push(`/audits/${encodeURIComponent(response.auditRunId)}`);
@@ -196,6 +202,44 @@ export function UrlInputForm() {
             onChange={setPrdText}
             disabled={pending || auth.initializing}
           />
+
+          {/* §6.6: opt-in "AI 보조 분석" checkbox. Default unchecked. Real
+              <label htmlFor> association + aria-describedby links the helper
+              line for screen readers; the native checkbox is keyboard operable
+              (Space toggles) with a visible focus ring for WCAG AA. */}
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-start gap-2.5">
+              <input
+                id="aiEnhanced"
+                name="aiEnhanced"
+                type="checkbox"
+                checked={aiEnhanced}
+                onChange={(e) => setAiEnhanced(e.currentTarget.checked)}
+                disabled={pending || auth.initializing}
+                aria-describedby="aiEnhanced-hint"
+                className={cn(
+                  'mt-0.5 h-4 w-4 shrink-0 rounded-[4px]',
+                  'border border-[color:var(--color-border-default)]',
+                  'bg-[color:var(--color-bg-elevated)]',
+                  'accent-[color:var(--mk-accent-2)]',
+                  'focus-visible:outline-none focus-visible:shadow-[var(--focus-ring)]',
+                  'disabled:cursor-not-allowed disabled:opacity-50',
+                )}
+              />
+              <label
+                htmlFor="aiEnhanced"
+                className="text-sm text-[color:var(--color-fg-secondary)]"
+              >
+                {t('home.form.aiEnhanced.label')}
+              </label>
+            </div>
+            <p
+              id="aiEnhanced-hint"
+              className="text-xs text-[color:var(--color-fg-muted)]"
+            >
+              {t('home.form.aiEnhanced.hint')}
+            </p>
+          </div>
 
           {auth.error ? (
             <p
