@@ -70,3 +70,11 @@ infra/terraform/terraform.tfstate
 infra/terraform/terraform.tfstate.*
 infra/terraform/crash.log
 infra/terraform/crash.*.log
+CLAUDE.local.md
+
+# Python (scripts/refresh-osv-coverage.py runs stdlib-only; cache is local-only)
+__pycache__/
+*.py[cod]
+
+# CVE coverage transient alert sentinel (workflow reads it, never commits it)
+reports/CVE-COVERAGE/.new-cve-alert
