@@ -46,6 +46,7 @@ REQUIREMENT_COVERAGE) are addressed by an opt-in Claude Code skill bundle
 | `b85a41a` | session report (this file) |
 | `7a28028` | Phase 3 — D+L score blend (`blendScores`, §6.5) |
 | `58f1417` | Phase 3 — async enrichment opt-in path (§6.6): `aiEnhanced` flag + enrichment schemas + `applyEnrichment` + form checkbox + dashboard merge |
+| `0cc8eac` | Phase 3 — enrichment runner Cloud Run job (`workers/enrichment-worker`) + `functions` trigger + infra deploy |
 
 PR: https://github.com/Yoodaddy0311/cleartoship/pull/57
 
@@ -82,26 +83,29 @@ PR: https://github.com/Yoodaddy0311/cleartoship/pull/57
 ## 7. Queued / remaining work (honest)
 
 Phase 3 runtime wiring chosen model = **async enrichment job** (operator
-decision, 2026-05-27). The deterministic spine is built (opt-in flag → schemas
-→ `applyEnrichment` blend → dashboard merge + badge). **One** boundary remains:
+decision, 2026-05-27) — now **fully built**: opt-in flag → schemas →
+`applyEnrichment` blend → dashboard merge + badge → **`workers/enrichment-worker`
+Cloud Run job** (orchestrator + Anthropic provider w/ prompt caching + skill
+loader + Firestore I/O + Dockerfile, 34 tests) → **`functions` onAuditRunCompleted**
+trigger (executes the job, 14 tests) → `infra/scripts/06-deploy-enrichment.sh`
++ `deploy.yml`.
 
-1. **The enrichment job runner** — a process that, on a completed opt-in run
-   (`AuditRun.aiEnhanced`), opens a Claude Agent SDK session loading
-   `.claude/skills/audit-*`, produces a `CategoryEnrichment[]`, and writes
-   `report.enrichment`. Left unimplemented: needs the **Anthropic API key** +
-   per-category token-budget/cost ownership, and an **infra deploy target**
-   (Cloud Run job / Cloud Function on a Firestore `onCreate(completed +
-   aiEnhanced)` trigger). Everything before/after the boundary is built +
-   tested; the runner only has to emit a valid `AuditEnrichment`. Build notes
-   in `docs/skills/audit-l-bucket-architecture.md` §"Remaining boundary".
-2. **Phase 2 enrichment** (optional): FEATURE_GRAPH/FUNCTIONAL_FLOW/DATA_MODEL
-   use Phase 1.3 baselines; could be upgraded to full Pattern Library detectors
-   (route-edge density, flow patterns, schema relations) like FRONTEND_CODE/MNT.
-3. **LSP re-enable** (orthogonal, §10 L6): SYMBOL_INVENTORY still disabled
-   (PR #54); when back, FRONTEND_CODE patterns could use richer symbol counts.
+Remaining = **operator GCP prereqs only** (one-time, not code; see
+`docs/skills/audit-l-bucket-architecture.md` §"Enrichment job runner — BUILT"):
+1. Create `ANTHROPIC_API_KEY` in Secret Manager.
+2. Create the `enrichment-worker-runtime` SA + grant `roles/datastore.user` +
+   `roles/secretmanager.secretAccessor`.
+3. Grant the functions runtime SA `roles/run.developer` on the job (after first
+   deploy creates it).
+
+Optional future polish (not blocking):
+- **Phase 2 enrichment**: FEATURE_GRAPH/FUNCTIONAL_FLOW/DATA_MODEL use Phase 1.3
+  baselines; could be upgraded to full Pattern Library detectors like
+  FRONTEND_CODE/MNT.
+- **LSP re-enable** (§10 L6): SYMBOL_INVENTORY still disabled (PR #54).
 
 ## 8. Next action
 
 - Review + merge **PR #57**.
-- To finish the L bucket: implement the enrichment job runner (item 7.1) once
-  the API key + deploy target are decided.
+- Run the operator GCP prereqs above, then deploy (push to `main` runs
+  `deploy.yml`, which now includes the enrichment job).

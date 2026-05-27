@@ -141,19 +141,25 @@ audit done (D) ──▶ AuditRun.aiEnhanced? ──no──▶ (deterministic r
   `OriginBadge` (🤖 L / ⚙️ mixed) + i18n tooltips already existed (PR-A4); a
   muted "AI 보조 분석 진행 중" note shows on `enrichment.status === 'PENDING'`.
 
-### Remaining boundary (one piece — needs the Anthropic API key + a deploy target)
+### Enrichment job runner — BUILT (Cloud Run job)
 
-The **enrichment job runner** itself: a process that, on a completed opt-in
-run, opens a Claude Agent SDK session loading `.claude/skills/audit-*`, produces
-a `CategoryEnrichment[]`, and writes `report.enrichment`. Everything up to and
-after this boundary is built and tested — the runner only has to emit a valid
-`AuditEnrichment`. It is left unimplemented here because it requires (a) an
-Anthropic API key + per-category token-budget/cost ownership decision, and
-(b) an infra deploy target (Cloud Run job vs Cloud Function on the Firestore
-`onCreate(completed + aiEnhanced)` trigger). Build notes:
-- Enforce `ENRICHMENT_TOKEN_BUDGET_PER_CATEGORY` per skill; truncate inputs.
-- Cache by `enrichmentCacheKey(commitSha, category)` — never re-judge a commit.
-- Set `report.enrichment.status` to `PENDING` on enqueue, `DONE`/`ERROR`/`SKIPPED`
-  on completion, so the dashboard note reflects progress.
+The runner is implemented as the **`workers/enrichment-worker`** Cloud Run job:
+- `orchestrator.ts` runs each enrichable category's skill under
+  `ENRICHMENT_TOKEN_BUDGET_PER_CATEGORY`; null/error → category stays N/A.
+- `anthropic-provider.ts` calls the Messages API with prompt caching on the
+  static skill body (model `claude-sonnet-4-6`, `ENRICHMENT_MODEL` override).
+- `index.ts` (entry, `RUN_ID` env) cache-guards on `commitSha`, writes an
+  optimistic `PENDING`, then the final `DONE`/`SKIPPED`/`ERROR` enrichment.
+- `functions` `onAuditRunCompleted` fires the job (via `@google-cloud/run`
+  `runJob` with a `RUN_ID` override) on a real PENDING/RUNNING→COMPLETED
+  transition with `aiEnhanced`.
+- `infra/scripts/06-deploy-enrichment.sh` + `deploy.yml` build/push/deploy it.
+
+**Operator prereqs (GCP-side, one-time — not code):**
+1. Create `ANTHROPIC_API_KEY` in Secret Manager (`gcloud secrets create …`).
+2. Create the `enrichment-worker-runtime` SA + grant `roles/datastore.user`
+   and `roles/secretmanager.secretAccessor` (on the key).
+3. Grant the functions runtime SA `roles/run.developer` on the job (after the
+   first deploy creates the job resource).
 
 See the PRD §6.5–6.7 for the full target state.
