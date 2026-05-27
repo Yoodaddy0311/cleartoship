@@ -2,6 +2,8 @@ export * from './adapter.js';
 export * from './profiles/index.js';
 export * from './scoring/checklist-mapping.js';
 export * from './scoring/calculate-scores.js';
+export * from './scoring/inventory-scoring.js';
+export * from './launch-gate/seven-question-gate.js';
 export * from './feature-graph/build-graph.js';
 export * from './feature-graph/route-ast/build-route-inventory.js';
 export * from './feature-graph/route-ast/next-app-router.js';

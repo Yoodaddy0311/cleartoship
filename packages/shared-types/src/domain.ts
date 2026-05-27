@@ -13,6 +13,7 @@ import {
 import { AuditStepSchema } from './audit-steps.js';
 import { CoverageMatrixEntrySchema } from './coverage-matrix.js';
 import { SymbolInventorySchema } from './symbol-inventory.js';
+import { LaunchGateResultSchema } from './launch-gate.js';
 
 /**
  * Firestore Timestamp ISO string. We standardize on ISO 8601 strings at the
@@ -387,6 +388,11 @@ export const AuditReportSchema = z.object({
   // same as "step didn't run" (no Symbol Explorer link). Populated by the
   // worker on the success path of `20-symbol-inventory.ts`.
   symbolInventory: SymbolInventorySchema.optional(),
+  // Audit Quality Roadmap §4.1 — 7-Question Launch Gate verdict. Optional for
+  // backward-compat (reports persisted before the gate existed lack it; the
+  // dashboard renders the chip only when present). Populated by step12
+  // CALCULATE_SCORES via `calculateScores().launchGate`.
+  launchGate: LaunchGateResultSchema.optional(),
   createdAt: IsoDateString,
   updatedAt: IsoDateString,
 });

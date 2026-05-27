@@ -13,3 +13,4 @@ export * from './symbol-inventory.js';
 export * from './repo-metadata.js';
 export * from './data-model-inventory.js';
 export * from './route-inventory.js';
+export * from './launch-gate.js';

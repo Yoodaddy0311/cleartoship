@@ -8,6 +8,7 @@ import { ScoreSkeleton } from '@/components/skeletons';
 import { SeverityCounts } from '@/components/dashboard/severity-counts';
 import { StrengthsPanel } from '@/components/dashboard/strengths-panel';
 import { CategoryGrid } from '@/components/dashboard/category-grid';
+import { LaunchVerdictChip } from '@/components/dashboard/launch-verdict-chip';
 import { RepoTreeView } from '@/components/dashboard/repo-tree-view';
 import { PageCardGrid } from '@/components/dashboard/page-card-grid';
 import { SeverityChip } from '@/components/common/severity-chip';
@@ -184,6 +185,13 @@ function DashboardBody({
         launchStatus={adaptLaunchStatus(report.launchStatus)}
         summary={report.executiveSummary}
       />
+
+      {/* 7-Question Launch Gate — optional on AuditReport (older reports lack
+          it). Rendered directly below the score so the founder reads the
+          number, then the crisp launch verdict + the seven supporting checks. */}
+      {report.launchGate ? (
+        <LaunchVerdictChip launchGate={report.launchGate} />
+      ) : null}
 
       <section aria-labelledby="severity-title" className="flex flex-col gap-3">
         <h2

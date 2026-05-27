@@ -76,6 +76,17 @@ export const step12CalculateScores: Step = {
         dataModelInventory: state.dataModelInventory,
         routeInventory: state.routeInventory,
       },
+      // Audit Quality Roadmap §4.1 — external (W1-A file-marker) evidence for
+      // the 7-Question Launch Gate. The scorer derives the rest (P0 count,
+      // deploy reachability, category scores) from its own output.
+      // `readmeClaimVerified` / `hasContributing` are Phase 3 / not-yet-tracked
+      // signals, intentionally omitted so the gate answers from presence alone.
+      launchEvidence: {
+        hasReadme: state.w1aEvidence.README_PRESENT,
+        hasLicense: state.w1aEvidence.LICENSE_PRESENT,
+        hasCiConfig: state.w1aEvidence.CI_CONFIG_PRESENT,
+        hasTests: state.w1aEvidence.TESTS_DIR_PRESENT,
+      },
     });
     state.severityCounts = result.severityCounts;
     state.readinessScore = result.readinessScore;
@@ -90,6 +101,11 @@ export const step12CalculateScores: Step = {
     // to the score (the fix is precisely to NOT conflate existence with
     // quality).
     state.inventorySignals = result.inventorySignals;
+    // Audit Quality Roadmap §4.1 — persist the 7-Question Launch Gate verdict
+    // so step13 can write it onto the report for the dashboard chip. `result`
+    // omits the field entirely when no launch evidence was supplied; default
+    // to null so the typed state contract stays exact.
+    state.launchGate = result.launchGate ?? null;
     ctx.log('info', 'Scores calculated', {
       readinessScore: result.readinessScore,
       launchStatus: result.launchStatus,

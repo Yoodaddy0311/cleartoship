@@ -6,6 +6,7 @@ import type {
   DataModelInventory,
   FCSResult,
   Finding,
+  LaunchGateResult,
   LaunchStatus,
   RepoMetadata,
   RouteInventory,
@@ -13,6 +14,8 @@ import type {
   Severity,
 } from '@cleartoship/shared-types';
 import { CATEGORY_META } from './checklist-mapping.js';
+import { deriveInventoryBaselines } from './inventory-scoring.js';
+import { evaluateLaunchGate } from '../launch-gate/seven-question-gate.js';
 import { applyProfileWeights, type AuditProfile } from '../profiles/index.js';
 import { computeFCS } from '../fcs/compute-fcs.js';
 
@@ -231,6 +234,22 @@ export interface ScoringInput {
    * preserves spec-default scoring.
    */
   readonly profile?: AuditProfile | null;
+  /**
+   * Audit Quality Roadmap §4.1 — external evidence for the 7-Question Launch
+   * Gate that the scorer cannot derive itself (file-tree markers from W1-A).
+   * The scorer fills in the rest (P0 count, deploy reachability, and the
+   * SECURITY_PRIVACY / BUSINESS_READINESS / UX_UI scores) from its own output.
+   * When omitted, `launchGate` is not computed and the result field is absent
+   * (backward compat for callers/tests predating the gate).
+   */
+  readonly launchEvidence?: {
+    readonly hasReadme: boolean;
+    readonly readmeClaimVerified?: boolean | null;
+    readonly hasLicense: boolean;
+    readonly hasContributing?: boolean;
+    readonly hasCiConfig: boolean;
+    readonly hasTests: boolean;
+  };
 }
 
 /**
@@ -272,6 +291,11 @@ export interface ScoringResult {
    * the numeric score (that would conflate existence with quality).
    */
   inventorySignals: InventorySignalSummary;
+  /**
+   * Audit Quality Roadmap §4.1 — 7-Question Launch Gate verdict. Present only
+   * when `launchEvidence` was supplied; absent otherwise (back-compat).
+   */
+  launchGate?: LaunchGateResult;
 }
 
 export function calculateScores(input: ScoringInput): ScoringResult {
@@ -346,6 +370,19 @@ export function calculateScores(input: ScoringInput): ScoringResult {
   const dataModelSignal = hasDataModelSignal(input.inventories?.dataModelInventory);
   const routeSignal = hasRouteSignal(input.inventories?.routeInventory);
 
+  // Phase 1.3 (Audit Quality Roadmap §4.3) — deterministic inventory baselines
+  // for the structural categories (FEATURE_GRAPH / FUNCTIONAL_FLOW /
+  // DATA_MODEL). These lift a category out of N/A *only* when it would
+  // otherwise be N/A purely for lack of a measuredBy step AND the file-tree
+  // inventory carries structure. See `inventory-scoring.ts` for the
+  // reconciliation with PR-A4-fix (modest 50–75 floor, NOT a free 100). When
+  // `inventories` is omitted the map is empty → behaviour is unchanged
+  // (backward compat: every test predating Phase 1.3 stays green).
+  const inventoryBaselines = deriveInventoryBaselines({
+    routeInventory: input.inventories?.routeInventory,
+    dataModelInventory: input.inventories?.dataModelInventory,
+  });
+
   let weightedSum = 0;
   let totalWeight = 0;
   const categoryScores: CategoryScore[] = [];
@@ -364,21 +401,39 @@ export function calculateScores(input: ScoringInput): ScoringResult {
       executedSet !== null &&
       meta.measuredBy.length > 0 &&
       meta.measuredBy.some((s) => !executedSet.has(s));
-    const isNA = noMeasurement || coverageNA || measuredButNotRun;
-    const score = isNA ? null : Math.round(bucket.score);
+
+    // Phase 1.3 (roadmap §4.3): a structural category that is N/A *purely*
+    // because it has no measuredBy step gets lifted to a deterministic
+    // inventory baseline when the file-tree inventory carries structure.
+    // Coverage-driven or measured-but-not-run N/A is NOT overridden — those
+    // are genuine "we could not measure" signals, not "no registry mapping".
+    const baseline = inventoryBaselines.get(meta.category);
+    const useBaseline =
+      baseline !== undefined && noMeasurement && !coverageNA && !measuredButNotRun;
+
+    const isNA = useBaseline ? false : noMeasurement || coverageNA || measuredButNotRun;
     const weight = effectiveWeights.get(meta.category) ?? meta.weight;
+
+    // The baseline is a FLOOR: findings (should any ever target the category)
+    // can only pull the score below it, never above.
+    const effectiveScore = useBaseline
+      ? Math.min(baseline.score, bucket.score)
+      : bucket.score;
+    const score = isNA ? null : Math.round(effectiveScore);
     if (!isNA && weight > 0) {
-      weightedSum += bucket.score * weight;
+      weightedSum += effectiveScore * weight;
       totalWeight += weight;
     }
-    const origin = decideOrigin({
-      isNA,
-      category: meta.category,
-      hasFindings: bucket.hasP0 || bucket.score < 100,
-      repoMetadataSignal,
-      dataModelSignal,
-      routeSignal,
-    });
+    const origin = useBaseline
+      ? baseline.origin
+      : decideOrigin({
+          isNA,
+          category: meta.category,
+          hasFindings: bucket.hasP0 || bucket.score < 100,
+          repoMetadataSignal,
+          dataModelSignal,
+          routeSignal,
+        });
     categoryScores.push({
       category: meta.category,
       score,
@@ -420,6 +475,25 @@ export function calculateScores(input: ScoringInput): ScoringResult {
     profileId: input.profile?.id ?? null,
   });
 
+  // Audit Quality Roadmap §4.1 — compute the 7-Question Launch Gate when the
+  // caller supplied the external (W1-A file-marker) evidence. The scorer
+  // contributes the P0 count, deploy reachability, and the three category
+  // scores the gate reads (read off the finalized categoryScores). Omitting
+  // `launchEvidence` leaves `launchGate` absent (back-compat).
+  let launchGate: LaunchGateResult | undefined;
+  if (input.launchEvidence) {
+    const scoreOf = (cat: AuditCategory): number | null =>
+      categoryScores.find((c) => c.category === cat)?.score ?? null;
+    launchGate = evaluateLaunchGate({
+      ...input.launchEvidence,
+      p0Count: severityCounts.P0,
+      deployUrlReachable: coverage?.deployUrlReachable ?? false,
+      uxScore: scoreOf('UX_UI'),
+      securityScore: scoreOf('SECURITY_PRIVACY'),
+      businessScore: scoreOf('BUSINESS_READINESS'),
+    });
+  }
+
   // I1: build the result in a single immutable expression rather than the
   // earlier mutate-after-create pattern. Under `exactOptionalPropertyTypes`
   // the previous `if (x !== undefined) result.toolsAvailableRatio = x` form
@@ -439,6 +513,7 @@ export function calculateScores(input: ScoringInput): ScoringResult {
       routes: routeSignal,
     },
     ...(toolsAvailableRatio !== undefined ? { toolsAvailableRatio } : {}),
+    ...(launchGate ? { launchGate } : {}),
   };
 }
 
