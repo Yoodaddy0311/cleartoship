@@ -2,7 +2,10 @@ import type { Step } from './index.js';
 import {
   calculateScores,
   getProfile,
+  scoreDataModel,
+  scoreFeatureGraph,
   scoreFrontendCode,
+  scoreFunctionalFlow,
   scoreMaintainability,
   type AvailableTools,
 } from '@cleartoship/audit-core';
@@ -58,9 +61,16 @@ export const step12CalculateScores: Step = {
     // already on `state` at scoring time (no second file walk needed). Each
     // returns null when the category is genuinely not assessable (no frontend
     // code / empty file tree) → the category stays N/A.
+    // Derived feature-graph signals from detectedFeatures (always populated).
     const componentFeatureCount = state.detectedFeatures.filter(
       (f) => f.type === 'component',
     ).length;
+    const featureEdgeCount = state.detectedFeatures.reduce(
+      (sum, f) => sum + (f.edges?.length ?? 0),
+      0,
+    );
+    const hasAuthGuard = state.detectedFeatures.some((f) => f.type === 'auth_guard');
+
     const frontendScore = scoreFrontendCode({
       fileTree: state.fileTree,
       componentFeatureCount,
@@ -74,6 +84,23 @@ export const step12CalculateScores: Step = {
       hasLicense: state.w1aEvidence.LICENSE_PRESENT,
       hasPackageScripts: state.w1aEvidence.PACKAGE_SCRIPTS_PRESENT,
     });
+    // §5.3/§7.1 — full Pattern Library detectors for the three structural
+    // categories that previously only had Phase 1.3 inventory baselines. A
+    // pattern score wins over the baseline (calculateScores precedence), so
+    // these refine FEATURE_GRAPH / FUNCTIONAL_FLOW / DATA_MODEL upward/downward
+    // from the coarse floor. Each returns null when genuinely not assessable.
+    const featureGraphScore = scoreFeatureGraph({
+      routeInventory: state.routeInventory,
+      featureNodeCount: state.detectedFeatures.length,
+      featureEdgeCount,
+    });
+    const functionalFlowScore = scoreFunctionalFlow({
+      routeInventory: state.routeInventory,
+      hasAuthGuard,
+    });
+    const dataModelPatternScore = scoreDataModel({
+      dataModelInventory: state.dataModelInventory,
+    });
     const patternScores = {
       ...(frontendScore
         ? { FRONTEND_CODE: { score: frontendScore.score, origin: frontendScore.origin } }
@@ -85,6 +112,20 @@ export const step12CalculateScores: Step = {
               origin: maintainabilityScore.origin,
             },
           }
+        : {}),
+      ...(featureGraphScore
+        ? { FEATURE_GRAPH: { score: featureGraphScore.score, origin: featureGraphScore.origin } }
+        : {}),
+      ...(functionalFlowScore
+        ? {
+            FUNCTIONAL_FLOW: {
+              score: functionalFlowScore.score,
+              origin: functionalFlowScore.origin,
+            },
+          }
+        : {}),
+      ...(dataModelPatternScore
+        ? { DATA_MODEL: { score: dataModelPatternScore.score, origin: dataModelPatternScore.origin } }
         : {}),
     };
     // T2.4: resolve the audit profile selected at run start (if any). Unknown
