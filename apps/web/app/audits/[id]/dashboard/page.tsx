@@ -18,7 +18,11 @@ import {
   PartialResultBanner,
 } from '@/components/common/resource-state-panel';
 import { usePrefetchGraphCanvas } from '@/components/feature-graph/use-prefetch-graph-canvas';
-import { applyEnrichment } from '@cleartoship/audit-core';
+// Deep import (NOT the barrel): this is a 'use client' component, and the
+// audit-core barrel transitively pulls node-only modules (symbols/LSP, etc.)
+// that break the client webpack bundle (node:fs/net/dns). apply-enrichment is
+// pure (blend-scores + shared-types types only), so the subpath is client-safe.
+import { applyEnrichment } from '@cleartoship/audit-core/scoring/apply-enrichment';
 import { categoryLabel } from '@/lib/format/category';
 import { t } from '@/lib/i18n';
 import { getAuditRun, getReport, listFindings } from '@/lib/api/audit-runs';
