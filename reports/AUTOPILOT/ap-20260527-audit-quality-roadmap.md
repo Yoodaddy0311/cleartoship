@@ -85,14 +85,15 @@ PR: https://github.com/Yoodaddy0311/cleartoship/pull/57
 Phase 3 runtime wiring chosen model = **async enrichment job** (operator
 decision, 2026-05-27) — now **fully built**: opt-in flag → schemas →
 `applyEnrichment` blend → dashboard merge + badge → **`workers/enrichment-worker`
-Cloud Run job** (orchestrator + Anthropic provider w/ prompt caching + skill
-loader + Firestore I/O + Dockerfile, 34 tests) → **`functions` onAuditRunCompleted**
+Cloud Run job** (orchestrator + Gemini provider [`@google/genai`, AI Studio
+`GEMINI_API_KEY`, `gemini-3.5-flash`, native JSON structured output] + skill
+loader + Firestore I/O + Dockerfile, 30 tests) → **`functions` onAuditRunCompleted**
 trigger (executes the job, 14 tests) → `infra/scripts/06-deploy-enrichment.sh`
 + `deploy.yml`.
 
 Remaining = **operator GCP prereqs only** (one-time, not code; see
 `docs/skills/audit-l-bucket-architecture.md` §"Enrichment job runner — BUILT"):
-1. Create `ANTHROPIC_API_KEY` in Secret Manager.
+1. Create `GEMINI_API_KEY` (Gemini AI Studio key) in Secret Manager.
 2. Create the `enrichment-worker-runtime` SA + grant `roles/datastore.user` +
    `roles/secretmanager.secretAccessor`.
 3. Grant the functions runtime SA `roles/run.developer` on the job (after first

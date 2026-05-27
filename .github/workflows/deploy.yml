@@ -304,7 +304,7 @@ jobs:
         # apply to jobs and gcloud rejects them. A job bills only while a task
         # runs, so there is no warm-instance / cpu-throttling policy here.
         #
-        # ANTHROPIC_API_KEY must already exist in Secret Manager (operator
+        # GEMINI_API_KEY must already exist in Secret Manager (operator
         # prereq — see infra/scripts/06-deploy-enrichment.sh header). The job
         # runtime SA (enrichment-worker-runtime) needs roles/datastore.user +
         # secretmanager.secretAccessor; the functions-runtime SA needs
@@ -312,14 +312,14 @@ jobs:
         run: |
           PROJECT="${{ secrets.GCP_PROJECT_ID }}"
           SA="enrichment-worker-runtime@${PROJECT}.iam.gserviceaccount.com"
-          # Operator prereqs (one-time): the ANTHROPIC_API_KEY secret + the
+          # Operator prereqs (one-time): the GEMINI_API_KEY secret + the
           # runtime SA. Until BOTH exist, skip the job deploy WITHOUT failing
           # the pipeline — the rest of the deploy (web / worker / functions) is
           # independent of the enrichment job, so a missing AI prereq must not
           # red the whole deploy. Once the operator creates them
           # (infra/scripts/06-deploy-enrichment.sh), this step auto-activates.
-          if ! gcloud secrets describe ANTHROPIC_API_KEY --project="$PROJECT" >/dev/null 2>&1; then
-            echo "::notice title=Enrichment job skipped::ANTHROPIC_API_KEY secret not found — create it to enable AI enrichment. Skipping job deploy (non-fatal)."
+          if ! gcloud secrets describe GEMINI_API_KEY --project="$PROJECT" >/dev/null 2>&1; then
+            echo "::notice title=Enrichment job skipped::GEMINI_API_KEY secret not found — create it to enable AI enrichment. Skipping job deploy (non-fatal)."
             exit 0
           fi
           if ! gcloud iam service-accounts describe "$SA" --project="$PROJECT" >/dev/null 2>&1; then
@@ -333,8 +333,8 @@ jobs:
             --service-account="$SA" \
             --max-retries=1 \
             --task-timeout=600 \
-            --set-secrets="ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest" \
-            --set-env-vars="ENRICHMENT_MODEL=claude-sonnet-4-6,GCP_PROJECT=${{ secrets.GCP_PROJECT_ID }},REGION=${{ env.REGION }},NODE_ENV=production" \
+            --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest" \
+            --set-env-vars="ENRICHMENT_MODEL=gemini-3.5-flash,GCP_PROJECT=${{ secrets.GCP_PROJECT_ID }},REGION=${{ env.REGION }},NODE_ENV=production" \
             --quiet
 
       - name: Install firebase-tools

@@ -34,10 +34,10 @@ export interface EnrichmentLlmResponse {
 }
 
 /**
- * Pluggable LLM backend. The Anthropic implementation lives in
- * `anthropic-provider.ts`; tests inject a deterministic fake. Keeping the
+ * Pluggable LLM backend. The Gemini implementation lives in
+ * `gemini-provider.ts`; tests inject a deterministic fake. Keeping the
  * interface free of any SDK type means the orchestrator + its tests compile
- * and run without the `@anthropic-ai/sdk` dependency present.
+ * and run without the `@google/genai` dependency present.
  */
 export interface LlmProvider {
   judge(req: EnrichmentLlmRequest): Promise<EnrichmentLlmResponse>;

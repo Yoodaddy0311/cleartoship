@@ -1,7 +1,7 @@
 // Cloud Run job entry for the opt-in audit enrichment (Audit Quality Roadmap §6).
 //
 // Triggered per AuditRun (RUN_ID env / argv[2]). Re-reads the run + report from
-// Firestore, runs the L-bucket enrichment via the Anthropic provider, and merges
+// Firestore, runs the L-bucket enrichment via the Gemini provider, and merges
 // the result onto the report doc. A skip (missing run, aiEnhanced off, cache hit)
 // is SUCCESS — `exit(0)` — so the job does not retry. Only unexpected failures
 // and a missing API key exit non-zero. Env is injected by Cloud Run (no dotenv).
@@ -10,7 +10,7 @@ import {
   type AuditEnrichment,
   type AuditRun,
 } from '@cleartoship/shared-types';
-import { AnthropicProvider } from './anthropic-provider.js';
+import { GeminiProvider } from './gemini-provider.js';
 import {
   fetchReport,
   fetchRun,
@@ -80,9 +80,9 @@ async function main(): Promise<void> {
     categories: [],
   });
 
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? '';
+  const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY ?? '';
   if (apiKey.length === 0) {
-    log('error', 'ANTHROPIC_API_KEY is not set', { runId });
+    log('error', 'GEMINI_API_KEY is not set', { runId });
     await writeEnrichment(db, runId, {
       status: 'ERROR',
       commitSha: run.commitHash,
@@ -91,7 +91,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const provider = new AnthropicProvider({ apiKey });
+  const provider = new GeminiProvider({ apiKey });
   const enrichment = await runEnrichment({ run, report, provider, loadSkill: loadSkillBody });
   await writeEnrichment(db, runId, enrichment);
 

@@ -6,37 +6,37 @@
 # The enrichment-worker is fired by the `onAuditRunCompleted` Firestore trigger
 # (functions/src/triggers/on-audit-run-completed.ts) via JobsClient.runJob with
 # a RUN_ID container override. It loads the audit report from Firestore, calls
-# the Anthropic API under a per-category token budget, and writes
-# report.enrichment back.
+# the Gemini API (@google/genai, AI Studio key) under a per-category token
+# budget, and writes report.enrichment back.
 #
 # Usage:
 #   PROJECT_ID=cleartoship-prod bash infra/scripts/06-deploy-enrichment.sh
 #   Optional: REGION (default asia-northeast3), IMAGE_TAG (default v0.1.0),
 #             JOB_NAME (default enrichment-worker),
-#             ENRICHMENT_MODEL (default claude-sonnet-4-6),
+#             ENRICHMENT_MODEL (default gemini-3.5-flash),
 #             DRY_RUN=1 (print commands, do not execute)
 #
 # -----------------------------------------------------------------------------
 # OPERATOR PREREQUISITES (one-time, NOT executed by this script)
 # -----------------------------------------------------------------------------
-#  1. Secret Manager — the Anthropic key MUST exist before this script's
-#     `--set-secrets` line can resolve. Create it once (cost: none):
+#  1. Secret Manager — the Gemini (AI Studio) API key MUST exist before this
+#     script's `--set-secrets` line can resolve. Create it once (cost: none):
 #
-#       printf '%s' "sk-ant-…" | gcloud secrets create ANTHROPIC_API_KEY \
+#       printf '%s' "AIza…" | gcloud secrets create GEMINI_API_KEY \
 #         --data-file=- --project="$PROJECT_ID"
-#       # rotate later with: gcloud secrets versions add ANTHROPIC_API_KEY …
+#       # rotate later with: gcloud secrets versions add GEMINI_API_KEY …
 #
 #  2. Job runtime SA — this script deploys the job to run AS
 #     enrichment-worker-runtime@$PROJECT_ID.iam.gserviceaccount.com. That SA needs:
 #       - roles/datastore.user            (Firestore read report + write enrichment)
-#       - roles/secretmanager.secretAccessor on the ANTHROPIC_API_KEY secret
+#       - roles/secretmanager.secretAccessor on the GEMINI_API_KEY secret
 #     Grant (one-time):
 #       gcloud iam service-accounts create enrichment-worker-runtime \
 #         --project="$PROJECT_ID" --display-name="enrichment-worker job runtime"
 #       gcloud projects add-iam-policy-binding "$PROJECT_ID" \
 #         --member="serviceAccount:enrichment-worker-runtime@$PROJECT_ID.iam.gserviceaccount.com" \
 #         --role="roles/datastore.user"
-#       gcloud secrets add-iam-policy-binding ANTHROPIC_API_KEY \
+#       gcloud secrets add-iam-policy-binding GEMINI_API_KEY \
 #         --project="$PROJECT_ID" \
 #         --member="serviceAccount:enrichment-worker-runtime@$PROJECT_ID.iam.gserviceaccount.com" \
 #         --role="roles/secretmanager.secretAccessor"
@@ -62,7 +62,7 @@ REGION="${REGION:-asia-northeast3}"
 IMAGE_TAG="${IMAGE_TAG:-v0.1.0}"
 JOB_NAME="${JOB_NAME:-enrichment-worker}"
 # Default enrichment model — override per environment if desired.
-ENRICHMENT_MODEL="${ENRICHMENT_MODEL:-claude-sonnet-4-6}"
+ENRICHMENT_MODEL="${ENRICHMENT_MODEL:-gemini-3.5-flash}"
 DRY_RUN="${DRY_RUN:-0}"
 
 require_cmd() {
@@ -117,7 +117,7 @@ echo "==> Deploying Cloud Run JOB: $JOB_NAME"
 #   --max-retries 1   : one retry on task failure (idempotent — the job
 #                       cache-guards on report.enrichment).
 #   --task-timeout 600: 10 min cap per task (LLM calls + Firestore write).
-#   --set-secrets     : ANTHROPIC_API_KEY mounted from Secret Manager :latest.
+#   --set-secrets     : GEMINI_API_KEY mounted from Secret Manager :latest.
 #                       The secret MUST already exist (operator prereq #1 above).
 #   --set-env-vars    : ENRICHMENT_MODEL + project/region for Firestore access.
 # COST: deploying a job incurs no standing cost (jobs only bill while a task
@@ -129,7 +129,7 @@ run gcloud run jobs deploy "$JOB_NAME" \
   --service-account="$RUNTIME_SA" \
   --max-retries=1 \
   --task-timeout=600 \
-  --set-secrets="ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest" \
+  --set-secrets="GEMINI_API_KEY=GEMINI_API_KEY:latest" \
   --set-env-vars="ENRICHMENT_MODEL=$ENRICHMENT_MODEL,GCP_PROJECT=$PROJECT_ID,REGION=$REGION,NODE_ENV=production" \
   --quiet
 
@@ -137,6 +137,6 @@ echo "==> Done."
 echo "Job deployed: $JOB_NAME ($IMAGE_URI)"
 echo
 echo "Reminder — verify the operator IAM grants from the header are in place:"
-echo "  - job runtime SA ($RUNTIME_SA): roles/datastore.user + secretAccessor on ANTHROPIC_API_KEY"
+echo "  - job runtime SA ($RUNTIME_SA): roles/datastore.user + secretAccessor on GEMINI_API_KEY"
 echo "  - functions-runtime SA: roles/run.developer on job '$JOB_NAME'"
-echo "  - Secret Manager: ANTHROPIC_API_KEY must exist (gcloud secrets create …)"
+echo "  - Secret Manager: GEMINI_API_KEY must exist (gcloud secrets create …)"

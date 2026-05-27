@@ -118,7 +118,7 @@ audit done (D) ──▶ AuditRun.aiEnhanced? ──no──▶ (deterministic r
                           ▼
         Firestore onCreate(completed + aiEnhanced) ──▶ enrichment job
                           │
-        Claude Agent SDK session loads .claude/skills/audit-*  →  per category:
+        Gemini (@google/genai) reads .claude/skills/audit-*  →  per category:
           scoreL + narrative (token-budgeted, cached by commitSha+category)
                           │
         write report.enrichment = { status:'DONE', categories:[…] }
@@ -146,8 +146,11 @@ audit done (D) ──▶ AuditRun.aiEnhanced? ──no──▶ (deterministic r
 The runner is implemented as the **`workers/enrichment-worker`** Cloud Run job:
 - `orchestrator.ts` runs each enrichable category's skill under
   `ENRICHMENT_TOKEN_BUDGET_PER_CATEGORY`; null/error → category stays N/A.
-- `anthropic-provider.ts` calls the Messages API with prompt caching on the
-  static skill body (model `claude-sonnet-4-6`, `ENRICHMENT_MODEL` override).
+- `gemini-provider.ts` calls the Gemini API (`@google/genai`, AI Studio
+  `GEMINI_API_KEY`) with native structured output (`responseMimeType:
+  'application/json'` + `responseSchema`) + zod validation (model
+  `gemini-3.5-flash`, `ENRICHMENT_MODEL` override). The `LlmProvider` interface
+  makes the provider swappable — Anthropic/Vertex would be drop-in replacements.
 - `index.ts` (entry, `RUN_ID` env) cache-guards on `commitSha`, writes an
   optimistic `PENDING`, then the final `DONE`/`SKIPPED`/`ERROR` enrichment.
 - `functions` `onAuditRunCompleted` fires the job (via `@google-cloud/run`
@@ -156,7 +159,7 @@ The runner is implemented as the **`workers/enrichment-worker`** Cloud Run job:
 - `infra/scripts/06-deploy-enrichment.sh` + `deploy.yml` build/push/deploy it.
 
 **Operator prereqs (GCP-side, one-time — not code):**
-1. Create `ANTHROPIC_API_KEY` in Secret Manager (`gcloud secrets create …`).
+1. Create `GEMINI_API_KEY` (Gemini AI Studio key) in Secret Manager (`gcloud secrets create …`).
 2. Create the `enrichment-worker-runtime` SA + grant `roles/datastore.user`
    and `roles/secretmanager.secretAccessor` (on the key).
 3. Grant the functions runtime SA `roles/run.developer` on the job (after the
