@@ -285,12 +285,12 @@ describe('adaptFeatureGraph', () => {
     expect(out.edges).toEqual([]);
   });
 
-  it('assigns deterministic grid positions to nodes (4 cols, 260px wide, 140px tall)', () => {
+  it('assigns deterministic LAYERED positions by node type (top→bottom rank ordering)', () => {
     const out = adaptFeatureGraph(
       makeGraph({
         nodes: [
           {
-            id: 'n0',
+            id: 'pg-1',
             type: 'page',
             label: 'A',
             status: 'complete',
@@ -301,8 +301,8 @@ describe('adaptFeatureGraph', () => {
             tags: [],
           },
           {
-            id: 'n4',
-            type: 'page',
+            id: 'cmp-1',
+            type: 'component',
             label: 'B',
             status: 'complete',
             risk: null,
@@ -312,8 +312,8 @@ describe('adaptFeatureGraph', () => {
             tags: [],
           },
           {
-            id: 'n5',
-            type: 'page',
+            id: 'dm-1',
+            type: 'data_model',
             label: 'C',
             status: 'complete',
             risk: null,
@@ -325,12 +325,47 @@ describe('adaptFeatureGraph', () => {
         ],
       })
     );
-    // index 0 → col 0 row 0 → (0*260+40, 0*140+40) = (40, 40)
-    expect(out.nodes[0]?.position).toEqual({ x: 40, y: 40 });
-    // index 1 → col 1 row 0 → (1*260+40, 0*140+40) = (300, 40)
-    expect(out.nodes[1]?.position).toEqual({ x: 300, y: 40 });
-    // index 2 → col 2 row 0 → (2*260+40, 0*140+40) = (560, 40)
-    expect(out.nodes[2]?.position).toEqual({ x: 560, y: 40 });
+    const byId = new Map(out.nodes.map((n) => [n.id, n]));
+    const pageY = byId.get('pg-1')!.position.y;
+    const componentY = byId.get('cmp-1')!.position.y;
+    const dataModelY = byId.get('dm-1')!.position.y;
+    // Layered ordering: page sits above component, which sits above data model.
+    expect(pageY).toBeLessThan(componentY);
+    expect(componentY).toBeLessThan(dataModelY);
+  });
+
+  it('produces identical positions for identical input (deterministic)', () => {
+    const graph = makeGraph({
+      nodes: [
+        {
+          id: 'pg-1',
+          type: 'page',
+          label: 'A',
+          status: 'complete',
+          risk: null,
+          confidence: 'HIGH',
+          summary: null,
+          evidenceIds: [],
+          tags: [],
+        },
+        {
+          id: 'api-1',
+          type: 'api',
+          label: 'B',
+          status: 'complete',
+          risk: null,
+          confidence: 'HIGH',
+          summary: null,
+          evidenceIds: [],
+          tags: [],
+        },
+      ],
+    });
+    const first = adaptFeatureGraph(graph);
+    const second = adaptFeatureGraph(graph);
+    expect(second.nodes.map((n) => n.position)).toEqual(
+      first.nodes.map((n) => n.position)
+    );
   });
 
   it('includes summary on node only when source summary is non-null', () => {

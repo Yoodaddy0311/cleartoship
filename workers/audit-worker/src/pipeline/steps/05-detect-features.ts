@@ -2,8 +2,6 @@ import type { Step, PipelineState } from './index.js';
 import { buildRouteInventory } from '@cleartoship/audit-core';
 import {
   buildAuthEdges,
-  buildPageApiEdges,
-  buildPageComponentEdges,
   detectActions,
   detectApis,
   detectAuthGuard,
@@ -44,10 +42,15 @@ export const step05DetectFeatures: Step = {
       });
     }
 
+    // NOTE: page↔api / page↔component edges are NOT built here anymore. The old
+    // path-based `buildPageApiEdges` emitted a phantom `api.<domain>.suspected`
+    // target (no node → dropped by the canvas) and `buildPageComponentEdges`
+    // only matched co-located components. step10 now derives accurate edges by
+    // reading file contents (imports / fetch / ORM). step05 keeps producing
+    // route-inventory + fallback nodes for the dev path where step03 (clone)
+    // was skipped and step10 has no clonePath to read from.
     refineFrontBackStatus(features);
-    buildPageApiEdges(features);
     buildAuthEdges(features, state.fileTree);
-    buildPageComponentEdges(features, state.fileTree);
 
     state.detectedFeatures = features;
 
