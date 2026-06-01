@@ -1,6 +1,13 @@
-// Tests for step05DetectFeatures — covers status branching (partial / ui_only /
-// logic_only / unknown), new node types (component, action, auth_guard,
-// external_service), and new edges (requires_auth, missing_link, contains).
+// Tests for step05DetectFeatures.
+//
+// step05 is the ROUTE-INVENTORY producer (+ fallback feature nodes for the dev
+// path where step03 clone was skipped). It no longer builds page↔api or
+// page↔component edges — the accurate, content-based edges are extracted in
+// step10 (GENERATE_FEATURE_GRAPH) by reading file contents. So these tests
+// assert: node detection, route inventory population, auth edges (still
+// file-tree-derivable), and edge-aware status fallback (no real backend edge →
+// page is ui_only, api is logic_only — an honest "couldn't prove a connection
+// from the file tree alone").
 
 import { describe, expect, it, vi } from 'vitest';
 import type { WorkerCtx } from '../../adapters/index.js';
@@ -27,8 +34,8 @@ function stateWith(fileTree: string[]): PipelineState {
   return s;
 }
 
-describe('step05DetectFeatures — base behavior preserved', () => {
-  it('emits page + api + data_model nodes from a Next.js App tree (partial status when balanced)', async () => {
+describe('step05DetectFeatures — node detection', () => {
+  it('emits page + api + data_model nodes from a Next.js App tree', async () => {
     const state = stateWith([
       'app/dashboard/page.tsx',
       'app/api/dashboard/route.ts',
@@ -41,32 +48,47 @@ describe('step05DetectFeatures — base behavior preserved', () => {
     const api = state.detectedFeatures.find((f) => f.type === 'api');
     const dm = state.detectedFeatures.find((f) => f.type === 'data_model');
     expect(page?.label).toBe('/dashboard');
-    expect(page?.status).toBe('partial');
     expect(api?.label).toBe('/api/dashboard');
-    expect(api?.status).toBe('partial');
     expect(dm?.id).toBe('data_model.prisma');
-    expect(page?.edges?.some((e) => e.type === 'calls_api' && e.target === api?.id)).toBe(true);
+  });
+
+  it('populates the AST route inventory', async () => {
+    const state = stateWith(['app/dashboard/page.tsx', 'app/api/dashboard/route.ts']);
+    await step05DetectFeatures.execute(makeCtx(), state);
+    expect(state.routeInventory.counts.pages).toBe(1);
+    expect(state.routeInventory.counts.apis).toBe(1);
   });
 });
 
-describe('step05DetectFeatures — status branching', () => {
-  it('marks page as ui_only when no matching API exists and emits missing_link edge', async () => {
+describe('step05DetectFeatures — edge-aware status fallback', () => {
+  it('marks a page with no backend edge as ui_only (no fabricated domain match)', async () => {
     const state = stateWith(['app/orphan/page.tsx']);
 
     await step05DetectFeatures.execute(makeCtx(), state);
 
     const page = state.detectedFeatures.find((f) => f.type === 'page');
     expect(page?.status).toBe('ui_only');
-    expect(page?.edges?.some((e) => e.type === 'missing_link')).toBe(true);
   });
 
-  it('marks api as logic_only when no matching page exists', async () => {
+  it('marks an api with no caller edge as logic_only', async () => {
     const state = stateWith(['app/api/billing/route.ts']);
 
     await step05DetectFeatures.execute(makeCtx(), state);
 
     const api = state.detectedFeatures.find((f) => f.type === 'api');
     expect(api?.status).toBe('logic_only');
+  });
+
+  it('does NOT emit a phantom api.<domain>.suspected missing_link edge', async () => {
+    const state = stateWith(['app/settings/page.tsx']);
+
+    await step05DetectFeatures.execute(makeCtx(), state);
+
+    const page = state.detectedFeatures.find((f) => f.type === 'page');
+    const phantom = page?.edges?.find(
+      (e) => e.type === 'missing_link' && e.target.includes('suspected'),
+    );
+    expect(phantom).toBeUndefined();
   });
 
   it('component nodes default to status=unknown when source is not inspected', async () => {
@@ -130,7 +152,8 @@ describe('step05DetectFeatures — new node types', () => {
 
     const action = state.detectedFeatures.find((f) => f.type === 'action');
     expect(action?.label).toBe('createInvoice');
-    expect(action?.status).toBe('unknown');
+    // No inbound caller edge in the fallback path → logic_only.
+    expect(action?.status).toBe('logic_only');
   });
 
   it('emits external_service nodes when .env.example is present', async () => {
@@ -147,7 +170,7 @@ describe('step05DetectFeatures — new node types', () => {
   });
 });
 
-describe('step05DetectFeatures — new edges', () => {
+describe('step05DetectFeatures — auth edges (file-tree-derivable)', () => {
   it('emits requires_auth edge from a page inside (authenticated) to the auth_guard node', async () => {
     const state = stateWith([
       'app/(authenticated)/dashboard/page.tsx',
@@ -162,35 +185,6 @@ describe('step05DetectFeatures — new edges', () => {
     expect(guard).toBeDefined();
     expect(
       page?.edges?.some((e) => e.type === 'requires_auth' && e.target === guard?.id),
-    ).toBe(true);
-  });
-
-  it('emits missing_link edge from a page when no corresponding API exists', async () => {
-    const state = stateWith(['app/settings/page.tsx']);
-
-    await step05DetectFeatures.execute(makeCtx(), state);
-
-    const page = state.detectedFeatures.find((f) => f.type === 'page');
-    const missingLink = page?.edges?.find((e) => e.type === 'missing_link');
-    expect(missingLink).toBeDefined();
-    expect(missingLink?.target).toContain('settings');
-  });
-
-  it('emits contains edge from page to component when they share a directory', async () => {
-    const state = stateWith([
-      'app/dashboard/page.tsx',
-      'app/dashboard/components/Chart.tsx',
-    ]);
-
-    await step05DetectFeatures.execute(makeCtx(), state);
-
-    const page = state.detectedFeatures.find((f) => f.type === 'page');
-    const chart = state.detectedFeatures.find(
-      (f) => f.type === 'component' && f.label === 'Chart',
-    );
-    expect(chart).toBeDefined();
-    expect(
-      page?.edges?.some((e) => e.type === 'contains' && e.target === chart?.id),
     ).toBe(true);
   });
 });

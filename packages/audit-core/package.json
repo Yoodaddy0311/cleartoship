@@ -9,6 +9,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./scoring/apply-enrichment": {
+      "types": "./dist/scoring/apply-enrichment.d.ts",
+      "default": "./dist/scoring/apply-enrichment.js"
+    },
+    "./feature-graph/edge-extract/assemble-detected": {
+      "types": "./dist/feature-graph/edge-extract/assemble-detected.d.ts",
+      "default": "./dist/feature-graph/edge-extract/assemble-detected.js"
     }
   },
   "scripts": {

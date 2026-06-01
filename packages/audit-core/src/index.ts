@@ -13,6 +13,13 @@ export * from './patterns/feature-graph-patterns.js';
 export * from './patterns/functional-flow-patterns.js';
 export * from './patterns/data-model-patterns.js';
 export * from './feature-graph/build-graph.js';
+// NOTE: the `feature-graph/edge-extract/*` modules import node:fs / node:path
+// (disk IO) and are intentionally NOT re-exported from this barrel. Pulling
+// them in here would risk a future `'use client'` barrel import dragging
+// node:fs into the client bundle and breaking `next build` (this footgun bit
+// the repo before — see the apply-enrichment deep-import comment in the
+// dashboard page). Consumers DEEP-import the assembler via the dedicated
+// subpath export `@cleartoship/audit-core/feature-graph/edge-extract/assemble-detected`.
 export * from './feature-graph/route-ast/build-route-inventory.js';
 export * from './feature-graph/route-ast/next-app-router.js';
 export * from './feature-graph/route-ast/next-pages-router.js';

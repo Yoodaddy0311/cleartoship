@@ -8,7 +8,6 @@ import type {
   Evidence,
   FeatureEdge,
   FeatureGraph,
-  FeatureNode,
   Finding,
   LaunchStatus as ApiLaunchStatus,
   Confidence as ApiConfidence,
@@ -22,6 +21,7 @@ import type {
   FindingEvidenceView,
   FindingViewModel,
 } from '@/lib/types/finding-view';
+import { layoutLayered } from '@/lib/api/layout-layered';
 
 const LAUNCH_STATUS_MAP: Record<ApiLaunchStatus, UiLaunchStatus> = {
   READY: 'ready',
@@ -175,29 +175,14 @@ export function adaptEvidence(e: Evidence): FindingEvidenceView {
   return evidence;
 }
 
-/**
- * Feature graph nodes have no persisted layout — synthesize a deterministic
- * grid so the ReactFlow canvas can render. Worker will populate positions in
- * a later sprint.
- */
-function layoutNodes(nodes: FeatureNode[]): Map<string, { x: number; y: number }> {
-  const COLS = 4;
-  const COL_W = 260;
-  const ROW_H = 140;
-  const positions = new Map<string, { x: number; y: number }>();
-  nodes.forEach((node, i) => {
-    const col = i % COLS;
-    const row = Math.floor(i / COLS);
-    positions.set(node.id, { x: col * COL_W + 40, y: row * ROW_H + 40 });
-  });
-  return positions;
-}
-
 export function adaptFeatureGraph(graph: FeatureGraph): {
   nodes: MockNode[];
   edges: MockEdge[];
 } {
-  const positions = layoutNodes(graph.nodes);
+  // Feature-graph nodes have no persisted layout — synthesize a deterministic
+  // LAYERED layout by node type (pages → components → actions/APIs → data
+  // models) so the ReactFlow canvas reads top→bottom. See `layout-layered.ts`.
+  const positions = layoutLayered(graph.nodes);
   const nodes: MockNode[] = graph.nodes.map<MockNode>((n) => ({
     id: n.id,
     type: n.type,
