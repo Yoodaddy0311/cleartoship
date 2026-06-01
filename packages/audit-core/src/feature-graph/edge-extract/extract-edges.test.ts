@@ -295,3 +295,133 @@ export async function POST() { return prisma.post.create({ data: {} }); }`,
     expect(edges).toContainEqual({ source: apiId, target: modelId, type: 'writes_to' });
   });
 });
+
+describe('extractEdges — entity names are regex-escaped', () => {
+  let dir: string;
+  afterEach(async () => {
+    if (dir) await fsp.rm(dir, { recursive: true, force: true });
+  });
+
+  it('does not throw when an entity name contains regex metacharacters', async () => {
+    // Unescaped, `User(` makes `(?:prisma|db|orm)\.(?:User(|user()\.` — an
+    // unbalanced paren — so `new RegExp` would throw and extractEdges reject.
+    const dm: DataModelInventory = {
+      tech: 'prisma',
+      entities: [
+        { name: 'User(', fieldCount: 1, hasRelations: false, sourceFile: 'prisma/schema.prisma' },
+      ],
+      sourceFiles: ['prisma/schema.prisma'],
+      confidence: 'high',
+    };
+    dir = await writeFixture([
+      { path: 'app/api/x/route.ts', content: `export async function GET() { return 1; }` },
+      { path: 'prisma/schema.prisma', content: `model X {}` },
+    ]);
+    const fileTree = ['app/api/x/route.ts', 'prisma/schema.prisma'];
+    const routeInventory = inv([API('/api/x', 'app/api/x/route.ts')]);
+    const { nodes, sourceByNodeId } = buildNodes({ fileTree, routeInventory, dataModelInventory: dm });
+    await expect(
+      extractEdges({ clonePath: dir, fileTree, routeInventory, dataModelInventory: dm, nodes, sourceByNodeId }),
+    ).resolves.toBeDefined();
+  });
+
+  it('matches entity names LITERALLY (a `.` metachar must not match any char)', async () => {
+    // Unescaped, `Us.r` would match `User`; escaped, it must not.
+    const dm: DataModelInventory = {
+      tech: 'prisma',
+      entities: [
+        { name: 'Us.r', fieldCount: 1, hasRelations: false, sourceFile: 'prisma/schema.prisma' },
+      ],
+      sourceFiles: ['prisma/schema.prisma'],
+      confidence: 'high',
+    };
+    dir = await writeFixture([
+      { path: 'app/api/u/route.ts', content: `export async function GET() { return prisma.User.findMany(); }` },
+      { path: 'prisma/schema.prisma', content: `model X {}` },
+    ]);
+    const fileTree = ['app/api/u/route.ts', 'prisma/schema.prisma'];
+    const routeInventory = inv([API('/api/u', 'app/api/u/route.ts')]);
+    const { nodes, sourceByNodeId } = buildNodes({ fileTree, routeInventory, dataModelInventory: dm });
+    const map = await extractEdges({ clonePath: dir, fileTree, routeInventory, dataModelInventory: dm, nodes, sourceByNodeId });
+    const edges = flatten(map);
+    expect(edges.some((e) => e.target === 'data_model.Us.r')).toBe(false);
+  });
+});
+
+describe('extractEdges — read failures are surfaced (no longer swallowed)', () => {
+  let dir: string;
+  afterEach(async () => {
+    if (dir) await fsp.rm(dir, { recursive: true, force: true });
+  });
+
+  it('counts + samples source files that fail to read', async () => {
+    dir = await writeFixture([
+      { path: 'app/real/page.tsx', content: `export default function P(){ return null; }` },
+    ]);
+    // `app/ghost/page.tsx` is inventoried but never written to disk → ENOENT.
+    const fileTree = ['app/real/page.tsx', 'app/ghost/page.tsx'];
+    const routeInventory = inv([
+      PAGE('/real', 'app/real/page.tsx'),
+      PAGE('/ghost', 'app/ghost/page.tsx'),
+    ]);
+    const { nodes, sourceByNodeId } = buildNodes({ fileTree, routeInventory, dataModelInventory: NONE_DM });
+    const map = await extractEdges({
+      clonePath: dir,
+      fileTree,
+      routeInventory,
+      dataModelInventory: NONE_DM,
+      nodes,
+      sourceByNodeId,
+    });
+    expect(map.readFailures).toBe(1);
+    expect(map.readFailureSamples.some((s) => s.includes('app/ghost/page.tsx'))).toBe(true);
+  });
+
+  it('reports zero read failures on the no-clonePath fast path', async () => {
+    const fileTree = ['app/real/page.tsx'];
+    const routeInventory = inv([PAGE('/real', 'app/real/page.tsx')]);
+    const { nodes, sourceByNodeId } = buildNodes({ fileTree, routeInventory, dataModelInventory: NONE_DM });
+    const map = await extractEdges({
+      clonePath: '',
+      fileTree,
+      routeInventory,
+      dataModelInventory: NONE_DM,
+      nodes,
+      sourceByNodeId,
+    });
+    expect(map.readFailures).toBe(0);
+    expect(map.readFailureSamples).toEqual([]);
+  });
+});
+
+describe('extractEdges — bounded-concurrency reads cover all candidates', () => {
+  let dir: string;
+  afterEach(async () => {
+    if (dir) await fsp.rm(dir, { recursive: true, force: true });
+  });
+
+  it('reads every source file even when candidates exceed the concurrency limit', async () => {
+    const N = 20; // > READ_CONCURRENCY (8)
+    const files = Array.from({ length: N }, (_, i) => ({
+      path: `app/p${i}/page.tsx`,
+      content: `export default function P(){ fetch('/api/ghost${i}'); return null; }`,
+    }));
+    dir = await writeFixture(files);
+    const fileTree = files.map((f) => f.path);
+    const routeInventory = inv(files.map((f, i) => PAGE(`/p${i}`, f.path)));
+    const { nodes, sourceByNodeId } = buildNodes({ fileTree, routeInventory, dataModelInventory: NONE_DM });
+    const map = await extractEdges({
+      clonePath: dir,
+      fileTree,
+      routeInventory,
+      dataModelInventory: NONE_DM,
+      nodes,
+      sourceByNodeId,
+    });
+    const edges = flatten(map);
+    const missing = edges.filter((e) => e.type === 'missing_link');
+    expect(missing.length).toBe(N);
+    expect(map.extraNodes.length).toBe(N);
+    expect(map.readFailures).toBe(0);
+  });
+});
