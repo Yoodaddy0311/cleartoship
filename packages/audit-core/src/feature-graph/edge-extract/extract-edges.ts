@@ -54,12 +54,55 @@ export interface ExtractEdgesInput {
 export interface EdgeMap extends Map<string, ReadonlyArray<ExtractedEdge>> {
   /** `missing` nodes the extractor created for unresolved fetch targets. */
   extraNodes: ReadonlyArray<GraphNode>;
+  /** Count of source files that failed to read (previously swallowed silently). */
+  readFailures: number;
+  /** Up to 50 `rel (CODE)` samples of read failures, for log surfacing. */
+  readFailureSamples: ReadonlyArray<string>;
 }
 
 // `import x from '...'` / `import '...'` / `export ... from '...'`.
 const IMPORT_RE = /\b(?:import|export)\b[^'"`;]*?from\s*['"`]([^'"`]+)['"`]|\bimport\s*['"`]([^'"`]+)['"`]|\brequire\(\s*['"`]([^'"`]+)['"`]\s*\)/g;
 // `fetch('/api/...')` or axios.get('/api/...') / axios('/api/...').
 const FETCH_RE = /\b(?:fetch|axios(?:\.\w+)?)\s*\(\s*[`'"]([^`'"]+)[`'"]/g;
+
+// Bounded parallelism for the per-node source-file reads (was fully sequential).
+const READ_CONCURRENCY = 8;
+
+/** Escape a string for safe LITERAL use inside a `new RegExp(...)` source. */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Mutable accumulator for file-read observability (failures were silent). */
+interface ReadStats {
+  failures: number;
+  samples: string[];
+}
+
+/**
+ * Run `fn` over `items` with at most `limit` concurrent executions, preserving
+ * result order. The index allocation (`const i = next; next += 1;`) has no
+ * `await` between read and increment, so it is atomic on JS's single thread.
+ */
+async function mapWithConcurrency<T, R>(
+  items: ReadonlyArray<T>,
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  async function worker(): Promise<void> {
+    for (;;) {
+      const i = next;
+      next += 1;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i] as T, i);
+    }
+  }
+  const pool = Array.from({ length: Math.min(limit, items.length) }, () => worker());
+  await Promise.all(pool);
+  return results;
+}
 
 function nodeTypeById(nodes: ReadonlyArray<GraphNode>): Map<string, GraphNode['type']> {
   const m = new Map<string, GraphNode['type']>();
@@ -139,10 +182,19 @@ function apiNodeForUrl(
   return null;
 }
 
-async function readFileSafe(clonePath: string, rel: string): Promise<string | null> {
+async function readFileSafe(
+  clonePath: string,
+  rel: string,
+  stats: ReadStats,
+): Promise<string | null> {
   try {
     return await fsp.readFile(path.join(clonePath, rel), 'utf8');
-  } catch {
+  } catch (err) {
+    stats.failures += 1;
+    if (stats.samples.length < 50) {
+      const code = (err as NodeJS.ErrnoException)?.code ?? 'ERR';
+      stats.samples.push(`${rel} (${code})`);
+    }
     return null;
   }
 }
@@ -236,14 +288,18 @@ function scanOrmUsage(
     const modelId = `data_model.${name}`;
     if (!nodeIds.has(modelId)) continue;
     const lc = name.charAt(0).toLowerCase() + name.slice(1);
+    // Escape entity names — they flow from inventory data and may contain regex
+    // metacharacters that would otherwise corrupt (or crash) the patterns.
+    const safeName = escapeRegExp(name);
+    const safeLc = escapeRegExp(lc);
     // prisma.<model>. / db.<model>. (case-insensitive first char).
     const accessorRe = new RegExp(
-      `(?:prisma|db|orm)\\.(?:${name}|${lc})\\.(\\w+)`,
+      `(?:prisma|db|orm)\\.(?:${safeName}|${safeLc})\\.(\\w+)`,
       'g',
     );
     // mongoose-style: model('Post') / collection('posts').
     const factoryRe = new RegExp(
-      `(?:model|collection)\\(\\s*[\`'"]${name}s?[\`'"]`,
+      `(?:model|collection)\\(\\s*[\`'"]${safeName}s?[\`'"]`,
       'gi',
     );
     let reads = false;
@@ -267,6 +323,8 @@ export async function extractEdges(input: ExtractEdgesInput): Promise<EdgeMap> {
 
   if (!input.clonePath) {
     map.extraNodes = [];
+    map.readFailures = 0;
+    map.readFailureSamples = [];
     return map;
   }
 
@@ -284,12 +342,24 @@ export async function extractEdges(input: ExtractEdgesInput): Promise<EdgeMap> {
 
   // Only page/component/action nodes are edge SOURCES (they "contain"/"call").
   // API nodes are sources too — for reads_from/writes_to to data models.
-  for (const node of input.nodes) {
-    const src = input.sourceByNodeId[node.id];
-    if (!src) continue;
-    if (isExcludedFile(src)) continue;
-    const content = await readFileSafe(input.clonePath, src);
-    if (content === null) continue;
+  const candidates = input.nodes
+    .map((node) => ({ node, src: input.sourceByNodeId[node.id] }))
+    .filter((c): c is { node: GraphNode; src: string } =>
+      Boolean(c.src) && !isExcludedFile(c.src as string),
+    );
+
+  // Phase 1: read all candidate source files with bounded concurrency (8-way).
+  const readStats: ReadStats = { failures: 0, samples: [] };
+  const contents = await mapWithConcurrency(candidates, READ_CONCURRENCY, (c) =>
+    readFileSafe(input.clonePath, c.src, readStats),
+  );
+
+  // Phase 2: scan IN ORDER so the `missing` node creation order stays
+  // deterministic (it mirrors the original sequential node iteration).
+  for (let i = 0; i < candidates.length; i += 1) {
+    const { node, src } = candidates[i] as { node: GraphNode; src: string };
+    const content = contents[i];
+    if (content === null || content === undefined) continue;
 
     const edges: ExtractedEdge[] = [];
 
@@ -310,5 +380,7 @@ export async function extractEdges(input: ExtractEdgesInput): Promise<EdgeMap> {
   }
 
   map.extraNodes = Array.from(missingRegistry.values());
+  map.readFailures = readStats.failures;
+  map.readFailureSamples = readStats.samples;
   return map;
 }
