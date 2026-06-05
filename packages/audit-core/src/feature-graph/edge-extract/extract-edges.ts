@@ -60,8 +60,9 @@ export interface EdgeMap extends Map<string, ReadonlyArray<ExtractedEdge>> {
   readFailureSamples: ReadonlyArray<string>;
 }
 
-// `import x from '...'` / `import '...'` / `export ... from '...'`.
-const IMPORT_RE = /\b(?:import|export)\b[^'"`;]*?from\s*['"`]([^'"`]+)['"`]|\bimport\s*['"`]([^'"`]+)['"`]|\brequire\(\s*['"`]([^'"`]+)['"`]\s*\)/g;
+// `import x from '...'` / `import '...'` / `export ... from '...'` /
+// `require('...')` / dynamic `import('...')` (literal string specifier only).
+const IMPORT_RE = /\b(?:import|export)\b[^'"`;]*?from\s*['"`]([^'"`]+)['"`]|\bimport\s*['"`]([^'"`]+)['"`]|\brequire\(\s*['"`]([^'"`]+)['"`]\s*\)|\bimport\s*\(\s*['"`]([^'"`]+)['"`]\s*\)/g;
 // `fetch('/api/...')` or axios.get('/api/...') / axios('/api/...').
 const FETCH_RE = /\b(?:fetch|axios(?:\.\w+)?)\s*\(\s*[`'"]([^`'"]+)[`'"]/g;
 
@@ -182,20 +183,38 @@ function apiNodeForUrl(
   return null;
 }
 
+/**
+ * Resolve `rel` against `root` and confirm the result stays INSIDE `root`.
+ * Returns the absolute path, or `null` when `rel` traverses (`..`) out of the
+ * clone root. Done by comparing the resolved candidate to `root` + separator
+ * so a sibling like `clone-evil` cannot masquerade as being under `clone`.
+ */
+function resolveWithinRoot(root: string, rel: string): string | null {
+  const resolvedRoot = path.resolve(root);
+  const candidate = path.resolve(resolvedRoot, rel);
+  if (candidate === resolvedRoot) return candidate;
+  const withSep = resolvedRoot.endsWith(path.sep)
+    ? resolvedRoot
+    : resolvedRoot + path.sep;
+  return candidate.startsWith(withSep) ? candidate : null;
+}
+
 async function readFileSafe(
   clonePath: string,
   rel: string,
   stats: ReadStats,
 ): Promise<string | null> {
-  try {
-    return await fsp.readFile(path.join(clonePath, rel), 'utf8');
-  } catch (err) {
+  const recordFailure = (code: string): null => {
     stats.failures += 1;
-    if (stats.samples.length < 50) {
-      const code = (err as NodeJS.ErrnoException)?.code ?? 'ERR';
-      stats.samples.push(`${rel} (${code})`);
-    }
+    if (stats.samples.length < 50) stats.samples.push(`${rel} (${code})`);
     return null;
+  };
+  const abs = resolveWithinRoot(clonePath, rel);
+  if (abs === null) return recordFailure('EPATHTRAVERSAL');
+  try {
+    return await fsp.readFile(abs, 'utf8');
+  } catch (err) {
+    return recordFailure((err as NodeJS.ErrnoException)?.code ?? 'ERR');
   }
 }
 
@@ -222,7 +241,7 @@ function scanImports(
 ): ExtractedEdge[] {
   const edges: ExtractedEdge[] = [];
   for (const m of content.matchAll(IMPORT_RE)) {
-    const specifier = m[1] ?? m[2] ?? m[3];
+    const specifier = m[1] ?? m[2] ?? m[3] ?? m[4];
     if (!specifier) continue;
     const resolved = resolveImport(importerPath, specifier, aliases, fileSet);
     if (!resolved || isExcludedFile(resolved)) continue;

@@ -125,6 +125,71 @@ describe('extractEdges — import-based contains/renders', () => {
   });
 });
 
+describe('extractEdges — dynamic import() capture', () => {
+  let dir: string;
+  afterEach(async () => {
+    if (dir) await fsp.rm(dir, { recursive: true, force: true });
+  });
+
+  it('emits a contains edge for a dynamic import() with single quotes', async () => {
+    dir = await writeFixture([
+      { path: 'tsconfig.json', content: JSON.stringify({ compilerOptions: { paths: { '@/*': ['./*'] } } }) },
+      { path: 'app/page.tsx', content: `export default function P() { const C = import('@/components/ui/chart'); return null; }` },
+      { path: 'components/ui/chart.tsx', content: `export function Chart() { return null; }` },
+    ]);
+    const fileTree = ['app/page.tsx', 'components/ui/chart.tsx', 'tsconfig.json'];
+    const routeInventory = inv([PAGE('/', 'app/page.tsx')]);
+    const { nodes, sourceByNodeId } = buildNodes({ fileTree, routeInventory, dataModelInventory: NONE_DM });
+    const map = await extractEdges({
+      clonePath: dir,
+      fileTree,
+      routeInventory,
+      dataModelInventory: NONE_DM,
+      nodes,
+      sourceByNodeId,
+    });
+    const edges = flatten(map);
+    const pageId = nodes.find((n) => n.type === 'page')!.id;
+    const compId = nodes.find((n) => n.type === 'component')!.id;
+    expect(edges).toContainEqual({ source: pageId, target: compId, type: 'contains' });
+  });
+
+  it('emits a contains edge for a dynamic import() with double quotes', async () => {
+    dir = await writeFixture([
+      { path: 'tsconfig.json', content: JSON.stringify({ compilerOptions: { paths: { '@/*': ['./*'] } } }) },
+      { path: 'app/page.tsx', content: `export default function P() { const C = import("@/components/ui/chart"); return null; }` },
+      { path: 'components/ui/chart.tsx', content: `export function Chart() { return null; }` },
+    ]);
+    const fileTree = ['app/page.tsx', 'components/ui/chart.tsx', 'tsconfig.json'];
+    const routeInventory = inv([PAGE('/', 'app/page.tsx')]);
+    const { nodes, sourceByNodeId } = buildNodes({ fileTree, routeInventory, dataModelInventory: NONE_DM });
+    const map = await extractEdges({
+      clonePath: dir,
+      fileTree,
+      routeInventory,
+      dataModelInventory: NONE_DM,
+      nodes,
+      sourceByNodeId,
+    });
+    const edges = flatten(map);
+    const pageId = nodes.find((n) => n.type === 'page')!.id;
+    const compId = nodes.find((n) => n.type === 'component')!.id;
+    expect(edges).toContainEqual({ source: pageId, target: compId, type: 'contains' });
+  });
+
+  it('does not throw on a non-literal dynamic import (import(variable))', async () => {
+    dir = await writeFixture([
+      { path: 'app/page.tsx', content: `export default function P() { const name = 'x'; const C = import(name); return null; }` },
+    ]);
+    const fileTree = ['app/page.tsx'];
+    const routeInventory = inv([PAGE('/', 'app/page.tsx')]);
+    const { nodes, sourceByNodeId } = buildNodes({ fileTree, routeInventory, dataModelInventory: NONE_DM });
+    await expect(
+      extractEdges({ clonePath: dir, fileTree, routeInventory, dataModelInventory: NONE_DM, nodes, sourceByNodeId }),
+    ).resolves.toBeDefined();
+  });
+});
+
 describe('extractEdges — calls_api via fetch / axios', () => {
   let dir: string;
   afterEach(async () => {
@@ -391,6 +456,127 @@ describe('extractEdges — read failures are surfaced (no longer swallowed)', ()
     });
     expect(map.readFailures).toBe(0);
     expect(map.readFailureSamples).toEqual([]);
+  });
+});
+
+describe('extractEdges — path-traversal guard', () => {
+  let dir: string;
+  let secretDir: string;
+  afterEach(async () => {
+    if (dir) await fsp.rm(dir, { recursive: true, force: true });
+    if (secretDir) await fsp.rm(secretDir, { recursive: true, force: true });
+  });
+
+  it('treats a `..` traversal escape as a read failure, never reading outside the clone root', async () => {
+    // A real, readable file OUTSIDE the clone root — proves the guard (not a
+    // missing file) is what stops the read.
+    secretDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'edge-secret-'));
+    await fsp.writeFile(path.join(secretDir, 'secret.tsx'), `export const SECRET = 1;`, 'utf8');
+    dir = await writeFixture([
+      { path: 'app/real/page.tsx', content: `export default function P(){ return null; }` },
+    ]);
+    // Inventoried route whose sourceFile traverses out of the clone root into
+    // the absolute secret dir. extractEdges reads sourceByNodeId verbatim.
+    const evilRel = path.relative(dir, path.join(secretDir, 'secret.tsx'));
+    const fileTree = ['app/real/page.tsx'];
+    const routeInventory = inv([
+      PAGE('/real', 'app/real/page.tsx'),
+      PAGE('/evil', evilRel),
+    ]);
+    const { nodes, sourceByNodeId } = buildNodes({ fileTree, routeInventory, dataModelInventory: NONE_DM });
+    const map = await extractEdges({
+      clonePath: dir,
+      fileTree,
+      routeInventory,
+      dataModelInventory: NONE_DM,
+      nodes,
+      sourceByNodeId,
+    });
+    // Guard fires: counted as a failure, sampled with the traversal code, no throw.
+    expect(map.readFailures).toBe(1);
+    expect(map.readFailureSamples.some((s) => s.includes('EPATHTRAVERSAL'))).toBe(true);
+    // No edge sourced from the escaped node.
+    const evilId = nodes.find((n) => n.label === '/evil')!.id;
+    expect(map.has(evilId)).toBe(false);
+  });
+});
+
+describe('extractEdges — optional catch-all matches ZERO segments', () => {
+  let dir: string;
+  afterEach(async () => {
+    if (dir) await fsp.rm(dir, { recursive: true, force: true });
+  });
+
+  it('matches fetch(/api/docs) against /api/docs/[[...slug]] (zero-segment tail)', async () => {
+    dir = await writeFixture([
+      {
+        path: 'app/docs/page.tsx',
+        content: `export default function P() { fetch('/api/docs'); return null; }`,
+      },
+      { path: 'app/api/docs/[[...slug]]/route.ts', content: `export async function GET() {}` },
+    ]);
+    const fileTree = ['app/docs/page.tsx', 'app/api/docs/[[...slug]]/route.ts'];
+    const optCatchAllApi = {
+      ...API('/api/docs/[[...slug]]', 'app/api/docs/[[...slug]]/route.ts'),
+      hasDynamic: true,
+      hasCatchAll: true,
+      segments: [
+        { name: 'api', kind: 'static' as const },
+        { name: 'docs', kind: 'static' as const },
+        { name: 'slug', kind: 'optionalCatchAll' as const },
+      ],
+    };
+    const routeInventory = inv([PAGE('/docs', 'app/docs/page.tsx'), optCatchAllApi]);
+    const { nodes, sourceByNodeId } = buildNodes({ fileTree, routeInventory, dataModelInventory: NONE_DM });
+    const map = await extractEdges({
+      clonePath: dir,
+      fileTree,
+      routeInventory,
+      dataModelInventory: NONE_DM,
+      nodes,
+      sourceByNodeId,
+    });
+    const edges = flatten(map);
+    const apiId = nodes.find((n) => n.type === 'api')!.id;
+    // Zero-segment tail still resolves to a real calls_api edge — no missing node.
+    expect(edges.some((e) => e.target === apiId && e.type === 'calls_api')).toBe(true);
+    expect(edges.some((e) => e.type === 'missing_link')).toBe(false);
+    expect(map.extraNodes.length).toBe(0);
+  });
+
+  it('also matches a non-empty tail against the same optional catch-all', async () => {
+    dir = await writeFixture([
+      {
+        path: 'app/docs/page.tsx',
+        content: `export default function P() { fetch('/api/docs/intro/getting-started'); return null; }`,
+      },
+      { path: 'app/api/docs/[[...slug]]/route.ts', content: `export async function GET() {}` },
+    ]);
+    const fileTree = ['app/docs/page.tsx', 'app/api/docs/[[...slug]]/route.ts'];
+    const optCatchAllApi = {
+      ...API('/api/docs/[[...slug]]', 'app/api/docs/[[...slug]]/route.ts'),
+      hasDynamic: true,
+      hasCatchAll: true,
+      segments: [
+        { name: 'api', kind: 'static' as const },
+        { name: 'docs', kind: 'static' as const },
+        { name: 'slug', kind: 'optionalCatchAll' as const },
+      ],
+    };
+    const routeInventory = inv([PAGE('/docs', 'app/docs/page.tsx'), optCatchAllApi]);
+    const { nodes, sourceByNodeId } = buildNodes({ fileTree, routeInventory, dataModelInventory: NONE_DM });
+    const map = await extractEdges({
+      clonePath: dir,
+      fileTree,
+      routeInventory,
+      dataModelInventory: NONE_DM,
+      nodes,
+      sourceByNodeId,
+    });
+    const edges = flatten(map);
+    const apiId = nodes.find((n) => n.type === 'api')!.id;
+    expect(edges.some((e) => e.target === apiId && e.type === 'calls_api')).toBe(true);
+    expect(edges.some((e) => e.type === 'missing_link')).toBe(false);
   });
 });
 
