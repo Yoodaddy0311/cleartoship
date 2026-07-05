@@ -149,24 +149,21 @@ jobs:
         id: run-deploy
         run: |
           # ---------------------------------------------------------------
-          # Cold-start mitigation (#96 / T1.6-FU / W3.INF.1)
+          # Cost policy — free-tier decision 2026-07-05 (supersedes #96
+          # T1.6-FU warm-instance policy)
           # ---------------------------------------------------------------
           # Source of truth: this workflow. Terraform deliberately does NOT
           # manage the Cloud Run service resource (no cloud-run.tf) — gcloud
           # is the single owner so we never get drift between IaC and the
           # GitHub Actions pipeline that ships every push to main.
           #
-          # Policy:
-          #   prod        → min-instances=1 (keeps one warm container, kills
-          #                 the 8–12 s Node + tool boot tax on first request,
-          #                 cost ≈ $13/mo for 4 vCPU/4 GiB idle in
-          #                 asia-northeast3 — see infra/README.deploy.md §3)
-          #   staging/dev → min-instances=0 (scale-to-zero, no idle cost)
-          #
-          # Detection: GCP_PROJECT_ID substring match on "prod". Mirrored in
-          # infra/scripts/03-deploy-worker.sh; both branches MUST stay in
-          # sync. If you change this policy, update README.deploy.md §3.
-          # ---------------------------------------------------------------
+          # min-instances=0 for EVERY environment, prod included. The former
+          # prod warm instance (min-instances=1 + --no-cpu-throttling) billed
+          # a 4 vCPU/4 GiB container 24/7 — up to $150–250/mo. The 8–12 s
+          # cold start on the first audit request is an accepted trade-off;
+          # an audit run takes minutes anyway. Mirrored in
+          # infra/scripts/03-deploy-worker.sh; both MUST stay in sync. If you
+          # change this policy, update README.deploy.md §3.
           # ---------------------------------------------------------------
           # CPU throttling policy (Phase 0 P0.W3 / handoff §6 R-P0-3 D-2)
           # ---------------------------------------------------------------
@@ -175,20 +172,15 @@ jobs:
           # responds 200 immediately and then runs the pipeline in the
           # background — so under default throttling, chrome-launcher's
           # path-search has stretched from <1s to 11min (handoff §6.5).
-          #
-          # Trade-off:
-          #   prod        → --no-cpu-throttling  (full CPU for instance
-          #                 lifetime, ~$13–120/mo depending on max-instances
-          #                 utilization). Phase 2 can revisit by refactoring
-          #                 the handler to await-then-respond.
-          #   staging/dev → throttling kept ON   (no idle CPU cost on rarely-
-          #                 used environments).
+          # prod therefore keeps --no-cpu-throttling (instance-based
+          # billing). With min-instances=0 this bills only while an instance
+          # is alive (audit + idle scale-down window), not 24/7. Phase 2 can
+          # revisit by refactoring the handler to await-then-respond.
           # ---------------------------------------------------------------
+          MIN_INSTANCES=0
           if [[ "${{ secrets.GCP_PROJECT_ID }}" == *"prod"* ]]; then
-            MIN_INSTANCES=1
             CPU_THROTTLING_FLAG="--no-cpu-throttling"
           else
-            MIN_INSTANCES=0
             CPU_THROTTLING_FLAG=""
           fi
           echo "min-instances=$MIN_INSTANCES cpu-throttling=$CPU_THROTTLING_FLAG (project=${{ secrets.GCP_PROJECT_ID }})"
@@ -212,6 +204,20 @@ jobs:
           echo "worker_url=$URL" >> "$GITHUB_OUTPUT"
           printf '%s' "$URL" | gcloud secrets versions add cloud-run-worker-url \
             --data-file=- --project="${{ secrets.GCP_PROJECT_ID }}"
+
+          # Secret Manager bills every ENABLED version beyond the 6-version
+          # free tier ($0.06/version/mo), and this step adds one per deploy.
+          # Destroy all enabled versions except the 3 most recent. Consumers
+          # only ever read `latest` (see web-ssr step / functions), so old
+          # versions are dead weight.
+          gcloud secrets versions list cloud-run-worker-url \
+            --project="${{ secrets.GCP_PROJECT_ID }}" \
+            --filter="state=ENABLED" --sort-by=~createTime \
+            --format="value(name)" | tail -n +4 | while read -r OLD_VERSION; do
+            gcloud secrets versions destroy "$OLD_VERSION" \
+              --secret=cloud-run-worker-url \
+              --project="${{ secrets.GCP_PROJECT_ID }}" --quiet
+          done
 
           # Second pass: now that we know the deterministic URL Cloud Run
           # assigned to the service, persist it as AUDIT_WORKER_URL so the
@@ -428,16 +434,13 @@ jobs:
       - name: Deploy Cloud Run web-ssr
         id: web-deploy
         run: |
-          # Same min-instances policy as the worker — warm one instance in
-          # prod, scale-to-zero elsewhere. Public site so --allow-unauthenticated.
+          # Same min-instances policy as the worker — scale-to-zero in every
+          # environment (free-tier decision 2026-07-05; supersedes the prod
+          # warm instance). Public site so --allow-unauthenticated.
           # CLOUD_TASKS_* values map to the terraform-managed queue; the
           # invoker SA is the cloud-run-invoker the web SSR impersonates to
           # mint OIDC tokens against the audit-worker.
-          if [[ "${{ secrets.GCP_PROJECT_ID }}" == *"prod"* ]]; then
-            MIN_INSTANCES=1
-          else
-            MIN_INSTANCES=0
-          fi
+          MIN_INSTANCES=0
 
           WORKER_URL=$(gcloud secrets versions access latest \
             --secret=cloud-run-worker-url \
