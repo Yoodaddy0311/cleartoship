@@ -15,16 +15,12 @@ IMAGE_TAG="${IMAGE_TAG:-v0.1.0}"
 SERVICE_NAME="${SERVICE_NAME:-audit-worker}"
 DRY_RUN="${DRY_RUN:-0}"
 
-# Cold-start mitigation: prod keeps 1 warm instance (#96 / T1.6-FU).
-# staging/dev stay at 0 to avoid ~$10/mo idle cost per env.
+# Cost policy (free-tier decision 2026-07-05, supersedes #96 T1.6-FU):
+# min-instances=0 in EVERY environment, prod included — the former prod
+# warm instance billed 4 vCPU/4 GiB 24/7 (up to $150–250/mo). Mirror of
+# .github/workflows/deploy.yml; keep both in sync.
 # Override with MIN_INSTANCES=<n> if needed.
-if [[ -z "${MIN_INSTANCES:-}" ]]; then
-  if [[ "$PROJECT_ID" == *"prod"* ]]; then
-    MIN_INSTANCES=1
-  else
-    MIN_INSTANCES=0
-  fi
-fi
+MIN_INSTANCES="${MIN_INSTANCES:-0}"
 
 # Phase 0 P0.W3.5 — mirror of .github/workflows/deploy.yml CPU
 # throttling policy. Keep both files in sync (substring match on
@@ -65,7 +61,7 @@ run gcloud run deploy "$SERVICE_NAME" \
   --memory=4Gi \
   --concurrency=1 \
   --timeout=900 \
-  --max-instances=10 \
+  --max-instances=2 \
   --min-instances="$MIN_INSTANCES" \
   $CPU_THROTTLING_FLAG \
   --set-env-vars="PROJECT_ID=$PROJECT_ID,REGION=$REGION,NODE_ENV=production" \
@@ -98,6 +94,17 @@ echo "==> Storing worker URL in Secret Manager (cloud-run-worker-url)"
 printf '%s' "$URL" | run gcloud secrets versions add cloud-run-worker-url \
   --data-file=- \
   --project="$PROJECT_ID"
+
+echo "==> Pruning old secret versions (keep 3 most recent — free tier is 6 enabled versions)"
+# Mirror of the deploy.yml cleanup: consumers only read `latest`.
+gcloud secrets versions list cloud-run-worker-url \
+  --project="$PROJECT_ID" \
+  --filter="state=ENABLED" --sort-by=~createTime \
+  --format="value(name)" | tail -n +4 | while read -r OLD_VERSION; do
+  run gcloud secrets versions destroy "$OLD_VERSION" \
+    --secret=cloud-run-worker-url \
+    --project="$PROJECT_ID" --quiet
+done
 
 echo "==> Done."
 echo "Cloud Run worker URL: $URL"

@@ -1,0 +1,13 @@
+{
+  "name": "billing-kill-switch",
+  "version": "1.0.0",
+  "description": "Unlinks the billing account from all projects when the KRW 5,000 budget is exceeded",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@google-cloud/billing": "^4.0.0",
+    "@google-cloud/functions-framework": "^3.4.0"
+  }
+}

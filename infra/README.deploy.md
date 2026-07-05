@@ -124,29 +124,30 @@ PROJECT_ID=cleartoship-prod bash infra/scripts/02-build-worker.sh
 PROJECT_ID=cleartoship-prod bash infra/scripts/03-deploy-worker.sh
 ```
 
-- Cloud Run 서비스 `audit-worker` 배포 (4 CPU / 4 GiB / concurrency=1 / timeout=600s)
+- Cloud Run 서비스 `audit-worker` 배포 (4 CPU / 4 GiB / concurrency=1 / timeout=600s / max-instances=2 — 폭주 시 최악 비용 상한)
 - 런타임 SA: `audit-worker-runtime@...`
 - `--no-allow-unauthenticated` (OIDC 필수)
 - `cloud-run-invoker@...`에 `roles/run.invoker` 부여
 - 배포 후 추출한 URL을 Secret Manager `cloud-run-worker-url`에 새 버전으로 저장
-- **`--min-instances` 자동 분기 (#96 T1.6-FU / W3.INF.1)**: `PROJECT_ID`에 `prod`가 포함되면 `1` (cold start 차단, 월 약 $13 추가 예상), 그 외(staging/dev)는 `0` (idle 비용 0). 수동 오버라이드는 `MIN_INSTANCES=<n>` 환경변수.
-  - 예: `MIN_INSTANCES=2 PROJECT_ID=cleartoship-prod bash infra/scripts/03-deploy-worker.sh`
+- **`--min-instances=0` 전 환경 고정 (2026-07-05 무료 티어 결정, #96 T1.6-FU 대체)**: prod 포함 모든 환경이 scale-to-zero. 이전 prod warm instance(min-instances=1 + `--no-cpu-throttling`)는 4 vCPU/4 GiB 컨테이너를 24시간 과금해 월 최대 $150–250까지 나올 수 있는 설정이었음. 첫 요청 8–12s cold start는 감수(감사 1건이 어차피 수 분 소요). 수동 오버라이드는 `MIN_INSTANCES=<n>` 환경변수.
+  - 예: `MIN_INSTANCES=1 PROJECT_ID=cleartoship-prod bash infra/scripts/03-deploy-worker.sh`
   - GitHub Actions `deploy.yml`도 동일 로직 적용 (`GCP_PROJECT_ID` secret 기반)
+- **Secret 버전 자동 정리**: 배포마다 `cloud-run-worker-url`에 새 버전이 쌓이므로, 배포 스텝이 ENABLED 버전을 최신 3개만 남기고 destroy (무료 티어 = 활성 6버전).
 
-#### Cold-start 정책 (W3.INF.1)
+#### Cold-start / 비용 정책 (2026-07-05 개정)
 
 | 환경 | min-instances | Cold start | 월 idle 비용 (asia-northeast3, 4 vCPU/4 GiB) | 근거 |
 |------|---------------|------------|-----------------------------------------------|------|
-| prod (`*prod*`) | **1** | 없음 (첫 요청도 warm container) | ≈ $13 USD | T1.6-FU PR #96, p95 latency budget < 60s 충족 필요 |
+| prod (`*prod*`) | **0** | 8–12s (첫 요청) | $0 | 무료 티어 유지 결정 (2026-07-05). CPU throttling은 여전히 OFF — 응답 후 백그라운드 파이프라인이 CPU를 써야 하므로 instance-based billing 유지, 단 인스턴스 생존 시간에만 과금 |
 | staging / dev | 0 | 8–12s (Node 런타임 + lighthouse/git 부트) | $0 | 트래픽 거의 없는 비프로덕션은 idle 비용 우선 |
 
-**Source of truth**: `.github/workflows/deploy.yml`의 `Deploy Cloud Run worker` 스텝 + `infra/scripts/03-deploy-worker.sh`. Terraform은 의도적으로 Cloud Run 리소스를 관리하지 않습니다 (drift 방지). 정책 변경 시 두 파일의 substring 분기를 같이 수정하세요.
+**Source of truth**: `.github/workflows/deploy.yml`의 `Deploy Cloud Run worker` 스텝 + `infra/scripts/03-deploy-worker.sh`. Terraform은 의도적으로 Cloud Run 리소스를 관리하지 않습니다 (drift 방지). 정책 변경 시 두 파일을 같이 수정하세요.
 
 **모니터링 연동**: `infra/monitoring/alerts.tf`의 p99 latency 알림(5s, 5min window) — cold-start로 인한 spike 감지. min-instances=0 환경에서 false positive를 피하려면 staging에서는 알림 정책을 disable 하거나 threshold를 완화하세요.
 
 #### Rollback procedure (Phase 0+)
 
-Cloud Run의 `min-instances=1` 정책상 새 revision이 머지 즉시 prod 트래픽 100%를 받습니다. Phase 0처럼 base image나 시스템 도구를 바꾸는 경우 R-P0-3(handoff §6 D-2)에 따라 다음 절차를 권장합니다.
+Cloud Run 기본 트래픽 정책상 새 revision이 머지 즉시 prod 트래픽 100%를 받습니다. Phase 0처럼 base image나 시스템 도구를 바꾸는 경우 R-P0-3(handoff §6 D-2)에 따라 다음 절차를 권장합니다.
 
 ##### 1. 직전 revision 보존 (1회, 머지 직전)
 
