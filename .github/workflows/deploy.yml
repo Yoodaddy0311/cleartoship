@@ -161,7 +161,10 @@ jobs:
           # prod warm instance (min-instances=1 + --no-cpu-throttling) billed
           # a 4 vCPU/4 GiB container 24/7 — up to $150–250/mo. The 8–12 s
           # cold start on the first audit request is an accepted trade-off;
-          # an audit run takes minutes anyway. Mirrored in
+          # an audit run takes minutes anyway. max-instances=2 bounds the
+          # worst-case concurrent burn (2 × 4 vCPU) — a billing kill switch
+          # (infra/billing-kill-switch) cuts the whole account at KRW 5,000
+          # as the last resort. Mirrored in
           # infra/scripts/03-deploy-worker.sh; both MUST stay in sync. If you
           # change this policy, update README.deploy.md §3.
           # ---------------------------------------------------------------
@@ -191,7 +194,7 @@ jobs:
             --project="${{ secrets.GCP_PROJECT_ID }}" \
             --service-account="audit-worker-runtime@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
             --no-allow-unauthenticated \
-            --cpu=4 --memory=4Gi --concurrency=1 --timeout=600 --max-instances=10 \
+            --cpu=4 --memory=4Gi --concurrency=1 --timeout=600 --max-instances=2 \
             --min-instances="$MIN_INSTANCES" \
             $CPU_THROTTLING_FLAG \
             --set-env-vars="PROJECT_ID=${{ secrets.GCP_PROJECT_ID }},REGION=${{ env.REGION }},NODE_ENV=production,AUDIT_WORKER_INVOKER_SA=cloud-run-invoker@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
@@ -452,7 +455,7 @@ jobs:
             --project="${{ secrets.GCP_PROJECT_ID }}" \
             --service-account="web-ssr-runtime@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \
             --allow-unauthenticated \
-            --cpu=1 --memory=512Mi --concurrency=80 --timeout=60 --max-instances=10 \
+            --cpu=1 --memory=512Mi --concurrency=80 --timeout=60 --max-instances=2 \
             --min-instances="$MIN_INSTANCES" \
             --port=8080 \
             --set-env-vars="PROJECT_ID=${{ secrets.GCP_PROJECT_ID }},REGION=${{ env.REGION }},NODE_ENV=production,NEXT_PUBLIC_USE_EMULATORS=0,AUDIT_WORKER_URL=$WORKER_URL,CLOUD_TASKS_PROJECT=${{ secrets.GCP_PROJECT_ID }},CLOUD_TASKS_LOCATION=${{ env.REGION }},CLOUD_TASKS_QUEUE=audit-jobs,AUDIT_WORKER_INVOKER_SA=cloud-run-invoker@${{ secrets.GCP_PROJECT_ID }}.iam.gserviceaccount.com" \

@@ -61,7 +61,7 @@ run gcloud run deploy "$SERVICE_NAME" \
   --memory=4Gi \
   --concurrency=1 \
   --timeout=900 \
-  --max-instances=10 \
+  --max-instances=2 \
   --min-instances="$MIN_INSTANCES" \
   $CPU_THROTTLING_FLAG \
   --set-env-vars="PROJECT_ID=$PROJECT_ID,REGION=$REGION,NODE_ENV=production" \

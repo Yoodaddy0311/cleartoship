@@ -124,7 +124,7 @@ PROJECT_ID=cleartoship-prod bash infra/scripts/02-build-worker.sh
 PROJECT_ID=cleartoship-prod bash infra/scripts/03-deploy-worker.sh
 ```
 
-- Cloud Run 서비스 `audit-worker` 배포 (4 CPU / 4 GiB / concurrency=1 / timeout=600s)
+- Cloud Run 서비스 `audit-worker` 배포 (4 CPU / 4 GiB / concurrency=1 / timeout=600s / max-instances=2 — 폭주 시 최악 비용 상한)
 - 런타임 SA: `audit-worker-runtime@...`
 - `--no-allow-unauthenticated` (OIDC 필수)
 - `cloud-run-invoker@...`에 `roles/run.invoker` 부여
